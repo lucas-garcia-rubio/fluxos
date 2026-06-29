@@ -1,3 +1,4 @@
-public class User {
+package com.foo;
 
+public class User extends BaseModel implements Auditable, Serializable {
 }

@@ -5,6 +5,7 @@ import (
 	"os"
 	"strings"
 
+	"github.com/lucas-garcia-rubio/fluxos/internal/extract/java"
 	"github.com/lucas-garcia-rubio/fluxos/internal/parse"
 	"github.com/lucas-garcia-rubio/fluxos/internal/project"
 	tree_sitter "github.com/tree-sitter/go-tree-sitter"
@@ -52,13 +53,17 @@ func runIndex(args []string) error {
 		return err
 	}
 	for _, f := range files {
-		tree, _, err := parse.Parse(f)
+		tree, source, err := parse.Parse(f)
 		if err != nil {
 			return fmt.Errorf("parse %s: %w", f, err)
 		}
-		rootNode := tree.RootNode()
-		fmt.Printf("%s: kind=%s children=%d\n", f, rootNode.Kind(), rootNode.ChildCount())
-		walk(rootNode, 0, "")
+		types, err := java.Extract(source, tree)
+		if err != nil {
+			return fmt.Errorf("extract %s: %w", f, err)
+		}
+		for _, t := range types {
+			fmt.Printf("%s: %+v\n", f, t)
+		}
 		tree.Close()
 	}
 	return nil
