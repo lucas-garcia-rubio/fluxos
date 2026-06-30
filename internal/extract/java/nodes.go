@@ -5,10 +5,8 @@ import (
 )
 
 // Extract percorre a AST a partir de tree.RootNode() e devolve todas as
-// declarações de tipo encontradas (classes, interfaces, enums, records).
-// source são os bytes do arquivo — necessário pra extrair texto dos nós.
-// Fields e Methods dentro de cada TypeDecl não são preenchidos aqui
-// (isso fica pra Passo 7).
+// declarações de tipo encontradas (classes, interfaces, enums, records),
+// com Methods preenchidos (Passo 7). Fields ainda não são extraídos.
 func Extract(source []byte, tree *sitter.Tree) ([]*TypeDecl, error) {
 	root := tree.RootNode()
 	pkg := extractPackage(source, root)
@@ -91,7 +89,68 @@ func extractTypeDecl(source []byte, node *sitter.Node, pkg string, kind TypeKind
 		}
 	}
 
+	// Methods — drilla o body (class_body / interface_body / enum_body).
+	if body := node.ChildByFieldName("body"); body != nil {
+		decl.Methods = extractMethods(source, body)
+	}
+
 	return decl
+}
+
+// extractMethods percorre o body de um tipo (class_body, interface_body, etc.)
+// e devolve Methods + Constructors. Field declarations, initializers e inner
+// classes são ignorados (Fields virão noutra passada; inner classes em v2).
+func extractMethods(source []byte, body *sitter.Node) []MethodDecl {
+	var methods []MethodDecl
+	for i := 0; i < int(body.NamedChildCount()); i++ {
+		child := body.NamedChild(uint(i))
+		switch child.Kind() {
+		case "method_declaration", "constructor_declaration":
+			methods = append(methods, extractMethod(source, child))
+		}
+	}
+	return methods
+}
+
+// extractMethod popula uma MethodDecl a partir de um method_declaration ou
+// constructor_declaration. Constructors não têm field `type` (ReturnType fica "").
+func extractMethod(source []byte, node *sitter.Node) MethodDecl {
+	m := MethodDecl{
+		Modifier: extractModifiers(source, node),
+	}
+	if nameNode := node.ChildByFieldName("name"); nameNode != nil {
+		m.Name = sourceText(source, nameNode)
+	}
+	// ReturnType — ausente em constructor_declaration (deixa "").
+	if typeNode := node.ChildByFieldName("type"); typeNode != nil {
+		m.ReturnType = sourceText(source, typeNode)
+	}
+	if paramsNode := node.ChildByFieldName("parameters"); paramsNode != nil {
+		m.Params = extractParams(source, paramsNode)
+	}
+	return m
+}
+
+// extractParams percorre o wrapper formal_parameters e devolve cada
+// formal_parameter como Param. Spread params, receiver params e afins são
+// ignorados (só formal_parameter é processado).
+func extractParams(source []byte, paramsNode *sitter.Node) []Param {
+	var params []Param
+	for i := 0; i < int(paramsNode.NamedChildCount()); i++ {
+		child := paramsNode.NamedChild(uint(i))
+		if child.Kind() != "formal_parameter" {
+			continue
+		}
+		p := Param{}
+		if nameNode := child.ChildByFieldName("name"); nameNode != nil {
+			p.Name = sourceText(source, nameNode)
+		}
+		if typeNode := child.ChildByFieldName("type"); typeNode != nil {
+			p.Type = sourceText(source, typeNode)
+		}
+		params = append(params, p)
+	}
+	return params
 }
 
 // findFirstByKind devolve o primeiro filho nomeado de node com o Kind dado,
@@ -107,13 +166,16 @@ func findFirstByKind(node *sitter.Node, kind string) *sitter.Node {
 }
 
 func extractModifiers(source []byte, node *sitter.Node) []string {
-	modsNode := node.ChildByFieldName("modifiers")
+	// `modifiers` é filho posicional (sem field name) — achar por Kind.
+	modsNode := findFirstByKind(node, "modifiers")
 	if modsNode == nil {
 		return nil
 	}
+	// Itera TODOS os children (não só named): keyword tokens como "public",
+	// "static" são nós unnamed na AST; annotations são named. ChildCount pega ambos.
 	var mods []string
-	for i := 0; i < int(modsNode.NamedChildCount()); i++ {
-		child := modsNode.NamedChild(uint(i))
+	for i := 0; i < int(modsNode.ChildCount()); i++ {
+		child := modsNode.Child(uint(i))
 		mods = append(mods, sourceText(source, child))
 	}
 	return mods
