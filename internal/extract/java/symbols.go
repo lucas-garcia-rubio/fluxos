@@ -1,7 +1,10 @@
 // Package java contém os tipos que podem aparecer em um código java
 package java
 
-import "fmt"
+import (
+	"encoding/json"
+	"fmt"
+)
 
 type TypeKind int
 
@@ -12,6 +15,7 @@ const (
 	TypeKindRecord
 )
 
+// String devolve o nome do tipo em PascalCase — usado por fmt.Printf("%v") no debug.
 func (k TypeKind) String() string {
 	switch k {
 	case TypeKindClass:
@@ -27,32 +31,50 @@ func (k TypeKind) String() string {
 	}
 }
 
+// MarshalJSON devolve o nome do tipo em lowercase — convenção pra campos de JSON.
+// Separado do String() pra debug (PascalCase) e data interchange (lowercase) terem
+// formatos independentes.
+func (k TypeKind) MarshalJSON() ([]byte, error) {
+	switch k {
+	case TypeKindClass:
+		return json.Marshal("class")
+	case TypeKindInterface:
+		return json.Marshal("interface")
+	case TypeKindEnum:
+		return json.Marshal("enum")
+	case TypeKindRecord:
+		return json.Marshal("record")
+	default:
+		return json.Marshal(fmt.Sprintf("unknown(%d)", k))
+	}
+}
+
 type (
 	FieldDecl struct {
-		Name     string
-		Modifier []string
-		Type     string
+		Name     string   `json:"name"`
+		Modifier []string `json:"modifier"`
+		Type     string   `json:"type"`
 	}
 	Param struct {
-		Name string
-		Type string
+		Name string `json:"name"`
+		Type string `json:"type"`
 	}
 	MethodDecl struct {
-		Name       string
-		Modifier   []string
-		ReturnType string
-		Params     []Param
+		Name       string   `json:"name"`
+		Modifier   []string `json:"modifier"`
+		ReturnType string   `json:"returnType"`
+		Params     []Param  `json:"params"`
 	}
 )
 
 type TypeDecl struct {
-	Kind       TypeKind
-	Name       string
-	FQCN       string
-	SuperClass string
-	Interfaces []string
-	File       string
-	Line       int // NOTE: não sei se precisa mesmo
-	Fields     []FieldDecl
-	Methods    []MethodDecl
+	Kind       TypeKind     `json:"kind"`
+	Name       string       `json:"name"`
+	FQCN       string       `json:"fqcn"`
+	SuperClass string       `json:"superClass"`
+	Interfaces []string     `json:"interfaces"`
+	File       string       `json:"file"`
+	Line       int          `json:"line"`
+	Fields     []FieldDecl  `json:"fields"`
+	Methods    []MethodDecl `json:"methods"`
 }

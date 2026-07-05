@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"os"
 	"strings"
@@ -52,20 +53,24 @@ func runIndex(args []string) error {
 	if err != nil {
 		return err
 	}
+	var allTypes []*java.TypeDecl
 	for _, f := range files {
 		tree, source, err := parse.Parse(f)
 		if err != nil {
 			return fmt.Errorf("parse %s: %w", f, err)
 		}
-		types, err := java.Extract(source, tree)
+		types, err := java.Extract(f, source, tree)
 		if err != nil {
 			return fmt.Errorf("extract %s: %w", f, err)
 		}
-		for _, t := range types {
-			fmt.Printf("%s: %+v\n", f, t)
-		}
+		allTypes = append(allTypes, types...)
 		tree.Close()
 	}
+	out, err := json.MarshalIndent(allTypes, "", "  ")
+	if err != nil {
+		return fmt.Errorf("marshal: %w", err)
+	}
+	fmt.Println(string(out))
 	return nil
 }
 

@@ -7,7 +7,9 @@ import (
 // Extract percorre a AST a partir de tree.RootNode() e devolve todas as
 // declarações de tipo encontradas (classes, interfaces, enums, records),
 // com Methods preenchidos (Passo 7). Fields ainda não são extraídos.
-func Extract(source []byte, tree *sitter.Tree) ([]*TypeDecl, error) {
+// filePath é o caminho do arquivo .java no disco — populado em TypeDecl.File
+// pra mensagens de erro/warning poderem referenciar arquivo:linha.
+func Extract(filePath string, source []byte, tree *sitter.Tree) ([]*TypeDecl, error) {
 	root := tree.RootNode()
 	pkg := extractPackage(source, root)
 
@@ -16,13 +18,13 @@ func Extract(source []byte, tree *sitter.Tree) ([]*TypeDecl, error) {
 		child := root.NamedChild(uint(i))
 		switch child.Kind() {
 		case "class_declaration":
-			types = append(types, extractTypeDecl(source, child, pkg, TypeKindClass))
+			types = append(types, extractTypeDecl(filePath, source, child, pkg, TypeKindClass))
 		case "interface_declaration":
-			types = append(types, extractTypeDecl(source, child, pkg, TypeKindInterface))
+			types = append(types, extractTypeDecl(filePath, source, child, pkg, TypeKindInterface))
 		case "enum_declaration":
-			types = append(types, extractTypeDecl(source, child, pkg, TypeKindEnum))
+			types = append(types, extractTypeDecl(filePath, source, child, pkg, TypeKindEnum))
 		case "record_declaration":
-			types = append(types, extractTypeDecl(source, child, pkg, TypeKindRecord))
+			types = append(types, extractTypeDecl(filePath, source, child, pkg, TypeKindRecord))
 		}
 	}
 	return types, nil
@@ -47,8 +49,12 @@ func extractPackage(source []byte, root *sitter.Node) string {
 	return ""
 }
 
-func extractTypeDecl(source []byte, node *sitter.Node, pkg string, kind TypeKind) *TypeDecl {
-	decl := &TypeDecl{Kind: kind}
+func extractTypeDecl(filePath string, source []byte, node *sitter.Node, pkg string, kind TypeKind) *TypeDecl {
+	decl := &TypeDecl{
+		Kind: kind,
+		File: filePath,
+		Line: int(node.StartPosition().Row) + 1, // tree-sitter é 0-indexed; arquivos são 1-indexed
+	}
 
 	if nameNode := node.ChildByFieldName("name"); nameNode != nil {
 		decl.Name = sourceText(source, nameNode)
@@ -94,6 +100,17 @@ func extractTypeDecl(source []byte, node *sitter.Node, pkg string, kind TypeKind
 		decl.Methods = extractMethods(source, body)
 	}
 
+	// Garante slices não-nil pra JSON output ([] em vez de null).
+	if decl.Interfaces == nil {
+		decl.Interfaces = []string{}
+	}
+	if decl.Fields == nil {
+		decl.Fields = []FieldDecl{}
+	}
+	if decl.Methods == nil {
+		decl.Methods = []MethodDecl{}
+	}
+
 	return decl
 }
 
@@ -127,6 +144,13 @@ func extractMethod(source []byte, node *sitter.Node) MethodDecl {
 	}
 	if paramsNode := node.ChildByFieldName("parameters"); paramsNode != nil {
 		m.Params = extractParams(source, paramsNode)
+	}
+	// Garante slices não-nil pra JSON output ([] em vez de null).
+	if m.Modifier == nil {
+		m.Modifier = []string{}
+	}
+	if m.Params == nil {
+		m.Params = []Param{}
 	}
 	return m
 }
