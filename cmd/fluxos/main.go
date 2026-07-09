@@ -39,32 +39,13 @@ func main() {
 	}
 }
 
-func runTrace(args []string) error {
-	fmt.Println("TODO: trace")
-	return nil
-}
-
 func runIndex(args []string) error {
 	if len(args) < 1 {
 		return fmt.Errorf("usage: fluxos index <path>")
 	}
-	root := args[0]
-	files, err := project.Discover(root)
+	allTypes, err := buildIndex(args[0])
 	if err != nil {
 		return err
-	}
-	var allTypes []*java.TypeDecl
-	for _, f := range files {
-		tree, source, err := parse.Parse(f)
-		if err != nil {
-			return fmt.Errorf("parse %s: %w", f, err)
-		}
-		types, err := java.Extract(f, source, tree)
-		if err != nil {
-			return fmt.Errorf("extract %s: %w", f, err)
-		}
-		allTypes = append(allTypes, types...)
-		tree.Close()
 	}
 	out, err := json.MarshalIndent(allTypes, "", "  ")
 	if err != nil {
@@ -72,6 +53,107 @@ func runIndex(args []string) error {
 	}
 	fmt.Println(string(out))
 	return nil
+}
+
+func runTrace(args []string) error {
+	if len(args) < 1 {
+		return fmt.Errorf("usage: fluxos trace <ClassName.methodName> [project-path]")
+	}
+	spec := args[0]
+	projectRoot := "."
+	if len(args) >= 2 {
+		projectRoot = args[1]
+	}
+
+	// M2 só suporta ClassName.methodName (2 partes). FQCN é M3.
+	parts := strings.Split(spec, ".")
+	if len(parts) != 2 {
+		return fmt.Errorf("invalid spec %q, expected ClassName.methodName", spec)
+	}
+	className, methodName := parts[0], parts[1]
+
+	allTypes, err := buildIndex(projectRoot)
+	if err != nil {
+		return err
+	}
+
+	targetClass, err := findClassByName(allTypes, className)
+	if err != nil {
+		return err
+	}
+
+	targetMethod, err := findMethodByName(targetClass, methodName)
+	if err != nil {
+		return err
+	}
+
+	out, err := json.MarshalIndent(targetMethod, "", "  ")
+	if err != nil {
+		return fmt.Errorf("marshal: %w", err)
+	}
+	fmt.Println(string(out))
+	return nil
+}
+
+// buildIndex percorre root, parseia cada .java, extrai TypeDecls. Compartilhado
+// entre runIndex (output JSON) e runTrace (lookup antes do trace).
+func buildIndex(root string) ([]*java.TypeDecl, error) {
+	files, err := project.Discover(root)
+	if err != nil {
+		return nil, err
+	}
+	var allTypes []*java.TypeDecl
+	for _, f := range files {
+		tree, source, err := parse.Parse(f)
+		if err != nil {
+			return nil, fmt.Errorf("parse %s: %w", f, err)
+		}
+		types, err := java.Extract(f, source, tree)
+		if err != nil {
+			return nil, fmt.Errorf("extract %s: %w", f, err)
+		}
+		allTypes = append(allTypes, types...)
+		tree.Close()
+	}
+	return allTypes, nil
+}
+
+// findClassByName busca linear por tipo com Name == name. Erro se 0 ou >1 matches
+// (>1 = nome ambíguo; M3 vai permitir FQCN pra desambiguar).
+func findClassByName(types []*java.TypeDecl, name string) (*java.TypeDecl, error) {
+	var matches []*java.TypeDecl
+	for _, t := range types {
+		if t.Name == name {
+			matches = append(matches, t)
+		}
+	}
+	switch len(matches) {
+	case 0:
+		return nil, fmt.Errorf("class %q not found", name)
+	case 1:
+		return matches[0], nil
+	default:
+		return nil, fmt.Errorf("ambiguous class name %q (%d matches; M3 vai suportar FQCN)", name, len(matches))
+	}
+}
+
+// findMethodByName busca linear em class.Methods. Mesma lógica do findClassByName
+// (overloads = M3).
+func findMethodByName(class *java.TypeDecl, name string) (java.MethodDecl, error) {
+	var matches []java.MethodDecl
+	for _, m := range class.Methods {
+		if m.Name == name {
+			matches = append(matches, m)
+		}
+	}
+	switch len(matches) {
+	case 0:
+		return java.MethodDecl{}, fmt.Errorf("method %q not found in %s", name, class.Name)
+	case 1:
+		return matches[0], nil
+	default:
+		return java.MethodDecl{}, fmt.Errorf("ambiguous method %q in %s (%d overloads; M3 vai resolver por assinatura)", name, class.Name, len(matches))
+	}
 }
 
 func walk(node *tree_sitter.Node, depth int, currentFieldName string) {
