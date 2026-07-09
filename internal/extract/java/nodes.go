@@ -95,9 +95,10 @@ func extractTypeDecl(filePath string, source []byte, node *sitter.Node, pkg stri
 		}
 	}
 
-	// Methods — drilla o body (class_body / interface_body / enum_body).
+	// Methods + Fields — drilla o body (class_body / interface_body / enum_body).
 	if body := node.ChildByFieldName("body"); body != nil {
 		decl.Methods = extractMethods(source, body)
+		decl.Fields = extractFields(source, body)
 	}
 
 	// Garante slices não-nil pra JSON output ([] em vez de null).
@@ -127,6 +128,64 @@ func extractMethods(source []byte, body *sitter.Node) []MethodDecl {
 		}
 	}
 	return methods
+}
+
+// extractFields percorre o body de um tipo e devolve FieldDecls. Cada
+// field_declaration pode ter múltiplos declarators (`int x, y;`), então uma
+// declaração vira N FieldDecls.
+func extractFields(source []byte, body *sitter.Node) []FieldDecl {
+	var fields []FieldDecl
+	for i := 0; i < int(body.NamedChildCount()); i++ {
+		child := body.NamedChild(uint(i))
+		if child.Kind() != "field_declaration" {
+			continue
+		}
+		fields = append(fields, extractFieldDecl(source, child)...)
+	}
+	return fields
+}
+
+// extractFieldDecl extrai uma ou mais FieldDecls de uma field_declaration.
+// Devolve slice porque `int x, y;` tem múltiplos variable_declarators.
+func extractFieldDecl(source []byte, node *sitter.Node) []FieldDecl {
+	mods := extractModifiers(source, node)
+
+	typeStr := ""
+	if typeNode := node.ChildByFieldName("type"); typeNode != nil {
+		typeStr = sourceText(source, typeNode)
+	}
+
+	// `declarator` (singular, `int x;`) ou `declarators` (plural, `int x, y;`).
+	// variable_declarator_list dentro de `declarators` contém os variable_declarators.
+	var declarators []*sitter.Node
+	if decl := node.ChildByFieldName("declarator"); decl != nil {
+		declarators = append(declarators, decl)
+	}
+	if decls := node.ChildByFieldName("declarators"); decls != nil {
+		for i := 0; i < int(decls.NamedChildCount()); i++ {
+			declarators = append(declarators, decls.NamedChild(uint(i)))
+		}
+	}
+
+	var fields []FieldDecl
+	for _, d := range declarators {
+		fd := FieldDecl{
+			Type:     typeStr,
+			Modifier: mods,
+		}
+		if nameNode := d.ChildByFieldName("name"); nameNode != nil {
+			fd.Name = sourceText(source, nameNode)
+		}
+		if valueNode := d.ChildByFieldName("value"); valueNode != nil {
+			fd.Initializer = sourceText(source, valueNode)
+		}
+		// Garante Modifier não-nil pra JSON output consistente.
+		if fd.Modifier == nil {
+			fd.Modifier = []string{}
+		}
+		fields = append(fields, fd)
+	}
+	return fields
 }
 
 // extractMethod popula uma MethodDecl a partir de um method_declaration ou

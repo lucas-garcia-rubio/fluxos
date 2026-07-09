@@ -51,9 +51,10 @@ func (k TypeKind) MarshalJSON() ([]byte, error) {
 
 type (
 	FieldDecl struct {
-		Name     string   `json:"name"`
-		Modifier []string `json:"modifier"`
-		Type     string   `json:"type"`
+		Name        string   `json:"name"`
+		Modifier    []string `json:"modifier"`
+		Type        string   `json:"type"`
+		Initializer string   `json:"initializer,omitempty"`
 	}
 	Param struct {
 		Name string `json:"name"`
