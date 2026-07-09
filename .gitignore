@@ -1,0 +1,8 @@
+# Binário compilado
+/fluxos
+
+# Output transient
+out.json
+
+# Planos (documentação de planejamento, mantida local)
+PLANO_*.md
