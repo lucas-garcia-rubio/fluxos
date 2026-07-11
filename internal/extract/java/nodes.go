@@ -97,7 +97,7 @@ func extractTypeDecl(filePath string, source []byte, node *sitter.Node, pkg stri
 
 	// Methods + Fields — drilla o body (class_body / interface_body / enum_body).
 	if body := node.ChildByFieldName("body"); body != nil {
-		decl.Methods = extractMethods(source, body)
+		decl.Methods = extractMethods(filePath, source, body)
 		decl.Fields = extractFields(source, body)
 	}
 
@@ -118,13 +118,13 @@ func extractTypeDecl(filePath string, source []byte, node *sitter.Node, pkg stri
 // extractMethods percorre o body de um tipo (class_body, interface_body, etc.)
 // e devolve Methods + Constructors. Field declarations, initializers e inner
 // classes são ignorados (Fields virão noutra passada; inner classes em v2).
-func extractMethods(source []byte, body *sitter.Node) []MethodDecl {
+func extractMethods(filePath string, source []byte, body *sitter.Node) []MethodDecl {
 	var methods []MethodDecl
 	for i := 0; i < int(body.NamedChildCount()); i++ {
 		child := body.NamedChild(uint(i))
 		switch child.Kind() {
 		case "method_declaration", "constructor_declaration":
-			methods = append(methods, extractMethod(source, child))
+			methods = append(methods, extractMethod(filePath, source, child))
 		}
 	}
 	return methods
@@ -190,7 +190,8 @@ func extractFieldDecl(source []byte, node *sitter.Node) []FieldDecl {
 
 // extractMethod popula uma MethodDecl a partir de um method_declaration ou
 // constructor_declaration. Constructors não têm field `type` (ReturnType fica "").
-func extractMethod(source []byte, node *sitter.Node) MethodDecl {
+// filePath é propagado pra extractCalls popular CallSite.File.
+func extractMethod(filePath string, source []byte, node *sitter.Node) MethodDecl {
 	m := MethodDecl{
 		Modifier: extractModifiers(source, node),
 	}
@@ -204,12 +205,16 @@ func extractMethod(source []byte, node *sitter.Node) MethodDecl {
 	if paramsNode := node.ChildByFieldName("parameters"); paramsNode != nil {
 		m.Params = extractParams(source, paramsNode)
 	}
+	m.Calls = extractCalls(source, node, filePath)
 	// Garante slices não-nil pra JSON output ([] em vez de null).
 	if m.Modifier == nil {
 		m.Modifier = []string{}
 	}
 	if m.Params == nil {
 		m.Params = []Param{}
+	}
+	if m.Calls == nil {
+		m.Calls = []CallSite{}
 	}
 	return m
 }

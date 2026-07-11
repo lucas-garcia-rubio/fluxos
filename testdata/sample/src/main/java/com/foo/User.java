@@ -7,6 +7,7 @@ public class User extends BaseModel implements Auditable, Serializable {
     protected List<String> tags;
 
     public String getName() {
+        System.out.println("getting name");
         return "unnamed";
     }
 

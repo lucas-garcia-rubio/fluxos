@@ -60,11 +60,19 @@ type (
 		Name string `json:"name"`
 		Type string `json:"type"`
 	}
+	CallSite struct {
+		MethodName string   `json:"methodName"`
+		Receiver   string   `json:"receiver"`
+		Args       []string `json:"args"`
+		File       string   `json:"file"`
+		Line       int      `json:"line"`
+	}
 	MethodDecl struct {
-		Name       string   `json:"name"`
-		Modifier   []string `json:"modifier"`
-		ReturnType string   `json:"returnType"`
-		Params     []Param  `json:"params"`
+		Name       string     `json:"name"`
+		Modifier   []string   `json:"modifier"`
+		ReturnType string     `json:"returnType"`
+		Params     []Param    `json:"params"`
+		Calls      []CallSite `json:"calls"`
 	}
 )
 
