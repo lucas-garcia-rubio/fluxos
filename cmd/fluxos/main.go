@@ -113,21 +113,22 @@ func buildIndex(root string) ([]*java.TypeDecl, error) {
 }
 
 func buildUnits(root string) ([]*java.CompilationUnit, error) {
-	files, err := project.Discover(root)
+	discoveredProject, err := project.Discover(root)
 	if err != nil {
 		return nil, err
 	}
-	units := make([]*java.CompilationUnit, 0, len(files))
-	for _, f := range files {
-		tree, source, err := parse.Parse(f)
+	units := make([]*java.CompilationUnit, 0, len(discoveredProject.Files))
+	for _, file := range discoveredProject.Files {
+		tree, source, err := parse.Parse(file.Path)
 		if err != nil {
-			return nil, fmt.Errorf("parse %s: %w", f, err)
+			return nil, fmt.Errorf("parse %s: %w", file.Path, err)
 		}
-		unit, extractErr := java.ExtractUnit(f, source, tree)
+		unit, extractErr := java.ExtractUnit(file.Path, source, tree)
 		tree.Close()
 		if extractErr != nil {
-			return nil, fmt.Errorf("extract %s: %w", f, extractErr)
+			return nil, fmt.Errorf("extract %s: %w", file.Path, extractErr)
 		}
+		unit.SourceRoot = file.SourceRoot
 		units = append(units, unit)
 	}
 	return units, nil

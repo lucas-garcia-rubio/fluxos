@@ -94,7 +94,8 @@ func TestBuildUnitsPreservesMetadataAndFlattenCompatibility(t *testing.T) {
 		t.Fatalf("unit count = %d, want 1", len(units))
 	}
 	unit := units[0]
-	if unit.Package != "com.foo" || unit.Imports == nil || len(unit.Imports) != 0 {
+	wantSourceRoot := filepath.Join(traceFixtureRoot(), "src", "main", "java")
+	if unit.SourceRoot != wantSourceRoot || unit.Package != "com.foo" || unit.Imports == nil || len(unit.Imports) != 0 {
 		t.Fatalf("unit metadata = %+v", unit)
 	}
 
