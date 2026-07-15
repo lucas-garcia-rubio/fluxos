@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/lucas-garcia-rubio/fluxos/internal/extract/java"
+	"github.com/lucas-garcia-rubio/fluxos/internal/index"
 )
 
 // SyntacticResolver é a implementação concreta do Resolver baseada em
@@ -15,12 +16,12 @@ import (
 // M2 cobre `this.method()`, chamadas unqualified, fields, variáveis locais,
 // super e chamadas estáticas para tipos declarados no mesmo arquivo.
 type SyntacticResolver struct {
-	Types []*java.TypeDecl
+	Index *index.Table
 }
 
 // NewSyntacticResolver constrói um resolver pronto pra usar.
-func NewSyntacticResolver(types []*java.TypeDecl) *SyntacticResolver {
-	return &SyntacticResolver{Types: types}
+func NewSyntacticResolver(table *index.Table) *SyntacticResolver {
+	return &SyntacticResolver{Index: table}
 }
 
 // Resolve decide qual método call aponta, baseado em call.Receiver e no
@@ -81,17 +82,26 @@ func (r *SyntacticResolver) resolveIdentifier(receiver string, call java.CallSit
 }
 
 func (r *SyntacticResolver) findTypeByName(name string) *java.TypeDecl {
-	for _, t := range r.Types {
-		if t.Name == name || t.FQCN == name {
-			return t
-		}
+	if typ, ok := r.Index.TypeByFQCN(name); ok {
+		return typ
+	}
+	candidates := r.Index.TypesBySimple(name)
+	if len(candidates) == 1 {
+		return candidates[0]
 	}
 	return nil
 }
 
 func (r *SyntacticResolver) findTypeInFile(name, file string) *java.TypeDecl {
-	for _, t := range r.Types {
-		if t.File == file && t.Name == name {
+	if r.Index == nil {
+		return nil
+	}
+	unit := r.Index.UnitsByFile[file]
+	if unit == nil {
+		return nil
+	}
+	for _, t := range unit.Types {
+		if t.Name == name {
 			return t
 		}
 	}

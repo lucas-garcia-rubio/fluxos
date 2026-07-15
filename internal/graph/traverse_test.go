@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/lucas-garcia-rubio/fluxos/internal/extract/java"
+	"github.com/lucas-garcia-rubio/fluxos/internal/index"
 	"github.com/lucas-garcia-rubio/fluxos/internal/resolve"
 )
 
@@ -55,6 +56,27 @@ func resolution(targets ...resolve.MethodHandle) resolve.Resolution {
 	return resolve.Resolution{Targets: targets}
 }
 
+func tableForTypes(types []*java.TypeDecl) *index.Table {
+	unitsByFile := make(map[string]*java.CompilationUnit)
+	for _, typ := range types {
+		unit := unitsByFile[typ.File]
+		if unit == nil {
+			unit = &java.CompilationUnit{File: typ.File, Types: make([]*java.TypeDecl, 0)}
+			unitsByFile[typ.File] = unit
+		}
+		unit.Types = append(unit.Types, typ)
+	}
+	units := make([]*java.CompilationUnit, 0, len(unitsByFile))
+	for _, unit := range unitsByFile {
+		units = append(units, unit)
+	}
+	table, err := index.Build(units)
+	if err != nil {
+		panic(err)
+	}
+	return table
+}
+
 // Cenário 1: caminho linear A.a → B.b → C.c.
 // Espera: 3 nodes (todos black), 2 edges (A→B, B→C).
 func TestWalkLinear(t *testing.T) {
@@ -71,7 +93,7 @@ func TestWalkLinear(t *testing.T) {
 	}
 
 	g := NewGraph()
-	Walk(g, types[0], types[0].Methods[0], types, resolver)
+	Walk(g, types[0], types[0].Methods[0], tableForTypes(types), resolver)
 
 	if len(g.Nodes) != 3 {
 		t.Errorf("expected 3 nodes, got %d", len(g.Nodes))
@@ -107,7 +129,7 @@ func TestWalkCycle(t *testing.T) {
 	}
 
 	g := NewGraph()
-	Walk(g, types[0], types[0].Methods[0], types, resolver)
+	Walk(g, types[0], types[0].Methods[0], tableForTypes(types), resolver)
 
 	if len(g.Nodes) != 2 {
 		t.Errorf("expected 2 nodes, got %d", len(g.Nodes))
@@ -147,7 +169,7 @@ func TestWalkSelfLoop(t *testing.T) {
 	}
 
 	g := NewGraph()
-	Walk(g, types[0], types[0].Methods[0], types, resolver)
+	Walk(g, types[0], types[0].Methods[0], tableForTypes(types), resolver)
 
 	if len(g.Nodes) != 1 {
 		t.Errorf("expected 1 node, got %d", len(g.Nodes))
@@ -176,7 +198,7 @@ func TestWalkUnresolved(t *testing.T) {
 	}
 
 	g := NewGraph()
-	Walk(g, types[0], types[0].Methods[0], types, resolver)
+	Walk(g, types[0], types[0].Methods[0], tableForTypes(types), resolver)
 
 	if len(g.Nodes) != 1 {
 		t.Errorf("expected 1 node (just A), got %d", len(g.Nodes))
@@ -204,7 +226,7 @@ func TestWalkFanOut(t *testing.T) {
 	}
 
 	g := NewGraph()
-	Walk(g, types[0], types[0].Methods[0], types, resolver)
+	Walk(g, types[0], types[0].Methods[0], tableForTypes(types), resolver)
 
 	if len(g.Nodes) != 3 {
 		t.Errorf("expected 3 nodes (A, X, Y), got %d", len(g.Nodes))
@@ -247,7 +269,7 @@ func TestWalkExternalTarget(t *testing.T) {
 	}
 
 	g := NewGraph()
-	Walk(g, types[0], types[0].Methods[0], types, resolver)
+	Walk(g, types[0], types[0].Methods[0], tableForTypes(types), resolver)
 
 	// 2 nodes: A (do projeto) e External (criado por AddEdge mas não recursado).
 	if len(g.Nodes) != 2 {
@@ -274,7 +296,7 @@ func TestWalkPassesLocalVarsToResolver(t *testing.T) {
 	typ := mkType("Example", method)
 	resolver := &contextResolver{}
 
-	Walk(NewGraph(), typ, method, []*java.TypeDecl{typ}, resolver)
+	Walk(NewGraph(), typ, method, tableForTypes([]*java.TypeDecl{typ}), resolver)
 
 	if got := resolver.localVars["helper"]; got != "Helper" {
 		t.Fatalf("resolver received local var type %q, want %q", got, "Helper")
@@ -300,7 +322,7 @@ func TestWalkKeepsOverloadsDistinctAndDetectsCycle(t *testing.T) {
 	}}
 
 	g := NewGraph()
-	Walk(g, typ, zero, []*java.TypeDecl{typ}, resolver)
+	Walk(g, typ, zero, tableForTypes([]*java.TypeDecl{typ}), resolver)
 
 	if len(g.Nodes) != 2 {
 		t.Fatalf("node count = %d, want 2 overload nodes", len(g.Nodes))

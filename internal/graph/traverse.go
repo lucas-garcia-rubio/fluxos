@@ -2,6 +2,7 @@ package graph
 
 import (
 	"github.com/lucas-garcia-rubio/fluxos/internal/extract/java"
+	"github.com/lucas-garcia-rubio/fluxos/internal/index"
 	"github.com/lucas-garcia-rubio/fluxos/internal/resolve"
 )
 
@@ -23,7 +24,7 @@ func Walk(
 	g *Graph,
 	enclosingType *java.TypeDecl,
 	method java.MethodDecl,
-	types []*java.TypeDecl,
+	table *index.Table,
 	resolver resolve.Resolver,
 ) {
 	handle := resolve.MethodHandle{
@@ -55,48 +56,16 @@ func Walk(
 			g.AddEdge(handle, target, call, cycle)
 			// Recursão só se target existe no projeto. External target
 			// (biblioteca, reflexão) fica como aresta terminal.
-			targetMethod, targetType, ok := findMethodByHandle(types, target)
-			if ok {
-				Walk(g, targetType, targetMethod, types, resolver)
+			targetType, typeExists := table.TypeByFQCN(target.TypeFQCN)
+			targetMethod, methodExists := table.Method(target.TypeFQCN, java.MethodKey{
+				Name:      target.Method,
+				Signature: target.Signature,
+			})
+			if typeExists && methodExists {
+				Walk(g, targetType, *targetMethod, table, resolver)
 			}
 		}
 	}
 
 	g.MarkBlack(handle)
-}
-
-// findTypeByFQCN busca linear em types por FQCN. Devolve nil se não acha.
-// Para projetos grandes, vale refatorar pra map[string]*java.TypeDecl.
-func findTypeByFQCN(types []*java.TypeDecl, fqcn string) *java.TypeDecl {
-	for _, t := range types {
-		if t.FQCN == fqcn {
-			return t
-		}
-	}
-	return nil
-}
-
-// findMethodInType busca linear em class.Methods por nome. Devolve (MethodDecl, true)
-// se acha; (zero, false) caso contrário.
-func findMethodInType(class *java.TypeDecl, name, signature string) (java.MethodDecl, bool) {
-	for _, m := range class.Methods {
-		if m.Name == name && m.Signature == signature {
-			return m, true
-		}
-	}
-	return java.MethodDecl{}, false
-}
-
-// findMethodByHandle combina findTypeByFQCN + findMethodInType. Devolve
-// (method, type, true) se ambos existirem; (zero, type-or-nil, false) caso contrário.
-func findMethodByHandle(types []*java.TypeDecl, h resolve.MethodHandle) (java.MethodDecl, *java.TypeDecl, bool) {
-	t := findTypeByFQCN(types, h.TypeFQCN)
-	if t == nil {
-		return java.MethodDecl{}, nil, false
-	}
-	m, ok := findMethodInType(t, h.Method, h.Signature)
-	if !ok {
-		return java.MethodDecl{}, t, false
-	}
-	return m, t, true
 }

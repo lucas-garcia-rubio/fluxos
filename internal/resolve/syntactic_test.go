@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/lucas-garcia-rubio/fluxos/internal/extract/java"
+	"github.com/lucas-garcia-rubio/fluxos/internal/index"
 )
 
 // Helpers pra construir fixtures in-memory.
@@ -25,9 +26,30 @@ func mkCall(receiver, methodName string) java.CallSite {
 	return java.CallSite{Receiver: receiver, MethodName: methodName}
 }
 
+func newTestResolver(types []*java.TypeDecl) *SyntacticResolver {
+	unitsByFile := make(map[string]*java.CompilationUnit)
+	for _, typ := range types {
+		unit := unitsByFile[typ.File]
+		if unit == nil {
+			unit = &java.CompilationUnit{File: typ.File, Types: make([]*java.TypeDecl, 0)}
+			unitsByFile[typ.File] = unit
+		}
+		unit.Types = append(unit.Types, typ)
+	}
+	units := make([]*java.CompilationUnit, 0, len(unitsByFile))
+	for _, unit := range unitsByFile {
+		units = append(units, unit)
+	}
+	table, err := index.Build(units)
+	if err != nil {
+		panic(err)
+	}
+	return NewSyntacticResolver(table)
+}
+
 // Teste 1: this.foo() com foo existente no enclosing type.
 func TestResolveThisMethodExists(t *testing.T) {
-	r := NewSyntacticResolver(nil)
+	r := newTestResolver(nil)
 	enclosing := mkType("User", mkMethod("foo"))
 	ctx := MethodContext{EnclosingType: enclosing}
 
@@ -44,7 +66,7 @@ func TestResolveThisMethodExists(t *testing.T) {
 
 // Teste 2: this.foo() sem foo no enclosing type.
 func TestResolveThisMethodMissing(t *testing.T) {
-	r := NewSyntacticResolver(nil)
+	r := newTestResolver(nil)
 	enclosing := mkType("User", mkMethod("bar")) // sem foo
 	ctx := MethodContext{EnclosingType: enclosing}
 
@@ -60,7 +82,7 @@ func TestResolveThisMethodMissing(t *testing.T) {
 
 // Teste 3: foo() (unqualified) — mesmo caminho que this.foo().
 func TestResolveUnqualifiedMethodExists(t *testing.T) {
-	r := NewSyntacticResolver(nil)
+	r := newTestResolver(nil)
 	enclosing := mkType("User", mkMethod("foo"))
 	ctx := MethodContext{EnclosingType: enclosing}
 
@@ -77,7 +99,7 @@ func TestResolveUnqualifiedMethodExists(t *testing.T) {
 
 // Teste 4: identifier desconhecido continua unresolved.
 func TestResolveUnknownIdentifier(t *testing.T) {
-	r := NewSyntacticResolver(nil)
+	r := newTestResolver(nil)
 	enclosing := mkType("User", mkMethod("foo"))
 	ctx := MethodContext{EnclosingType: enclosing}
 
@@ -93,7 +115,7 @@ func TestResolveUnknownIdentifier(t *testing.T) {
 
 // Teste 5: super.foo() sem superclass continua unresolved.
 func TestResolveSuperWithoutSuperclass(t *testing.T) {
-	r := NewSyntacticResolver(nil)
+	r := newTestResolver(nil)
 	enclosing := mkType("User", mkMethod("foo"))
 	ctx := MethodContext{EnclosingType: enclosing}
 
@@ -109,7 +131,7 @@ func TestResolveSuperWithoutSuperclass(t *testing.T) {
 
 // Teste 6: complex receiver (System.out) continua unresolved.
 func TestResolveComplexReceiverNotHandled(t *testing.T) {
-	r := NewSyntacticResolver(nil)
+	r := newTestResolver(nil)
 	enclosing := mkType("User", mkMethod("foo"))
 	ctx := MethodContext{EnclosingType: enclosing}
 
@@ -125,7 +147,7 @@ func TestResolveComplexReceiverNotHandled(t *testing.T) {
 
 // Teste 7: enclosing type nil — proteção contra contexto malformado.
 func TestResolveNilEnclosingType(t *testing.T) {
-	r := NewSyntacticResolver(nil)
+	r := newTestResolver(nil)
 	ctx := MethodContext{EnclosingType: nil}
 
 	res := r.Resolve(mkCall("this", "foo"), ctx)
@@ -142,7 +164,7 @@ func TestResolveFieldMethod(t *testing.T) {
 	helper := mkType("Helper", mkMethod("log"))
 	enclosing := mkType("User")
 	enclosing.Fields = []java.FieldDecl{{Name: "helper", Type: "Helper"}}
-	r := NewSyntacticResolver([]*java.TypeDecl{enclosing, helper})
+	r := newTestResolver([]*java.TypeDecl{enclosing, helper})
 
 	res := r.Resolve(mkCall("helper", "log"), MethodContext{EnclosingType: enclosing})
 
@@ -155,7 +177,7 @@ func TestResolveFieldMethod(t *testing.T) {
 func TestResolveFieldWithExternalType(t *testing.T) {
 	enclosing := mkType("User")
 	enclosing.Fields = []java.FieldDecl{{Name: "client", Type: "ExternalClient"}}
-	r := NewSyntacticResolver([]*java.TypeDecl{enclosing})
+	r := newTestResolver([]*java.TypeDecl{enclosing})
 
 	res := r.Resolve(mkCall("client", "send"), MethodContext{EnclosingType: enclosing})
 
@@ -166,7 +188,7 @@ func TestResolveFieldWithExternalType(t *testing.T) {
 
 func TestResolveLocalVarMethod(t *testing.T) {
 	helper := mkType("Helper", mkMethod("log"))
-	r := NewSyntacticResolver([]*java.TypeDecl{helper})
+	r := newTestResolver([]*java.TypeDecl{helper})
 	ctx := MethodContext{LocalVars: map[string]string{"helper": "Helper"}}
 
 	res := r.Resolve(mkCall("helper", "log"), ctx)
@@ -182,7 +204,7 @@ func TestResolveLocalVarTakesPrecedenceOverField(t *testing.T) {
 	fieldType := mkType("FieldHelper", mkMethod("run"))
 	enclosing := mkType("User")
 	enclosing.Fields = []java.FieldDecl{{Name: "helper", Type: "FieldHelper"}}
-	r := NewSyntacticResolver([]*java.TypeDecl{enclosing, localType, fieldType})
+	r := newTestResolver([]*java.TypeDecl{enclosing, localType, fieldType})
 	ctx := MethodContext{
 		EnclosingType: enclosing,
 		LocalVars:     map[string]string{"helper": "LocalHelper"},
@@ -198,7 +220,7 @@ func TestResolveLocalVarTakesPrecedenceOverField(t *testing.T) {
 
 func TestResolveLocalVarMethodMissing(t *testing.T) {
 	helper := mkType("Helper", mkMethod("other"))
-	r := NewSyntacticResolver([]*java.TypeDecl{helper})
+	r := newTestResolver([]*java.TypeDecl{helper})
 	ctx := MethodContext{LocalVars: map[string]string{"helper": "Helper"}}
 
 	res := r.Resolve(mkCall("helper", "log"), ctx)
@@ -215,7 +237,7 @@ func TestResolveSuperMethod(t *testing.T) {
 	child := mkType("Child")
 	child.File = file
 	child.SuperClass = "Base"
-	r := NewSyntacticResolver([]*java.TypeDecl{child, base})
+	r := newTestResolver([]*java.TypeDecl{child, base})
 	ctx := MethodContext{EnclosingType: child, File: file}
 
 	res := r.Resolve(mkCall("super", "touch"), ctx)
@@ -227,7 +249,7 @@ func TestResolveSuperMethod(t *testing.T) {
 }
 
 func TestResolveSuperWithoutEnclosingType(t *testing.T) {
-	r := NewSyntacticResolver(nil)
+	r := newTestResolver(nil)
 
 	res := r.Resolve(mkCall("super", "touch"), MethodContext{})
 
@@ -242,7 +264,7 @@ func TestResolveSuperclassInOtherFile(t *testing.T) {
 	child := mkType("Child")
 	child.File = "Child.java"
 	child.SuperClass = "Base"
-	r := NewSyntacticResolver([]*java.TypeDecl{child, base})
+	r := newTestResolver([]*java.TypeDecl{child, base})
 	ctx := MethodContext{EnclosingType: child, File: child.File}
 
 	res := r.Resolve(mkCall("super", "touch"), ctx)
@@ -259,7 +281,7 @@ func TestResolveSuperMethodMissing(t *testing.T) {
 	child := mkType("Child")
 	child.File = file
 	child.SuperClass = "Base"
-	r := NewSyntacticResolver([]*java.TypeDecl{child, base})
+	r := newTestResolver([]*java.TypeDecl{child, base})
 	ctx := MethodContext{EnclosingType: child, File: file}
 
 	res := r.Resolve(mkCall("super", "touch"), ctx)
@@ -275,7 +297,7 @@ func TestResolveStaticMethodInSameFile(t *testing.T) {
 	caller.File = file
 	utils := mkType("Utils", mkMethod("log"))
 	utils.File = file
-	r := NewSyntacticResolver([]*java.TypeDecl{caller, utils})
+	r := newTestResolver([]*java.TypeDecl{caller, utils})
 	ctx := MethodContext{EnclosingType: caller, File: file}
 
 	res := r.Resolve(mkCall("Utils", "log"), ctx)
@@ -291,7 +313,7 @@ func TestResolveStaticTypeInOtherFile(t *testing.T) {
 	caller.File = "Caller.java"
 	utils := mkType("Utils", mkMethod("log"))
 	utils.File = "Utils.java"
-	r := NewSyntacticResolver([]*java.TypeDecl{caller, utils})
+	r := newTestResolver([]*java.TypeDecl{caller, utils})
 	ctx := MethodContext{EnclosingType: caller, File: caller.File}
 
 	res := r.Resolve(mkCall("Utils", "log"), ctx)
@@ -307,7 +329,7 @@ func TestResolveLocalVarTakesPrecedenceOverType(t *testing.T) {
 	localType.File = file
 	classType := mkType("helper", mkMethod("run"))
 	classType.File = file
-	r := NewSyntacticResolver([]*java.TypeDecl{localType, classType})
+	r := newTestResolver([]*java.TypeDecl{localType, classType})
 	ctx := MethodContext{
 		File:      file,
 		LocalVars: map[string]string{"helper": "LocalHelper"},
@@ -330,7 +352,7 @@ func TestResolveFieldTakesPrecedenceOverType(t *testing.T) {
 	enclosing := mkType("Caller")
 	enclosing.File = file
 	enclosing.Fields = []java.FieldDecl{{Name: "helper", Type: "FieldHelper"}}
-	r := NewSyntacticResolver([]*java.TypeDecl{enclosing, fieldType, classType})
+	r := newTestResolver([]*java.TypeDecl{enclosing, fieldType, classType})
 	ctx := MethodContext{EnclosingType: enclosing, File: file}
 
 	res := r.Resolve(mkCall("helper", "run"), ctx)
@@ -346,7 +368,7 @@ func TestResolveQualifiedStaticReceiverRemainsUnresolved(t *testing.T) {
 	utils := mkType("com.example.Utils", mkMethod("log"))
 	utils.Name = "Utils"
 	utils.File = file
-	r := NewSyntacticResolver([]*java.TypeDecl{utils})
+	r := newTestResolver([]*java.TypeDecl{utils})
 
 	res := r.Resolve(mkCall("com.example.Utils", "log"), MethodContext{File: file})
 
@@ -360,7 +382,7 @@ func TestResolveOverloadByArity(t *testing.T) {
 		java.MethodDecl{Name: "run", Signature: "()"},
 		java.MethodDecl{Name: "run", Signature: "(String)", Params: []java.Param{{Type: "String"}}},
 	)
-	r := NewSyntacticResolver([]*java.TypeDecl{typ})
+	r := newTestResolver([]*java.TypeDecl{typ})
 
 	res := r.Resolve(java.CallSite{MethodName: "run", ArgCount: 1}, MethodContext{EnclosingType: typ})
 
@@ -375,7 +397,7 @@ func TestResolveAmbiguousOverload(t *testing.T) {
 		java.MethodDecl{Name: "run", Signature: "(String)", Params: []java.Param{{Type: "String"}}},
 		java.MethodDecl{Name: "run", Signature: "(int)", Params: []java.Param{{Type: "int"}}},
 	)
-	r := NewSyntacticResolver([]*java.TypeDecl{typ})
+	r := newTestResolver([]*java.TypeDecl{typ})
 
 	res := r.Resolve(java.CallSite{MethodName: "run", ArgCount: 1}, MethodContext{EnclosingType: typ})
 
@@ -393,12 +415,26 @@ func TestResolveVariadicArity(t *testing.T) {
 		Signature: "(String[])",
 		Params:    []java.Param{{Type: "String", Variadic: true}},
 	})
-	r := NewSyntacticResolver([]*java.TypeDecl{typ})
+	r := newTestResolver([]*java.TypeDecl{typ})
 
 	for _, argCount := range []int{0, 1, 3} {
 		res := r.Resolve(java.CallSite{MethodName: "log", ArgCount: argCount}, MethodContext{EnclosingType: typ})
 		if len(res.Targets) != 1 {
 			t.Errorf("argCount %d: targets = %+v, note = %q", argCount, res.Targets, res.Note)
 		}
+	}
+}
+
+func TestResolveDoesNotChooseFirstDuplicateSimpleName(t *testing.T) {
+	first := mkType("a.Helper", mkMethod("run"))
+	first.Name = "Helper"
+	second := mkType("b.Helper", mkMethod("run"))
+	second.Name = "Helper"
+	r := newTestResolver([]*java.TypeDecl{first, second})
+
+	res := r.Resolve(mkCall("helper", "run"), MethodContext{LocalVars: map[string]string{"helper": "Helper"}})
+
+	if len(res.Targets) != 0 || res.Note == "" {
+		t.Fatalf("duplicate simple name must remain unresolved: %+v", res)
 	}
 }

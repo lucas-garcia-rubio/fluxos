@@ -11,6 +11,7 @@ import (
 	"testing"
 
 	"github.com/lucas-garcia-rubio/fluxos/internal/extract/java"
+	"github.com/lucas-garcia-rubio/fluxos/internal/index"
 )
 
 var errWrite = errors.New("write failed")
@@ -78,8 +79,13 @@ func TestFindMethodByNameListsOverloadSignatures(t *testing.T) {
 		{Name: "run", Signature: "(String)"},
 		{Name: "run", Signature: "()"},
 	}}
+	typ.FQCN = typ.Name
+	table, err := index.Build([]*java.CompilationUnit{{File: "Service.java", Types: []*java.TypeDecl{typ}}})
+	if err != nil {
+		t.Fatalf("build index: %v", err)
+	}
 
-	_, err := findMethodByName(typ, "run")
+	_, err = findMethodByName(table, typ, "run")
 	if err == nil || !strings.Contains(err.Error(), "available signatures: (), (String)") {
 		t.Fatalf("findMethodByName error = %v", err)
 	}
@@ -99,11 +105,30 @@ func TestBuildUnitsPreservesMetadataAndFlattenCompatibility(t *testing.T) {
 		t.Fatalf("unit metadata = %+v", unit)
 	}
 
-	types, err := buildIndex(traceFixtureRoot())
+	indexedUnits, table, err := buildIndex(traceFixtureRoot())
 	if err != nil {
 		t.Fatalf("buildIndex: %v", err)
 	}
-	if want := flattenTypes(units); !reflect.DeepEqual(types, want) {
-		t.Fatalf("buildIndex types differ from flattened units:\ngot:  %+v\nwant: %+v", types, want)
+	if !reflect.DeepEqual(indexedUnits, units) {
+		t.Fatalf("buildIndex units differ:\ngot:  %+v\nwant: %+v", indexedUnits, units)
+	}
+	for _, typ := range flattenTypes(units) {
+		if got, ok := table.TypeByFQCN(typ.FQCN); !ok || !reflect.DeepEqual(got, typ) {
+			t.Fatalf("indexed type %q = %+v, %v", typ.FQCN, got, ok)
+		}
+	}
+}
+
+func TestFindClassByNameListsSortedCandidates(t *testing.T) {
+	first := &java.TypeDecl{Name: "Service", FQCN: "z.Service"}
+	second := &java.TypeDecl{Name: "Service", FQCN: "a.Service"}
+	table, err := index.Build([]*java.CompilationUnit{{File: "Services.java", Types: []*java.TypeDecl{first, second}}})
+	if err != nil {
+		t.Fatalf("build index: %v", err)
+	}
+
+	_, err = findClassByName(table, "Service")
+	if err == nil || !strings.Contains(err.Error(), "candidates: a.Service, z.Service") {
+		t.Fatalf("findClassByName error = %v", err)
 	}
 }

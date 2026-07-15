@@ -5,11 +5,11 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"sort"
 	"strings"
 
 	"github.com/lucas-garcia-rubio/fluxos/internal/extract/java"
 	"github.com/lucas-garcia-rubio/fluxos/internal/graph"
+	"github.com/lucas-garcia-rubio/fluxos/internal/index"
 	"github.com/lucas-garcia-rubio/fluxos/internal/parse"
 	"github.com/lucas-garcia-rubio/fluxos/internal/project"
 	"github.com/lucas-garcia-rubio/fluxos/internal/render/mermaid"
@@ -48,10 +48,11 @@ func runIndex(args []string) error {
 	if len(args) < 1 {
 		return fmt.Errorf("usage: fluxos index <path>")
 	}
-	allTypes, err := buildIndex(args[0])
+	units, _, err := buildIndex(args[0])
 	if err != nil {
 		return err
 	}
+	allTypes := flattenTypes(units)
 	out, err := json.MarshalIndent(allTypes, "", "  ")
 	if err != nil {
 		return fmt.Errorf("marshal: %w", err)
@@ -77,24 +78,24 @@ func runTrace(args []string, out io.Writer) error {
 	}
 	className, methodName := parts[0], parts[1]
 
-	allTypes, err := buildIndex(projectRoot)
+	_, table, err := buildIndex(projectRoot)
 	if err != nil {
 		return err
 	}
 
-	targetClass, err := findClassByName(allTypes, className)
+	targetClass, err := findClassByName(table, className)
 	if err != nil {
 		return err
 	}
 
-	targetMethod, err := findMethodByName(targetClass, methodName)
+	targetMethod, err := findMethodByName(table, targetClass, methodName)
 	if err != nil {
 		return err
 	}
 
-	resolver := resolve.NewSyntacticResolver(allTypes)
+	resolver := resolve.NewSyntacticResolver(table)
 	g := graph.NewGraph()
-	graph.Walk(g, targetClass, targetMethod, allTypes, resolver)
+	graph.Walk(g, targetClass, targetMethod, table, resolver)
 
 	if _, err := fmt.Fprint(out, mermaid.Render(g)); err != nil {
 		return fmt.Errorf("write trace: %w", err)
@@ -102,14 +103,16 @@ func runTrace(args []string, out io.Writer) error {
 	return nil
 }
 
-// buildIndex mantém o contrato flatten usado pelo CLI até o índice canônico do
-// Passo 4. A extração interna já preserva CompilationUnits.
-func buildIndex(root string) ([]*java.TypeDecl, error) {
+func buildIndex(root string) ([]*java.CompilationUnit, *index.Table, error) {
 	units, err := buildUnits(root)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
-	return flattenTypes(units), nil
+	table, err := index.Build(units)
+	if err != nil {
+		return nil, nil, err
+	}
+	return units, table, nil
 }
 
 func buildUnits(root string) ([]*java.CompilationUnit, error) {
@@ -142,45 +145,34 @@ func flattenTypes(units []*java.CompilationUnit) []*java.TypeDecl {
 	return allTypes
 }
 
-// findClassByName busca linear por tipo com Name == name. Erro se 0 ou >1 matches
-// (>1 = nome ambíguo; M3 vai permitir FQCN pra desambiguar).
-func findClassByName(types []*java.TypeDecl, name string) (*java.TypeDecl, error) {
-	var matches []*java.TypeDecl
-	for _, t := range types {
-		if t.Name == name {
-			matches = append(matches, t)
-		}
-	}
+func findClassByName(table *index.Table, name string) (*java.TypeDecl, error) {
+	matches := table.TypesBySimple(name)
 	switch len(matches) {
 	case 0:
 		return nil, fmt.Errorf("class %q not found", name)
 	case 1:
 		return matches[0], nil
 	default:
-		return nil, fmt.Errorf("ambiguous class name %q (%d matches; M3 vai suportar FQCN)", name, len(matches))
+		fqcn := make([]string, len(matches))
+		for i, typ := range matches {
+			fqcn[i] = typ.FQCN
+		}
+		return nil, fmt.Errorf("ambiguous class name %q; candidates: %s", name, strings.Join(fqcn, ", "))
 	}
 }
 
-// findMethodByName busca linear em class.Methods. Mesma lógica do findClassByName
-// (overloads = M3).
-func findMethodByName(class *java.TypeDecl, name string) (java.MethodDecl, error) {
-	var matches []java.MethodDecl
-	for _, m := range class.Methods {
-		if m.Name == name {
-			matches = append(matches, m)
-		}
-	}
+func findMethodByName(table *index.Table, class *java.TypeDecl, name string) (java.MethodDecl, error) {
+	matches := table.MethodCandidates(class.FQCN, name)
 	switch len(matches) {
 	case 0:
 		return java.MethodDecl{}, fmt.Errorf("method %q not found in %s", name, class.Name)
 	case 1:
-		return matches[0], nil
+		return *matches[0], nil
 	default:
 		signatures := make([]string, len(matches))
 		for i, method := range matches {
 			signatures[i] = method.Signature
 		}
-		sort.Strings(signatures)
 		return java.MethodDecl{}, fmt.Errorf("ambiguous method %q in %s; available signatures: %s", name, class.Name, strings.Join(signatures, ", "))
 	}
 }
