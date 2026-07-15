@@ -4,30 +4,14 @@ import (
 	sitter "github.com/tree-sitter/go-tree-sitter"
 )
 
-// Extract percorre a AST a partir de tree.RootNode() e devolve todas as
-// declarações de tipo encontradas (classes, interfaces, enums, records),
-// com Methods e Fields preenchidos.
-// filePath é o caminho do arquivo .java no disco — populado em TypeDecl.File
-// pra mensagens de erro/warning poderem referenciar arquivo:linha.
+// Extract mantém o contrato flatten anterior enquanto os consumidores migram
+// gradualmente para CompilationUnit.
 func Extract(filePath string, source []byte, tree *sitter.Tree) ([]*TypeDecl, error) {
-	root := tree.RootNode()
-	pkg := extractPackage(source, root)
-
-	var types []*TypeDecl
-	for i := 0; i < int(root.NamedChildCount()); i++ {
-		child := root.NamedChild(uint(i))
-		switch child.Kind() {
-		case "class_declaration":
-			types = append(types, extractTypeDecl(filePath, source, child, pkg, TypeKindClass))
-		case "interface_declaration":
-			types = append(types, extractTypeDecl(filePath, source, child, pkg, TypeKindInterface))
-		case "enum_declaration":
-			types = append(types, extractTypeDecl(filePath, source, child, pkg, TypeKindEnum))
-		case "record_declaration":
-			types = append(types, extractTypeDecl(filePath, source, child, pkg, TypeKindRecord))
-		}
+	unit, err := ExtractUnit(filePath, source, tree)
+	if err != nil {
+		return nil, err
 	}
-	return types, nil
+	return unit.Types, nil
 }
 
 // extractPackage acha a declaração de package no nível superior e devolve o FQCN.

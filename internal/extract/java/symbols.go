@@ -112,6 +112,18 @@ func (k TypeKind) MarshalJSON() ([]byte, error) {
 }
 
 type (
+	ImportDecl struct {
+		Target   string `json:"target"`
+		Static   bool   `json:"static"`
+		Wildcard bool   `json:"wildcard"`
+	}
+	CompilationUnit struct {
+		File       string       `json:"file"`
+		SourceRoot string       `json:"sourceRoot"`
+		Package    string       `json:"package"`
+		Imports    []ImportDecl `json:"imports"`
+		Types      []*TypeDecl  `json:"types"`
+	}
 	FieldDecl struct {
 		Name        string   `json:"name"`
 		Modifier    []string `json:"modifier"`

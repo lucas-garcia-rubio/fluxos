@@ -85,6 +85,11 @@ root := tree.RootNode()  // sempre é "program" pra Java
   `static` é token unnamed. Para distinguir os quatro formatos, combinar children e
   source text.
 
+  Na extração, iterar `ChildCount()` para detectar `static` e `asterisk`; o primeiro
+  filho `identifier`/`scoped_identifier` é o target normalizado. O target exclui `.*`:
+  `com.foo.*` vira `Target=com.foo, Wildcard=true`, e `static com.foo.Util.*` vira
+  `Target=com.foo.Util, Static=true, Wildcard=true`.
+
 ### Declarações de tipo (vira `TypeDecl`)
 
 | Java | tree-sitter node | `TypeKind` |

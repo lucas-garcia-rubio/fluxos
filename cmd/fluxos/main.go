@@ -102,27 +102,43 @@ func runTrace(args []string, out io.Writer) error {
 	return nil
 }
 
-// buildIndex percorre root, parseia cada .java, extrai TypeDecls. Compartilhado
-// entre runIndex (output JSON) e runTrace (lookup antes do trace).
+// buildIndex mantém o contrato flatten usado pelo CLI até o índice canônico do
+// Passo 4. A extração interna já preserva CompilationUnits.
 func buildIndex(root string) ([]*java.TypeDecl, error) {
+	units, err := buildUnits(root)
+	if err != nil {
+		return nil, err
+	}
+	return flattenTypes(units), nil
+}
+
+func buildUnits(root string) ([]*java.CompilationUnit, error) {
 	files, err := project.Discover(root)
 	if err != nil {
 		return nil, err
 	}
-	var allTypes []*java.TypeDecl
+	units := make([]*java.CompilationUnit, 0, len(files))
 	for _, f := range files {
 		tree, source, err := parse.Parse(f)
 		if err != nil {
 			return nil, fmt.Errorf("parse %s: %w", f, err)
 		}
-		types, err := java.Extract(f, source, tree)
-		if err != nil {
-			return nil, fmt.Errorf("extract %s: %w", f, err)
-		}
-		allTypes = append(allTypes, types...)
+		unit, extractErr := java.ExtractUnit(f, source, tree)
 		tree.Close()
+		if extractErr != nil {
+			return nil, fmt.Errorf("extract %s: %w", f, extractErr)
+		}
+		units = append(units, unit)
 	}
-	return allTypes, nil
+	return units, nil
+}
+
+func flattenTypes(units []*java.CompilationUnit) []*java.TypeDecl {
+	var allTypes []*java.TypeDecl
+	for _, unit := range units {
+		allTypes = append(allTypes, unit.Types...)
+	}
+	return allTypes
 }
 
 // findClassByName busca linear por tipo com Name == name. Erro se 0 ou >1 matches

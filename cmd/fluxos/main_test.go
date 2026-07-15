@@ -6,6 +6,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 
@@ -81,5 +82,27 @@ func TestFindMethodByNameListsOverloadSignatures(t *testing.T) {
 	_, err := findMethodByName(typ, "run")
 	if err == nil || !strings.Contains(err.Error(), "available signatures: (), (String)") {
 		t.Fatalf("findMethodByName error = %v", err)
+	}
+}
+
+func TestBuildUnitsPreservesMetadataAndFlattenCompatibility(t *testing.T) {
+	units, err := buildUnits(traceFixtureRoot())
+	if err != nil {
+		t.Fatalf("buildUnits: %v", err)
+	}
+	if len(units) != 1 {
+		t.Fatalf("unit count = %d, want 1", len(units))
+	}
+	unit := units[0]
+	if unit.Package != "com.foo" || unit.Imports == nil || len(unit.Imports) != 0 {
+		t.Fatalf("unit metadata = %+v", unit)
+	}
+
+	types, err := buildIndex(traceFixtureRoot())
+	if err != nil {
+		t.Fatalf("buildIndex: %v", err)
+	}
+	if want := flattenTypes(units); !reflect.DeepEqual(types, want) {
+		t.Fatalf("buildIndex types differ from flattened units:\ngot:  %+v\nwant: %+v", types, want)
 	}
 }
