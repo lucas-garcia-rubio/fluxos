@@ -84,6 +84,11 @@ func TestWalkLinear(t *testing.T) {
 			t.Errorf("node %v should be black, got state %d", h, n.State)
 		}
 	}
+	for _, edge := range g.Edges {
+		if edge.Cycle {
+			t.Errorf("linear edge %+v should not be marked as cycle", edge)
+		}
+	}
 }
 
 // Cenário 2: ciclo A.a → B.b → A.a (back-edge).
@@ -115,6 +120,18 @@ func TestWalkCycle(t *testing.T) {
 			t.Errorf("node %v should be black after cycle, got state %d", h, n.State)
 		}
 	}
+	cycleEdges := 0
+	for _, edge := range g.Edges {
+		if edge.Cycle {
+			cycleEdges++
+			if edge.From != mkHandle("B", "b") || edge.To != mkHandle("A", "a") {
+				t.Errorf("wrong edge marked as cycle: %+v", edge)
+			}
+		}
+	}
+	if cycleEdges != 1 {
+		t.Errorf("expected exactly 1 cycle edge, got %d", cycleEdges)
+	}
 }
 
 // Cenário 3: self-loop A.a → A.a.
@@ -140,6 +157,9 @@ func TestWalkSelfLoop(t *testing.T) {
 	}
 	if !g.IsBlack(mkHandle("A", "a")) {
 		t.Error("A should be black after self-loop walk")
+	}
+	if !g.Edges[0].Cycle {
+		t.Error("self-loop edge should be marked as cycle")
 	}
 }
 
@@ -195,6 +215,9 @@ func TestWalkFanOut(t *testing.T) {
 	// Verifica arestas específicas.
 	edgeToX, edgeToY := false, false
 	for _, e := range g.Edges {
+		if e.Cycle {
+			t.Errorf("fan-out edge %+v should not be marked as cycle", e)
+		}
 		if e.To == mkHandle("X", "x") {
 			edgeToX = true
 		}
@@ -232,6 +255,9 @@ func TestWalkExternalTarget(t *testing.T) {
 	}
 	if len(g.Edges) != 1 {
 		t.Errorf("expected 1 edge, got %d", len(g.Edges))
+	}
+	if g.Edges[0].Cycle {
+		t.Error("external target edge should not be marked as cycle")
 	}
 	// A black; External white (nunca Walk-ado).
 	if !g.IsBlack(mkHandle("A", "a")) {

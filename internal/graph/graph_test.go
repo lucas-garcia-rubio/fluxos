@@ -103,7 +103,7 @@ func TestAddEdgeCreatesNodes(t *testing.T) {
 	to := resolve.MethodHandle{TypeFQCN: "com.foo.Main", Method: "run"}
 	call := java.CallSite{MethodName: "run", Receiver: "user"}
 
-	g.AddEdge(from, to, call)
+	g.AddEdge(from, to, call, true)
 
 	if len(g.Nodes) != 2 {
 		t.Errorf("expected 2 nodes after AddEdge, got %d", len(g.Nodes))
@@ -134,6 +134,9 @@ func TestAddEdgeCreatesNodes(t *testing.T) {
 	if e.Call.Receiver != "user" {
 		t.Errorf("edge Call.Receiver mismatch: got %q, want %q", e.Call.Receiver, "user")
 	}
+	if !e.Cycle {
+		t.Error("edge Cycle should preserve the value passed to AddEdge")
+	}
 }
 
 func TestAddEdgeMultigraph(t *testing.T) {
@@ -143,8 +146,8 @@ func TestAddEdgeMultigraph(t *testing.T) {
 	from := resolve.MethodHandle{TypeFQCN: "com.foo.User", Method: "run"}
 	to := resolve.MethodHandle{TypeFQCN: "com.foo.Main", Method: "execute"}
 
-	g.AddEdge(from, to, java.CallSite{MethodName: "execute", Line: 10})
-	g.AddEdge(from, to, java.CallSite{MethodName: "execute", Line: 20})
+	g.AddEdge(from, to, java.CallSite{MethodName: "execute", Line: 10}, false)
+	g.AddEdge(from, to, java.CallSite{MethodName: "execute", Line: 20}, false)
 
 	if len(g.Nodes) != 2 {
 		t.Errorf("expected 2 nodes, got %d", len(g.Nodes))

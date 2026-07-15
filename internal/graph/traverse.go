@@ -50,7 +50,8 @@ func Walk(
 		}
 		resolution := resolver.Resolve(call, ctx)
 		for _, target := range resolution.Targets {
-			g.AddEdge(handle, target, call)
+			cycle := g.IsGray(target)
+			g.AddEdge(handle, target, call, cycle)
 			// Recursão só se target existe no projeto. External target
 			// (biblioteca, reflexão) fica como aresta terminal.
 			targetMethod, targetType, ok := findMethodByHandle(types, target)

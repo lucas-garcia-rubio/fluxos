@@ -1,0 +1,9 @@
+flowchart TD
+  m_6136ffe338e7["com.example.A.start"]
+  m_7dcc441302b5["com.example.B.work"]
+  m_695a5795f9cc["com.example.C.finish"]
+  m_6136ffe338e7 --> m_7dcc441302b5
+  m_6136ffe338e7 --> m_7dcc441302b5
+  m_7dcc441302b5 --> m_695a5795f9cc
+  %% cycle
+  m_695a5795f9cc --> m_6136ffe338e7

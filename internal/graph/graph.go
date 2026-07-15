@@ -31,9 +31,10 @@ type Node struct {
 // Call é a CallSite que gerou esta aresta — útil pra reportar ao usuário
 // qual chamada (com file:line) produziu cada conexão.
 type Edge struct {
-	From resolve.MethodHandle
-	To   resolve.MethodHandle
-	Call java.CallSite
+	From  resolve.MethodHandle
+	To    resolve.MethodHandle
+	Call  java.CallSite
+	Cycle bool
 }
 
 // Graph é o multigrafo direcionado de chamadas.
@@ -89,11 +90,12 @@ func (g *Graph) IsBlack(handle resolve.MethodHandle) bool {
 	return ok && n.State == StateBlack
 }
 
-// AddEdge adiciona aresta dirigida de from → to com a CallSite que a gerou.
+// AddEdge adiciona aresta dirigida de from → to com a CallSite que a gerou
+// e informa se ela fecha um ciclo na travessia DFS.
 // Garante que ambos os Nodes existem no grafo (cria com StateWhite se faltarem).
 // Permite múltiplas arestas entre o mesmo par (A → B com 2 chamadas vira 2 Edges).
-func (g *Graph) AddEdge(from, to resolve.MethodHandle, call java.CallSite) {
+func (g *Graph) AddEdge(from, to resolve.MethodHandle, call java.CallSite, cycle bool) {
 	g.GetOrCreate(from)
 	g.GetOrCreate(to)
-	g.Edges = append(g.Edges, Edge{From: from, To: to, Call: call})
+	g.Edges = append(g.Edges, Edge{From: from, To: to, Call: call, Cycle: cycle})
 }
