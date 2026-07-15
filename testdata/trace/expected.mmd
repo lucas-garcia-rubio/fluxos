@@ -1,0 +1,16 @@
+flowchart TD
+  m_a7d71664a342["com.foo.Audit.record"]
+  m_62c28c22fc28["com.foo.BaseWorkflow.initialize"]
+  m_7c1450a6ffe5["com.foo.Helper.work"]
+  m_0acfce2ef63c["com.foo.Workflow.finish"]
+  m_7f2dd5ed2904["com.foo.Workflow.prepare"]
+  m_a5e07c1bfa9d["com.foo.Workflow.start"]
+  m_7c1450a6ffe5 --> m_a7d71664a342
+  %% cycle
+  m_0acfce2ef63c --> m_7f2dd5ed2904
+  m_7f2dd5ed2904 --> m_0acfce2ef63c
+  m_a5e07c1bfa9d --> m_a7d71664a342
+  m_a5e07c1bfa9d --> m_62c28c22fc28
+  m_a5e07c1bfa9d --> m_7c1450a6ffe5
+  m_a5e07c1bfa9d --> m_7c1450a6ffe5
+  m_a5e07c1bfa9d --> m_7f2dd5ed2904

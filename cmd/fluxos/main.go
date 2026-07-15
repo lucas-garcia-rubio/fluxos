@@ -3,12 +3,16 @@ package main
 import (
 	"encoding/json"
 	"fmt"
+	"io"
 	"os"
 	"strings"
 
 	"github.com/lucas-garcia-rubio/fluxos/internal/extract/java"
+	"github.com/lucas-garcia-rubio/fluxos/internal/graph"
 	"github.com/lucas-garcia-rubio/fluxos/internal/parse"
 	"github.com/lucas-garcia-rubio/fluxos/internal/project"
+	"github.com/lucas-garcia-rubio/fluxos/internal/render/mermaid"
+	"github.com/lucas-garcia-rubio/fluxos/internal/resolve"
 	tree_sitter "github.com/tree-sitter/go-tree-sitter"
 )
 
@@ -28,7 +32,7 @@ func main() {
 			os.Exit(1)
 		}
 	case "trace":
-		if err := runTrace(args); err != nil {
+		if err := runTrace(args, os.Stdout); err != nil {
 			fmt.Fprintf(os.Stderr, "fluxos trace: %v\n", err)
 			os.Exit(1)
 		}
@@ -55,7 +59,7 @@ func runIndex(args []string) error {
 	return nil
 }
 
-func runTrace(args []string) error {
+func runTrace(args []string, out io.Writer) error {
 	if len(args) < 1 {
 		return fmt.Errorf("usage: fluxos trace <ClassName.methodName> [project-path]")
 	}
@@ -87,11 +91,13 @@ func runTrace(args []string) error {
 		return err
 	}
 
-	out, err := json.MarshalIndent(targetMethod, "", "  ")
-	if err != nil {
-		return fmt.Errorf("marshal: %w", err)
+	resolver := resolve.NewSyntacticResolver(allTypes)
+	g := graph.NewGraph()
+	graph.Walk(g, targetClass, targetMethod, allTypes, resolver)
+
+	if _, err := fmt.Fprint(out, mermaid.Render(g)); err != nil {
+		return fmt.Errorf("write trace: %w", err)
 	}
-	fmt.Println(string(out))
 	return nil
 }
 
