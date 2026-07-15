@@ -90,8 +90,8 @@ func TestResolveUnknownIdentifier(t *testing.T) {
 	}
 }
 
-// Teste 5: super.foo() — deferido para o Passo 8.
-func TestResolveSuperNotHandled(t *testing.T) {
+// Teste 5: super.foo() sem superclass continua unresolved.
+func TestResolveSuperWithoutSuperclass(t *testing.T) {
 	r := NewSyntacticResolver(nil)
 	enclosing := mkType("User", mkMethod("foo"))
 	ctx := MethodContext{EnclosingType: enclosing}
@@ -99,10 +99,10 @@ func TestResolveSuperNotHandled(t *testing.T) {
 	res := r.Resolve(mkCall("super", "foo"), ctx)
 
 	if len(res.Targets) != 0 {
-		t.Errorf("expected 0 targets for super in Passo 6, got %d", len(res.Targets))
+		t.Errorf("expected 0 targets for type without superclass, got %d", len(res.Targets))
 	}
 	if res.Note == "" {
-		t.Error("expected Note explaining super not handled yet")
+		t.Error("expected Note explaining missing superclass")
 	}
 }
 
@@ -204,5 +204,152 @@ func TestResolveLocalVarMethodMissing(t *testing.T) {
 
 	if len(res.Targets) != 0 || res.Note == "" {
 		t.Fatalf("expected unresolved missing method, got %+v", res)
+	}
+}
+
+func TestResolveSuperMethod(t *testing.T) {
+	const file = "Example.java"
+	base := mkType("Base", mkMethod("touch"))
+	base.File = file
+	child := mkType("Child")
+	child.File = file
+	child.SuperClass = "Base"
+	r := NewSyntacticResolver([]*java.TypeDecl{child, base})
+	ctx := MethodContext{EnclosingType: child, File: file}
+
+	res := r.Resolve(mkCall("super", "touch"), ctx)
+
+	want := MethodHandle{TypeFQCN: "Base", Method: "touch"}
+	if len(res.Targets) != 1 || res.Targets[0] != want {
+		t.Fatalf("got targets %+v (note: %q), want [%+v]", res.Targets, res.Note, want)
+	}
+}
+
+func TestResolveSuperWithoutEnclosingType(t *testing.T) {
+	r := NewSyntacticResolver(nil)
+
+	res := r.Resolve(mkCall("super", "touch"), MethodContext{})
+
+	if len(res.Targets) != 0 || res.Note == "" {
+		t.Fatalf("expected unresolved super without enclosing type, got %+v", res)
+	}
+}
+
+func TestResolveSuperclassInOtherFile(t *testing.T) {
+	base := mkType("Base", mkMethod("touch"))
+	base.File = "Base.java"
+	child := mkType("Child")
+	child.File = "Child.java"
+	child.SuperClass = "Base"
+	r := NewSyntacticResolver([]*java.TypeDecl{child, base})
+	ctx := MethodContext{EnclosingType: child, File: child.File}
+
+	res := r.Resolve(mkCall("super", "touch"), ctx)
+
+	if len(res.Targets) != 0 || res.Note == "" {
+		t.Fatalf("expected cross-file superclass to remain unresolved, got %+v", res)
+	}
+}
+
+func TestResolveSuperMethodMissing(t *testing.T) {
+	const file = "Example.java"
+	base := mkType("Base", mkMethod("other"))
+	base.File = file
+	child := mkType("Child")
+	child.File = file
+	child.SuperClass = "Base"
+	r := NewSyntacticResolver([]*java.TypeDecl{child, base})
+	ctx := MethodContext{EnclosingType: child, File: file}
+
+	res := r.Resolve(mkCall("super", "touch"), ctx)
+
+	if len(res.Targets) != 0 || res.Note == "" {
+		t.Fatalf("expected missing superclass method to remain unresolved, got %+v", res)
+	}
+}
+
+func TestResolveStaticMethodInSameFile(t *testing.T) {
+	const file = "Example.java"
+	caller := mkType("Caller")
+	caller.File = file
+	utils := mkType("Utils", mkMethod("log"))
+	utils.File = file
+	r := NewSyntacticResolver([]*java.TypeDecl{caller, utils})
+	ctx := MethodContext{EnclosingType: caller, File: file}
+
+	res := r.Resolve(mkCall("Utils", "log"), ctx)
+
+	want := MethodHandle{TypeFQCN: "Utils", Method: "log"}
+	if len(res.Targets) != 1 || res.Targets[0] != want {
+		t.Fatalf("got targets %+v (note: %q), want [%+v]", res.Targets, res.Note, want)
+	}
+}
+
+func TestResolveStaticTypeInOtherFile(t *testing.T) {
+	caller := mkType("Caller")
+	caller.File = "Caller.java"
+	utils := mkType("Utils", mkMethod("log"))
+	utils.File = "Utils.java"
+	r := NewSyntacticResolver([]*java.TypeDecl{caller, utils})
+	ctx := MethodContext{EnclosingType: caller, File: caller.File}
+
+	res := r.Resolve(mkCall("Utils", "log"), ctx)
+
+	if len(res.Targets) != 0 || res.Note == "" {
+		t.Fatalf("expected cross-file static type to remain unresolved, got %+v", res)
+	}
+}
+
+func TestResolveLocalVarTakesPrecedenceOverType(t *testing.T) {
+	const file = "Example.java"
+	localType := mkType("LocalHelper", mkMethod("run"))
+	localType.File = file
+	classType := mkType("helper", mkMethod("run"))
+	classType.File = file
+	r := NewSyntacticResolver([]*java.TypeDecl{localType, classType})
+	ctx := MethodContext{
+		File:      file,
+		LocalVars: map[string]string{"helper": "LocalHelper"},
+	}
+
+	res := r.Resolve(mkCall("helper", "run"), ctx)
+
+	want := MethodHandle{TypeFQCN: "LocalHelper", Method: "run"}
+	if len(res.Targets) != 1 || res.Targets[0] != want {
+		t.Fatalf("got targets %+v (note: %q), want local target %+v", res.Targets, res.Note, want)
+	}
+}
+
+func TestResolveFieldTakesPrecedenceOverType(t *testing.T) {
+	const file = "Example.java"
+	fieldType := mkType("FieldHelper", mkMethod("run"))
+	fieldType.File = file
+	classType := mkType("helper", mkMethod("run"))
+	classType.File = file
+	enclosing := mkType("Caller")
+	enclosing.File = file
+	enclosing.Fields = []java.FieldDecl{{Name: "helper", Type: "FieldHelper"}}
+	r := NewSyntacticResolver([]*java.TypeDecl{enclosing, fieldType, classType})
+	ctx := MethodContext{EnclosingType: enclosing, File: file}
+
+	res := r.Resolve(mkCall("helper", "run"), ctx)
+
+	want := MethodHandle{TypeFQCN: "FieldHelper", Method: "run"}
+	if len(res.Targets) != 1 || res.Targets[0] != want {
+		t.Fatalf("got targets %+v (note: %q), want field target %+v", res.Targets, res.Note, want)
+	}
+}
+
+func TestResolveQualifiedStaticReceiverRemainsUnresolved(t *testing.T) {
+	const file = "Example.java"
+	utils := mkType("com.example.Utils", mkMethod("log"))
+	utils.Name = "Utils"
+	utils.File = file
+	r := NewSyntacticResolver([]*java.TypeDecl{utils})
+
+	res := r.Resolve(mkCall("com.example.Utils", "log"), MethodContext{File: file})
+
+	if len(res.Targets) != 0 || res.Note == "" {
+		t.Fatalf("expected qualified static receiver to remain unresolved, got %+v", res)
 	}
 }

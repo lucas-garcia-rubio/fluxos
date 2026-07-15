@@ -10,8 +10,8 @@ import (
 // tree-sitter + heurísticas sobre a AST. Não usa type info beyond what's
 // diretamente acessível no MethodContext.
 //
-// Passo 7 cobre `this.method()`, chamadas unqualified e receptores que sejam
-// fields ou variáveis locais. Passo 8 adiciona super/static.
+// M2 cobre `this.method()`, chamadas unqualified, fields, variáveis locais,
+// super e chamadas estáticas para tipos declarados no mesmo arquivo.
 type SyntacticResolver struct {
 	Types []*java.TypeDecl
 }
@@ -22,16 +22,31 @@ func NewSyntacticResolver(types []*java.TypeDecl) *SyntacticResolver {
 }
 
 // Resolve decide qual método call aponta, baseado em call.Receiver e no
-// MethodContext. Ver Passo 7 em PLANO_M2.md pra algoritmo completo.
+// MethodContext. Ver Passo 8 em PLANO_M2.md pra algoritmo completo.
 func (r *SyntacticResolver) Resolve(call java.CallSite, ctx MethodContext) Resolution {
 	switch call.Receiver {
 	case "", "this":
 		return r.resolveOnType(ctx.EnclosingType, call.MethodName)
 	case "super":
-		return Resolution{Note: "super receiver not handled yet"}
+		return r.resolveSuper(call.MethodName, ctx)
 	default:
 		return r.resolveIdentifier(call.Receiver, call.MethodName, ctx)
 	}
+}
+
+func (r *SyntacticResolver) resolveSuper(methodName string, ctx MethodContext) Resolution {
+	if ctx.EnclosingType == nil {
+		return Resolution{Note: "no enclosing type"}
+	}
+	if ctx.EnclosingType.SuperClass == "" {
+		return Resolution{Note: fmt.Sprintf("type %s has no superclass", ctx.EnclosingType.FQCN)}
+	}
+
+	superType := r.findTypeInFile(ctx.EnclosingType.SuperClass, ctx.File)
+	if superType == nil {
+		return Resolution{Note: fmt.Sprintf("superclass %q not found in same file", ctx.EnclosingType.SuperClass)}
+	}
+	return r.resolveOnType(superType, methodName)
 }
 
 func (r *SyntacticResolver) resolveIdentifier(receiver, methodName string, ctx MethodContext) Resolution {
@@ -56,12 +71,25 @@ func (r *SyntacticResolver) resolveIdentifier(receiver, methodName string, ctx M
 		}
 	}
 
-	return Resolution{Note: fmt.Sprintf("receiver %q is not a local var or field", receiver)}
+	t := r.findTypeInFile(receiver, ctx.File)
+	if t == nil {
+		return Resolution{Note: fmt.Sprintf("receiver %q is not a local var, field, or type in same file", receiver)}
+	}
+	return r.resolveOnType(t, methodName)
 }
 
 func (r *SyntacticResolver) findTypeByName(name string) *java.TypeDecl {
 	for _, t := range r.Types {
 		if t.Name == name || t.FQCN == name {
+			return t
+		}
+	}
+	return nil
+}
+
+func (r *SyntacticResolver) findTypeInFile(name, file string) *java.TypeDecl {
+	for _, t := range r.Types {
+		if t.File == file && t.Name == name {
 			return t
 		}
 	}
