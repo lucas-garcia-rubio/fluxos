@@ -40,7 +40,7 @@ func mkType(fqcn string, methods ...java.MethodDecl) *java.TypeDecl {
 }
 
 func mkMethod(name string, calls ...java.CallSite) java.MethodDecl {
-	return java.MethodDecl{Name: name, Calls: calls}
+	return java.MethodDecl{Name: name, Signature: "()", Calls: calls}
 }
 
 func mkCall(methodName string) java.CallSite {
@@ -48,7 +48,7 @@ func mkCall(methodName string) java.CallSite {
 }
 
 func mkHandle(fqcn, method string) resolve.MethodHandle {
-	return resolve.MethodHandle{TypeFQCN: fqcn, Method: method}
+	return resolve.MethodHandle{TypeFQCN: fqcn, Method: method, Signature: "()"}
 }
 
 func resolution(targets ...resolve.MethodHandle) resolve.Resolution {
@@ -278,5 +278,37 @@ func TestWalkPassesLocalVarsToResolver(t *testing.T) {
 
 	if got := resolver.localVars["helper"]; got != "Helper" {
 		t.Fatalf("resolver received local var type %q, want %q", got, "Helper")
+	}
+}
+
+func TestWalkKeepsOverloadsDistinctAndDetectsCycle(t *testing.T) {
+	zero := java.MethodDecl{
+		Name:      "run",
+		Signature: "()",
+		Calls:     []java.CallSite{{MethodName: "toInt"}},
+	}
+	withInt := java.MethodDecl{
+		Name:      "run",
+		Signature: "(int)",
+		Params:    []java.Param{{Type: "int"}},
+		Calls:     []java.CallSite{{MethodName: "toZero"}},
+	}
+	typ := mkType("Service", zero, withInt)
+	resolver := stubResolver{rules: map[string]resolve.Resolution{
+		"toInt":  resolution(resolve.MethodHandle{TypeFQCN: "Service", Method: "run", Signature: "(int)"}),
+		"toZero": resolution(resolve.MethodHandle{TypeFQCN: "Service", Method: "run", Signature: "()"}),
+	}}
+
+	g := NewGraph()
+	Walk(g, typ, zero, []*java.TypeDecl{typ}, resolver)
+
+	if len(g.Nodes) != 2 {
+		t.Fatalf("node count = %d, want 2 overload nodes", len(g.Nodes))
+	}
+	if len(g.Edges) != 2 {
+		t.Fatalf("edge count = %d, want 2", len(g.Edges))
+	}
+	if !g.Edges[1].Cycle {
+		t.Fatalf("back edge between overloads was not marked: %+v", g.Edges)
 	}
 }

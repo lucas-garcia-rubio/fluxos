@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"sort"
 	"strings"
 
 	"github.com/lucas-garcia-rubio/fluxos/internal/extract/java"
@@ -158,7 +159,12 @@ func findMethodByName(class *java.TypeDecl, name string) (java.MethodDecl, error
 	case 1:
 		return matches[0], nil
 	default:
-		return java.MethodDecl{}, fmt.Errorf("ambiguous method %q in %s (%d overloads; M3 vai resolver por assinatura)", name, class.Name, len(matches))
+		signatures := make([]string, len(matches))
+		for i, method := range matches {
+			signatures[i] = method.Signature
+		}
+		sort.Strings(signatures)
+		return java.MethodDecl{}, fmt.Errorf("ambiguous method %q in %s; available signatures: %s", name, class.Name, strings.Join(signatures, ", "))
 	}
 }
 

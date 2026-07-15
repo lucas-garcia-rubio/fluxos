@@ -32,12 +32,12 @@ func Render(g *graph.Graph) string {
 }
 
 func nodeID(handle resolve.MethodHandle) string {
-	sum := sha256.Sum256([]byte(handle.TypeFQCN + "\x00" + handle.Method))
+	sum := sha256.Sum256([]byte(handle.TypeFQCN + "\x00" + handle.Method + "\x00" + handle.Signature))
 	return fmt.Sprintf("m_%x", sum[:6])
 }
 
 func nodeLabel(handle resolve.MethodHandle) string {
-	return escapeLabel(handle.TypeFQCN + "." + handle.Method)
+	return escapeLabel(handle.TypeFQCN + "." + handle.Method + handle.Signature)
 }
 
 func escapeLabel(label string) string {
@@ -93,6 +93,12 @@ func compareHandles(a, b resolve.MethodHandle) int {
 		return -1
 	}
 	if a.Method > b.Method {
+		return 1
+	}
+	if a.Signature < b.Signature {
+		return -1
+	}
+	if a.Signature > b.Signature {
 		return 1
 	}
 	return 0

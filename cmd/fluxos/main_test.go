@@ -8,6 +8,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/lucas-garcia-rubio/fluxos/internal/extract/java"
 )
 
 var errWrite = errors.New("write failed")
@@ -67,5 +69,17 @@ func TestRunTraceWriterError(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "write trace") {
 		t.Fatalf("runTrace writer error = %q, want context", err)
+	}
+}
+
+func TestFindMethodByNameListsOverloadSignatures(t *testing.T) {
+	typ := &java.TypeDecl{Name: "Service", Methods: []java.MethodDecl{
+		{Name: "run", Signature: "(String)"},
+		{Name: "run", Signature: "()"},
+	}}
+
+	_, err := findMethodByName(typ, "run")
+	if err == nil || !strings.Contains(err.Error(), "available signatures: (), (String)") {
+		t.Fatalf("findMethodByName error = %v", err)
 	}
 }

@@ -27,8 +27,9 @@ func Walk(
 	resolver resolve.Resolver,
 ) {
 	handle := resolve.MethodHandle{
-		TypeFQCN: enclosingType.FQCN,
-		Method:   method.Name,
+		TypeFQCN:  enclosingType.FQCN,
+		Method:    method.Name,
+		Signature: method.Signature,
 	}
 
 	// Cycle detection: gray = visitando agora na pilha atual.
@@ -77,9 +78,9 @@ func findTypeByFQCN(types []*java.TypeDecl, fqcn string) *java.TypeDecl {
 
 // findMethodInType busca linear em class.Methods por nome. Devolve (MethodDecl, true)
 // se acha; (zero, false) caso contrário.
-func findMethodInType(class *java.TypeDecl, name string) (java.MethodDecl, bool) {
+func findMethodInType(class *java.TypeDecl, name, signature string) (java.MethodDecl, bool) {
 	for _, m := range class.Methods {
-		if m.Name == name {
+		if m.Name == name && m.Signature == signature {
 			return m, true
 		}
 	}
@@ -93,7 +94,7 @@ func findMethodByHandle(types []*java.TypeDecl, h resolve.MethodHandle) (java.Me
 	if t == nil {
 		return java.MethodDecl{}, nil, false
 	}
-	m, ok := findMethodInType(t, h.Method)
+	m, ok := findMethodInType(t, h.Method, h.Signature)
 	if !ok {
 		return java.MethodDecl{}, t, false
 	}

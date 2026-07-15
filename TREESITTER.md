@@ -178,6 +178,16 @@ Cada `formal_parameter` (dentro de `formal_parameters`):
 
 `array_type` tem fields `element` e `dimensions`.
 
+Varargs usam `spread_parameter`, não `formal_parameter`. O tipo e o declarator são
+filhos nomeados posicionais; `variable_declarator.name` contém o nome do parâmetro.
+No modelo atual, `Param.Variadic` preserva essa informação e a signature provisória
+normaliza `T...` como `T[]`.
+
+As signatures de M3 são raw-erased e determinísticas: removem espaços e argumentos
+genéricos aninhados, mas ainda preservam o nome de tipo como escrito no source. Exemplos:
+`()`; `(String,int)`; `(java.util.List)`; `(String[])`. A canonicalização para FQCN
+depende do índice e dos imports e fica para os passos seguintes.
+
 ### Chamadas de método (M2 — preview)
 
 `method_invocation` — uma chamada `obj.method(args)`:

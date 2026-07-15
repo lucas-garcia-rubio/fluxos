@@ -194,7 +194,10 @@ func extractMethod(filePath string, source []byte, node *sitter.Node) MethodDecl
 	m := MethodDecl{
 		Modifier: extractModifiers(source, node),
 	}
-	if nameNode := node.ChildByFieldName("name"); nameNode != nil {
+	if node.Kind() == "constructor_declaration" {
+		m.Kind = MethodConstructor
+		m.Name = "<init>"
+	} else if nameNode := node.ChildByFieldName("name"); nameNode != nil {
 		m.Name = sourceText(source, nameNode)
 	}
 	// ReturnType — ausente em constructor_declaration (deixa "").
@@ -204,6 +207,7 @@ func extractMethod(filePath string, source []byte, node *sitter.Node) MethodDecl
 	if paramsNode := node.ChildByFieldName("parameters"); paramsNode != nil {
 		m.Params = extractParams(source, paramsNode)
 	}
+	m.Signature = buildSignature(m.Params)
 	m.Calls = extractCalls(source, node, filePath)
 	m.LocalVars = extractLocalVars(source, node)
 	// Garante slices não-nil pra JSON output ([] em vez de null).
@@ -226,17 +230,32 @@ func extractParams(source []byte, paramsNode *sitter.Node) []Param {
 	var params []Param
 	for i := 0; i < int(paramsNode.NamedChildCount()); i++ {
 		child := paramsNode.NamedChild(uint(i))
-		if child.Kind() != "formal_parameter" {
-			continue
+		switch child.Kind() {
+		case "formal_parameter":
+			p := Param{}
+			if nameNode := child.ChildByFieldName("name"); nameNode != nil {
+				p.Name = sourceText(source, nameNode)
+			}
+			if typeNode := child.ChildByFieldName("type"); typeNode != nil {
+				p.Type = sourceText(source, typeNode)
+			}
+			params = append(params, p)
+		case "spread_parameter":
+			p := Param{Variadic: true}
+			for j := 0; j < int(child.NamedChildCount()); j++ {
+				part := child.NamedChild(uint(j))
+				if part.Kind() == "variable_declarator" {
+					if nameNode := part.ChildByFieldName("name"); nameNode != nil {
+						p.Name = sourceText(source, nameNode)
+					}
+					continue
+				}
+				if p.Type == "" && part.Kind() != "modifiers" && part.Kind() != "annotation" && part.Kind() != "marker_annotation" {
+					p.Type = sourceText(source, part)
+				}
+			}
+			params = append(params, p)
 		}
-		p := Param{}
-		if nameNode := child.ChildByFieldName("name"); nameNode != nil {
-			p.Name = sourceText(source, nameNode)
-		}
-		if typeNode := child.ChildByFieldName("type"); typeNode != nil {
-			p.Type = sourceText(source, typeNode)
-		}
-		params = append(params, p)
 	}
 	return params
 }

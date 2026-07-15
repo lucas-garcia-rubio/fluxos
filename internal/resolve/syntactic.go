@@ -2,6 +2,8 @@ package resolve
 
 import (
 	"fmt"
+	"sort"
+	"strings"
 
 	"github.com/lucas-garcia-rubio/fluxos/internal/extract/java"
 )
@@ -26,15 +28,15 @@ func NewSyntacticResolver(types []*java.TypeDecl) *SyntacticResolver {
 func (r *SyntacticResolver) Resolve(call java.CallSite, ctx MethodContext) Resolution {
 	switch call.Receiver {
 	case "", "this":
-		return r.resolveOnType(ctx.EnclosingType, call.MethodName)
+		return r.resolveOnType(ctx.EnclosingType, call)
 	case "super":
-		return r.resolveSuper(call.MethodName, ctx)
+		return r.resolveSuper(call, ctx)
 	default:
-		return r.resolveIdentifier(call.Receiver, call.MethodName, ctx)
+		return r.resolveIdentifier(call.Receiver, call, ctx)
 	}
 }
 
-func (r *SyntacticResolver) resolveSuper(methodName string, ctx MethodContext) Resolution {
+func (r *SyntacticResolver) resolveSuper(call java.CallSite, ctx MethodContext) Resolution {
 	if ctx.EnclosingType == nil {
 		return Resolution{Note: "no enclosing type"}
 	}
@@ -46,16 +48,16 @@ func (r *SyntacticResolver) resolveSuper(methodName string, ctx MethodContext) R
 	if superType == nil {
 		return Resolution{Note: fmt.Sprintf("superclass %q not found in same file", ctx.EnclosingType.SuperClass)}
 	}
-	return r.resolveOnType(superType, methodName)
+	return r.resolveOnType(superType, call)
 }
 
-func (r *SyntacticResolver) resolveIdentifier(receiver, methodName string, ctx MethodContext) Resolution {
+func (r *SyntacticResolver) resolveIdentifier(receiver string, call java.CallSite, ctx MethodContext) Resolution {
 	if typeName, ok := ctx.LocalVars[receiver]; ok {
 		t := r.findTypeByName(typeName)
 		if t == nil {
 			return Resolution{Note: fmt.Sprintf("local var type %q not found in project", typeName)}
 		}
-		return r.resolveOnType(t, methodName)
+		return r.resolveOnType(t, call)
 	}
 
 	if ctx.EnclosingType != nil {
@@ -67,7 +69,7 @@ func (r *SyntacticResolver) resolveIdentifier(receiver, methodName string, ctx M
 			if t == nil {
 				return Resolution{Note: fmt.Sprintf("field type %q not found in project", field.Type)}
 			}
-			return r.resolveOnType(t, methodName)
+			return r.resolveOnType(t, call)
 		}
 	}
 
@@ -75,7 +77,7 @@ func (r *SyntacticResolver) resolveIdentifier(receiver, methodName string, ctx M
 	if t == nil {
 		return Resolution{Note: fmt.Sprintf("receiver %q is not a local var, field, or type in same file", receiver)}
 	}
-	return r.resolveOnType(t, methodName)
+	return r.resolveOnType(t, call)
 }
 
 func (r *SyntacticResolver) findTypeByName(name string) *java.TypeDecl {
@@ -96,20 +98,43 @@ func (r *SyntacticResolver) findTypeInFile(name, file string) *java.TypeDecl {
 	return nil
 }
 
-// resolveOnType procura methodName nos Methods de t. Devolve Resolution com
-// 1 target se achar, ou Resolution com Note explicando se não.
-func (r *SyntacticResolver) resolveOnType(t *java.TypeDecl, methodName string) Resolution {
+// resolveOnType seleciona métodos por nome e aridade. Tipos de argumentos serão
+// usados em uma etapa posterior, quando type refs estiverem canonicalizados.
+func (r *SyntacticResolver) resolveOnType(t *java.TypeDecl, call java.CallSite) Resolution {
 	if t == nil {
 		return Resolution{Note: "no enclosing type"}
 	}
+	var candidates []java.MethodDecl
 	for _, m := range t.Methods {
-		if m.Name == methodName {
-			return Resolution{
-				Targets: []MethodHandle{{TypeFQCN: t.FQCN, Method: methodName}},
-			}
+		if m.Name == call.MethodName && arityCompatible(m, call.ArgCount) {
+			candidates = append(candidates, m)
 		}
 	}
-	return Resolution{
-		Note: fmt.Sprintf("method %q not found on %s", methodName, t.FQCN),
+	if len(candidates) == 1 {
+		method := candidates[0]
+		return Resolution{Targets: []MethodHandle{{
+			TypeFQCN:  t.FQCN,
+			Method:    method.Name,
+			Signature: method.Signature,
+		}}}
 	}
+	if len(candidates) > 1 {
+		signatures := make([]string, len(candidates))
+		for i, method := range candidates {
+			signatures[i] = method.Signature
+		}
+		sort.Strings(signatures)
+		return Resolution{Note: fmt.Sprintf("ambiguous overload %q on %s: %s", call.MethodName, t.FQCN, strings.Join(signatures, ", "))}
+	}
+	return Resolution{
+		Note: fmt.Sprintf("method %q with arity %d not found on %s", call.MethodName, call.ArgCount, t.FQCN),
+	}
+}
+
+func arityCompatible(method java.MethodDecl, argCount int) bool {
+	paramCount := len(method.Params)
+	if paramCount == 0 || !method.Params[paramCount-1].Variadic {
+		return argCount == paramCount
+	}
+	return argCount >= paramCount-1
 }

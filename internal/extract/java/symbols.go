@@ -8,6 +8,68 @@ import (
 
 type TypeKind int
 
+type MethodKind int
+
+const (
+	MethodOrdinary MethodKind = iota
+	MethodConstructor
+	MethodCompactConstructor
+	MethodSyntheticLambda
+)
+
+func (k MethodKind) String() string {
+	switch k {
+	case MethodOrdinary:
+		return "ordinary"
+	case MethodConstructor:
+		return "constructor"
+	case MethodCompactConstructor:
+		return "compactConstructor"
+	case MethodSyntheticLambda:
+		return "syntheticLambda"
+	default:
+		return fmt.Sprintf("unknown(%d)", k)
+	}
+}
+
+func (k MethodKind) MarshalJSON() ([]byte, error) {
+	return json.Marshal(k.String())
+}
+
+type CallKind int
+
+const (
+	CallInvocation CallKind = iota
+	CallObjectCreation
+	CallThisConstructor
+	CallSuperConstructor
+	CallMethodReference
+	CallConstructorReference
+)
+
+func (k CallKind) String() string {
+	switch k {
+	case CallInvocation:
+		return "invocation"
+	case CallObjectCreation:
+		return "objectCreation"
+	case CallThisConstructor:
+		return "thisConstructor"
+	case CallSuperConstructor:
+		return "superConstructor"
+	case CallMethodReference:
+		return "methodReference"
+	case CallConstructorReference:
+		return "constructorReference"
+	default:
+		return fmt.Sprintf("unknown(%d)", k)
+	}
+}
+
+func (k CallKind) MarshalJSON() ([]byte, error) {
+	return json.Marshal(k.String())
+}
+
 const (
 	TypeKindClass TypeKind = iota
 	TypeKindInterface
@@ -57,18 +119,27 @@ type (
 		Initializer string   `json:"initializer,omitempty"`
 	}
 	Param struct {
-		Name string `json:"name"`
-		Type string `json:"type"`
+		Name     string `json:"name"`
+		Type     string `json:"type"`
+		Variadic bool   `json:"variadic,omitempty"`
 	}
 	CallSite struct {
+		Kind       CallKind `json:"kind"`
 		MethodName string   `json:"methodName"`
 		Receiver   string   `json:"receiver"`
 		Args       []string `json:"args"`
+		ArgCount   int      `json:"argCount"`
 		File       string   `json:"file"`
 		Line       int      `json:"line"`
 	}
+	MethodKey struct {
+		Name      string
+		Signature string
+	}
 	MethodDecl struct {
+		Kind       MethodKind        `json:"kind"`
 		Name       string            `json:"name"`
+		Signature  string            `json:"signature"`
 		Modifier   []string          `json:"modifier"`
 		ReturnType string            `json:"returnType"`
 		Params     []Param           `json:"params"`
@@ -76,6 +147,10 @@ type (
 		LocalVars  map[string]string `json:"localVars,omitempty"`
 	}
 )
+
+func (m MethodDecl) Key() MethodKey {
+	return MethodKey{Name: m.Name, Signature: m.Signature}
+}
 
 type TypeDecl struct {
 	Kind       TypeKind     `json:"kind"`

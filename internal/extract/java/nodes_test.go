@@ -113,3 +113,39 @@ class Example {
 		t.Fatalf("fields = %+v, want %+v", fields, want)
 	}
 }
+
+func TestExtractMethodKindsAndSignatures(t *testing.T) {
+	types := extractJavaSource(t, `
+class Example {
+    Example(String name) {}
+    void run() {}
+    void run(int count, java.util.List<String> values) {}
+    void log(String... values) {}
+}
+`)
+
+	methods := findTypeBySimpleName(t, types, "Example").Methods
+	if len(methods) != 4 {
+		t.Fatalf("method count = %d, want 4", len(methods))
+	}
+	tests := []struct {
+		index     int
+		kind      MethodKind
+		name      string
+		signature string
+	}{
+		{index: 0, kind: MethodConstructor, name: "<init>", signature: "(String)"},
+		{index: 1, kind: MethodOrdinary, name: "run", signature: "()"},
+		{index: 2, kind: MethodOrdinary, name: "run", signature: "(int,java.util.List)"},
+		{index: 3, kind: MethodOrdinary, name: "log", signature: "(String[])"},
+	}
+	for _, tt := range tests {
+		method := methods[tt.index]
+		if method.Kind != tt.kind || method.Name != tt.name || method.Signature != tt.signature {
+			t.Errorf("method %d = {kind:%s name:%q signature:%q}, want {kind:%s name:%q signature:%q}", tt.index, method.Kind, method.Name, method.Signature, tt.kind, tt.name, tt.signature)
+		}
+	}
+	if params := methods[3].Params; len(params) != 1 || !params[0].Variadic {
+		t.Fatalf("variadic params = %+v, want one variadic param", params)
+	}
+}

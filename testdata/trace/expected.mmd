@@ -1,16 +1,16 @@
 flowchart TD
-  m_a7d71664a342["com.foo.Audit.record"]
-  m_62c28c22fc28["com.foo.BaseWorkflow.initialize"]
-  m_7c1450a6ffe5["com.foo.Helper.work"]
-  m_0acfce2ef63c["com.foo.Workflow.finish"]
-  m_7f2dd5ed2904["com.foo.Workflow.prepare"]
-  m_a5e07c1bfa9d["com.foo.Workflow.start"]
-  m_7c1450a6ffe5 --> m_a7d71664a342
+  m_f178eb338fce["com.foo.Audit.record()"]
+  m_d476e84e6bdb["com.foo.BaseWorkflow.initialize()"]
+  m_6e6e7d2457b4["com.foo.Helper.work()"]
+  m_e12e5f041264["com.foo.Workflow.finish()"]
+  m_6c09a7835283["com.foo.Workflow.prepare()"]
+  m_45ad6583a724["com.foo.Workflow.start()"]
+  m_6e6e7d2457b4 --> m_f178eb338fce
   %% cycle
-  m_0acfce2ef63c --> m_7f2dd5ed2904
-  m_7f2dd5ed2904 --> m_0acfce2ef63c
-  m_a5e07c1bfa9d --> m_a7d71664a342
-  m_a5e07c1bfa9d --> m_62c28c22fc28
-  m_a5e07c1bfa9d --> m_7c1450a6ffe5
-  m_a5e07c1bfa9d --> m_7c1450a6ffe5
-  m_a5e07c1bfa9d --> m_7f2dd5ed2904
+  m_e12e5f041264 --> m_6c09a7835283
+  m_6c09a7835283 --> m_e12e5f041264
+  m_45ad6583a724 --> m_f178eb338fce
+  m_45ad6583a724 --> m_d476e84e6bdb
+  m_45ad6583a724 --> m_6e6e7d2457b4
+  m_45ad6583a724 --> m_6e6e7d2457b4
+  m_45ad6583a724 --> m_6c09a7835283

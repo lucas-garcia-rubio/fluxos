@@ -1,9 +1,9 @@
 flowchart TD
-  m_6136ffe338e7["com.example.A.start"]
-  m_7dcc441302b5["com.example.B.work"]
-  m_695a5795f9cc["com.example.C.finish"]
-  m_6136ffe338e7 --> m_7dcc441302b5
-  m_6136ffe338e7 --> m_7dcc441302b5
-  m_7dcc441302b5 --> m_695a5795f9cc
+  m_781a6647a8f6["com.example.A.start()"]
+  m_63b0c6a2071b["com.example.B.work()"]
+  m_e4b43a1f4923["com.example.C.finish()"]
+  m_781a6647a8f6 --> m_63b0c6a2071b
+  m_781a6647a8f6 --> m_63b0c6a2071b
+  m_63b0c6a2071b --> m_e4b43a1f4923
   %% cycle
-  m_695a5795f9cc --> m_6136ffe338e7
+  m_e4b43a1f4923 --> m_781a6647a8f6

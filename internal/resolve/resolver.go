@@ -9,13 +9,12 @@ import (
 
 // MethodHandle identifica unicamente um método no projeto.
 // TypeFQCN é o FQCN da classe que contém o método (ex.: "com.foo.UserServiceImpl").
-// Method é o nome simples do método (ex.: "create").
-//
-// Em M2 não diferenciamos overloads pela assinatura — só pelo nome. M3 pode
-// adicionar campo Signature se precisar desambiguar (ex.: "create(User)").
+// Method é o nome simples do método (ex.: "create") e Signature identifica
+// overloads (ex.: "(String,int)").
 type MethodHandle struct {
-	TypeFQCN string
-	Method   string
+	TypeFQCN  string
+	Method    string
+	Signature string
 }
 
 // Resolution é o resultado de resolver um CallSite.

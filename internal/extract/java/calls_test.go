@@ -64,3 +64,14 @@ class Example {
 		t.Fatalf("local vars = %v, want %v", got, want)
 	}
 }
+
+func TestExtractCallKindAndArgCount(t *testing.T) {
+	types := extractJavaSource(t, `class Example { void run() { target(first, second); } }`)
+	call := findTypeBySimpleName(t, types, "Example").Methods[0].Calls[0]
+	if call.Kind != CallInvocation {
+		t.Fatalf("call kind = %s, want invocation", call.Kind)
+	}
+	if call.ArgCount != 2 || len(call.Args) != 2 {
+		t.Fatalf("arg count = %d and args = %v, want 2", call.ArgCount, call.Args)
+	}
+}

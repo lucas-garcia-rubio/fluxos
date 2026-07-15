@@ -19,7 +19,7 @@ func TestNewGraphEmpty(t *testing.T) {
 
 func TestGetOrCreate(t *testing.T) {
 	g := NewGraph()
-	h := resolve.MethodHandle{TypeFQCN: "com.foo.User", Method: "getName"}
+	h := resolve.MethodHandle{TypeFQCN: "com.foo.User", Method: "getName", Signature: "()"}
 
 	n1 := g.GetOrCreate(h)
 	if n1 == nil {
@@ -44,7 +44,7 @@ func TestGetOrCreate(t *testing.T) {
 
 func TestIsGrayBlackOnMissingHandle(t *testing.T) {
 	g := NewGraph()
-	h := resolve.MethodHandle{TypeFQCN: "com.foo.User", Method: "getName"}
+	h := resolve.MethodHandle{TypeFQCN: "com.foo.User", Method: "getName", Signature: "()"}
 
 	if g.IsGray(h) {
 		t.Error("IsGray should be false for non-existent handle")
@@ -56,7 +56,7 @@ func TestIsGrayBlackOnMissingHandle(t *testing.T) {
 
 func TestMarkGrayAndIsGray(t *testing.T) {
 	g := NewGraph()
-	h := resolve.MethodHandle{TypeFQCN: "com.foo.User", Method: "getName"}
+	h := resolve.MethodHandle{TypeFQCN: "com.foo.User", Method: "getName", Signature: "()"}
 
 	g.MarkGray(h)
 
@@ -70,7 +70,7 @@ func TestMarkGrayAndIsGray(t *testing.T) {
 
 func TestMarkBlackAndIsBlack(t *testing.T) {
 	g := NewGraph()
-	h := resolve.MethodHandle{TypeFQCN: "com.foo.User", Method: "getName"}
+	h := resolve.MethodHandle{TypeFQCN: "com.foo.User", Method: "getName", Signature: "()"}
 
 	g.MarkBlack(h)
 
@@ -84,7 +84,7 @@ func TestMarkBlackAndIsBlack(t *testing.T) {
 
 func TestMarkBlackOverridesGray(t *testing.T) {
 	g := NewGraph()
-	h := resolve.MethodHandle{TypeFQCN: "com.foo.User", Method: "getName"}
+	h := resolve.MethodHandle{TypeFQCN: "com.foo.User", Method: "getName", Signature: "()"}
 
 	g.MarkGray(h)
 	g.MarkBlack(h)
@@ -99,8 +99,8 @@ func TestMarkBlackOverridesGray(t *testing.T) {
 
 func TestAddEdgeCreatesNodes(t *testing.T) {
 	g := NewGraph()
-	from := resolve.MethodHandle{TypeFQCN: "com.foo.User", Method: "getName"}
-	to := resolve.MethodHandle{TypeFQCN: "com.foo.Main", Method: "run"}
+	from := resolve.MethodHandle{TypeFQCN: "com.foo.User", Method: "getName", Signature: "()"}
+	to := resolve.MethodHandle{TypeFQCN: "com.foo.Main", Method: "run", Signature: "()"}
 	call := java.CallSite{MethodName: "run", Receiver: "user"}
 
 	g.AddEdge(from, to, call, true)
@@ -143,8 +143,8 @@ func TestAddEdgeMultigraph(t *testing.T) {
 	// Graph é multigrafo: múltiplas arestas entre o mesmo par (A → B com 2
 	// chamadas distintas vira 2 Edges).
 	g := NewGraph()
-	from := resolve.MethodHandle{TypeFQCN: "com.foo.User", Method: "run"}
-	to := resolve.MethodHandle{TypeFQCN: "com.foo.Main", Method: "execute"}
+	from := resolve.MethodHandle{TypeFQCN: "com.foo.User", Method: "run", Signature: "()"}
+	to := resolve.MethodHandle{TypeFQCN: "com.foo.Main", Method: "execute", Signature: "()"}
 
 	g.AddEdge(from, to, java.CallSite{MethodName: "execute", Line: 10}, false)
 	g.AddEdge(from, to, java.CallSite{MethodName: "execute", Line: 20}, false)

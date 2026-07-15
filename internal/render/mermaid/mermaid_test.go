@@ -11,8 +11,12 @@ import (
 	"github.com/lucas-garcia-rubio/fluxos/internal/resolve"
 )
 
-func handle(typeFQCN, method string) resolve.MethodHandle {
-	return resolve.MethodHandle{TypeFQCN: typeFQCN, Method: method}
+func handle(typeFQCN, method string, signature ...string) resolve.MethodHandle {
+	sig := "()"
+	if len(signature) > 0 {
+		sig = signature[0]
+	}
+	return resolve.MethodHandle{TypeFQCN: typeFQCN, Method: method, Signature: sig}
 }
 
 func TestRenderEmptyGraph(t *testing.T) {
@@ -32,7 +36,7 @@ func TestRenderIsolatedNode(t *testing.T) {
 	h := handle("com.example.Worker", "run")
 	g.GetOrCreate(h)
 
-	want := "flowchart TD\n  " + nodeID(h) + "[\"com.example.Worker.run\"]\n"
+	want := "flowchart TD\n  " + nodeID(h) + "[\"com.example.Worker.run()\"]\n"
 	if got := Render(g); got != want {
 		t.Fatalf("Render(isolated):\n%s\nwant:\n%s", got, want)
 	}
@@ -97,7 +101,7 @@ func TestNodeIDEscapingAndStability(t *testing.T) {
 	if id == nodeID(handle(h.TypeFQCN, "other")) {
 		t.Fatal("different handles produced the same node ID")
 	}
-	if got, want := nodeLabel(h), `com.example.#quot;Worker#quot;.run`; got != want {
+	if got, want := nodeLabel(h), `com.example.#quot;Worker#quot;.run()`; got != want {
 		t.Fatalf("escaped label: got %q, want %q", got, want)
 	}
 }
@@ -121,5 +125,29 @@ func TestRenderGolden(t *testing.T) {
 	}
 	if got := Render(g); got != string(want) {
 		t.Fatalf("golden mismatch:\ngot:\n%s\nwant:\n%s", got, want)
+	}
+}
+
+func TestNodeIDAndLabelIncludeSignature(t *testing.T) {
+	withoutArgs := handle("Service", "run", "()")
+	withString := handle("Service", "run", "(String)")
+	if nodeID(withoutArgs) == nodeID(withString) {
+		t.Fatal("overloads produced the same node ID")
+	}
+	if got, want := nodeLabel(withString), "Service.run(String)"; got != want {
+		t.Fatalf("node label = %q, want %q", got, want)
+	}
+}
+
+func TestRenderSortsOverloads(t *testing.T) {
+	g := graph.NewGraph()
+	withString := handle("Service", "run", "(String)")
+	withoutArgs := handle("Service", "run", "()")
+	g.GetOrCreate(withString)
+	g.GetOrCreate(withoutArgs)
+
+	got := Render(g)
+	if strings.Index(got, "Service.run()") > strings.Index(got, "Service.run(String)") {
+		t.Fatalf("overloads are not sorted by signature:\n%s", got)
 	}
 }

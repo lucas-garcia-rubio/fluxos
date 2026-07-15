@@ -1,6 +1,7 @@
 package resolve
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/lucas-garcia-rubio/fluxos/internal/extract/java"
@@ -17,7 +18,7 @@ func mkType(fqcn string, methods ...java.MethodDecl) *java.TypeDecl {
 }
 
 func mkMethod(name string) java.MethodDecl {
-	return java.MethodDecl{Name: name}
+	return java.MethodDecl{Name: name, Signature: "()"}
 }
 
 func mkCall(receiver, methodName string) java.CallSite {
@@ -35,7 +36,7 @@ func TestResolveThisMethodExists(t *testing.T) {
 	if len(res.Targets) != 1 {
 		t.Fatalf("expected 1 target, got %d (note: %q)", len(res.Targets), res.Note)
 	}
-	want := MethodHandle{TypeFQCN: "User", Method: "foo"}
+	want := MethodHandle{TypeFQCN: "User", Method: "foo", Signature: "()"}
 	if res.Targets[0] != want {
 		t.Errorf("target mismatch: got %+v, want %+v", res.Targets[0], want)
 	}
@@ -68,7 +69,7 @@ func TestResolveUnqualifiedMethodExists(t *testing.T) {
 	if len(res.Targets) != 1 {
 		t.Fatalf("expected 1 target, got %d (note: %q)", len(res.Targets), res.Note)
 	}
-	want := MethodHandle{TypeFQCN: "User", Method: "foo"}
+	want := MethodHandle{TypeFQCN: "User", Method: "foo", Signature: "()"}
 	if res.Targets[0] != want {
 		t.Errorf("target mismatch: got %+v, want %+v", res.Targets[0], want)
 	}
@@ -145,7 +146,7 @@ func TestResolveFieldMethod(t *testing.T) {
 
 	res := r.Resolve(mkCall("helper", "log"), MethodContext{EnclosingType: enclosing})
 
-	want := MethodHandle{TypeFQCN: "Helper", Method: "log"}
+	want := MethodHandle{TypeFQCN: "Helper", Method: "log", Signature: "()"}
 	if len(res.Targets) != 1 || res.Targets[0] != want {
 		t.Fatalf("got targets %+v (note: %q), want [%+v]", res.Targets, res.Note, want)
 	}
@@ -170,7 +171,7 @@ func TestResolveLocalVarMethod(t *testing.T) {
 
 	res := r.Resolve(mkCall("helper", "log"), ctx)
 
-	want := MethodHandle{TypeFQCN: "Helper", Method: "log"}
+	want := MethodHandle{TypeFQCN: "Helper", Method: "log", Signature: "()"}
 	if len(res.Targets) != 1 || res.Targets[0] != want {
 		t.Fatalf("got targets %+v (note: %q), want [%+v]", res.Targets, res.Note, want)
 	}
@@ -189,7 +190,7 @@ func TestResolveLocalVarTakesPrecedenceOverField(t *testing.T) {
 
 	res := r.Resolve(mkCall("helper", "run"), ctx)
 
-	want := MethodHandle{TypeFQCN: "LocalHelper", Method: "run"}
+	want := MethodHandle{TypeFQCN: "LocalHelper", Method: "run", Signature: "()"}
 	if len(res.Targets) != 1 || res.Targets[0] != want {
 		t.Fatalf("got targets %+v (note: %q), want local target %+v", res.Targets, res.Note, want)
 	}
@@ -219,7 +220,7 @@ func TestResolveSuperMethod(t *testing.T) {
 
 	res := r.Resolve(mkCall("super", "touch"), ctx)
 
-	want := MethodHandle{TypeFQCN: "Base", Method: "touch"}
+	want := MethodHandle{TypeFQCN: "Base", Method: "touch", Signature: "()"}
 	if len(res.Targets) != 1 || res.Targets[0] != want {
 		t.Fatalf("got targets %+v (note: %q), want [%+v]", res.Targets, res.Note, want)
 	}
@@ -279,7 +280,7 @@ func TestResolveStaticMethodInSameFile(t *testing.T) {
 
 	res := r.Resolve(mkCall("Utils", "log"), ctx)
 
-	want := MethodHandle{TypeFQCN: "Utils", Method: "log"}
+	want := MethodHandle{TypeFQCN: "Utils", Method: "log", Signature: "()"}
 	if len(res.Targets) != 1 || res.Targets[0] != want {
 		t.Fatalf("got targets %+v (note: %q), want [%+v]", res.Targets, res.Note, want)
 	}
@@ -314,7 +315,7 @@ func TestResolveLocalVarTakesPrecedenceOverType(t *testing.T) {
 
 	res := r.Resolve(mkCall("helper", "run"), ctx)
 
-	want := MethodHandle{TypeFQCN: "LocalHelper", Method: "run"}
+	want := MethodHandle{TypeFQCN: "LocalHelper", Method: "run", Signature: "()"}
 	if len(res.Targets) != 1 || res.Targets[0] != want {
 		t.Fatalf("got targets %+v (note: %q), want local target %+v", res.Targets, res.Note, want)
 	}
@@ -334,7 +335,7 @@ func TestResolveFieldTakesPrecedenceOverType(t *testing.T) {
 
 	res := r.Resolve(mkCall("helper", "run"), ctx)
 
-	want := MethodHandle{TypeFQCN: "FieldHelper", Method: "run"}
+	want := MethodHandle{TypeFQCN: "FieldHelper", Method: "run", Signature: "()"}
 	if len(res.Targets) != 1 || res.Targets[0] != want {
 		t.Fatalf("got targets %+v (note: %q), want field target %+v", res.Targets, res.Note, want)
 	}
@@ -351,5 +352,53 @@ func TestResolveQualifiedStaticReceiverRemainsUnresolved(t *testing.T) {
 
 	if len(res.Targets) != 0 || res.Note == "" {
 		t.Fatalf("expected qualified static receiver to remain unresolved, got %+v", res)
+	}
+}
+
+func TestResolveOverloadByArity(t *testing.T) {
+	typ := mkType("Service",
+		java.MethodDecl{Name: "run", Signature: "()"},
+		java.MethodDecl{Name: "run", Signature: "(String)", Params: []java.Param{{Type: "String"}}},
+	)
+	r := NewSyntacticResolver([]*java.TypeDecl{typ})
+
+	res := r.Resolve(java.CallSite{MethodName: "run", ArgCount: 1}, MethodContext{EnclosingType: typ})
+
+	want := MethodHandle{TypeFQCN: "Service", Method: "run", Signature: "(String)"}
+	if len(res.Targets) != 1 || res.Targets[0] != want {
+		t.Fatalf("targets = %+v (note: %q), want [%+v]", res.Targets, res.Note, want)
+	}
+}
+
+func TestResolveAmbiguousOverload(t *testing.T) {
+	typ := mkType("Service",
+		java.MethodDecl{Name: "run", Signature: "(String)", Params: []java.Param{{Type: "String"}}},
+		java.MethodDecl{Name: "run", Signature: "(int)", Params: []java.Param{{Type: "int"}}},
+	)
+	r := NewSyntacticResolver([]*java.TypeDecl{typ})
+
+	res := r.Resolve(java.CallSite{MethodName: "run", ArgCount: 1}, MethodContext{EnclosingType: typ})
+
+	if len(res.Targets) != 0 || !strings.Contains(res.Note, "ambiguous overload") {
+		t.Fatalf("expected overload ambiguity, got %+v", res)
+	}
+	if !strings.Contains(res.Note, "(String), (int)") {
+		t.Fatalf("ambiguity note is not deterministically sorted: %q", res.Note)
+	}
+}
+
+func TestResolveVariadicArity(t *testing.T) {
+	typ := mkType("Logger", java.MethodDecl{
+		Name:      "log",
+		Signature: "(String[])",
+		Params:    []java.Param{{Type: "String", Variadic: true}},
+	})
+	r := NewSyntacticResolver([]*java.TypeDecl{typ})
+
+	for _, argCount := range []int{0, 1, 3} {
+		res := r.Resolve(java.CallSite{MethodName: "log", ArgCount: argCount}, MethodContext{EnclosingType: typ})
+		if len(res.Targets) != 1 {
+			t.Errorf("argCount %d: targets = %+v, note = %q", argCount, res.Targets, res.Note)
+		}
 	}
 }
