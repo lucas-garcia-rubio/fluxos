@@ -81,6 +81,7 @@ type TypeDecl struct {
 	Kind       TypeKind     `json:"kind"`
 	Name       string       `json:"name"`
 	FQCN       string       `json:"fqcn"`
+	Modifier   []string     `json:"modifier"`
 	SuperClass string       `json:"superClass"`
 	Interfaces []string     `json:"interfaces"`
 	File       string       `json:"file"`

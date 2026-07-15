@@ -22,6 +22,9 @@ func extractLocalVars(source []byte, methodNode *sitter.Node) map[string]string 
 }
 
 func walkAndCollectLocalVars(node *sitter.Node, source []byte, localVars map[string]string) {
+	if isNestedExecutableBoundary(node) {
+		return
+	}
 	if node.Kind() == "local_variable_declaration" {
 		typeNode := node.ChildByFieldName("type")
 		if typeNode != nil && sourceText(source, typeNode) != "var" {

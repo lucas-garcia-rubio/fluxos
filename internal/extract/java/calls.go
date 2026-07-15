@@ -22,11 +22,23 @@ func extractCalls(source []byte, methodNode *sitter.Node, filePath string) []Cal
 // CallSite. Depois recursa em todos os named children (pega chamadas aninhadas
 // como `foo(bar(baz()))` — vira 3 CallSites).
 func walkAndCollectCalls(node *sitter.Node, source []byte, filePath string, calls *[]CallSite) {
+	if isNestedExecutableBoundary(node) {
+		return
+	}
 	if node.Kind() == "method_invocation" {
 		*calls = append(*calls, buildCallSite(source, node, filePath))
 	}
 	for i := 0; i < int(node.NamedChildCount()); i++ {
 		walkAndCollectCalls(node.NamedChild(uint(i)), source, filePath, calls)
+	}
+}
+
+func isNestedExecutableBoundary(node *sitter.Node) bool {
+	switch node.Kind() {
+	case "lambda_expression", "class_body", "interface_body", "enum_body", "annotation_type_body":
+		return true
+	default:
+		return false
 	}
 }
 

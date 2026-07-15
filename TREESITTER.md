@@ -80,7 +80,10 @@ root := tree.RootNode()  // sempre é "program" pra Java
   - `scoped_identifier` tem fields `scope` e `name`, ambos `identifier`.
   - Sem `package` no arquivo → package default (string vazia).
 
-- **`import_declaration`** — filho nomeado de `program`. Útil depois pra resolver tipos externos.
+- **`import_declaration`** — filho nomeado de `program`. Não possui fields semânticos:
+  o nome é filho `identifier`/`scoped_identifier`, wildcard é filho `asterisk`, e
+  `static` é token unnamed. Para distinguir os quatro formatos, combinar children e
+  source text.
 
 ### Declarações de tipo (vira `TypeDecl`)
 
@@ -99,19 +102,19 @@ root := tree.RootNode()  // sempre é "program" pra Java
 |---|---|---|---|
 | Nome da classe (`Foo`) | `name` | `class_declaration` / `interface_declaration` / etc. | `identifier` |
 | Modificadores (`public`, `private`, etc.) | **posicional, sem field name** | qualquer declaração | nó `modifiers` — ver "modifiers pegadinha" abaixo |
-| `extends Base` (em **classe**) | **`superclass`** (singular) | `class_declaration` | `type_identifier` |
-| `implements X, Y` (em **classe**) | **`super_interfaces`** (plural, type_list) | `class_declaration` | `type_list` com vários `type_identifier` |
-| `extends X, Y` (em **interface**) | **`extends_interfaces`** (plural, type_list) | `interface_declaration` | `type_list` com vários `type_identifier` |
+| `extends Base` (em **classe**) | **`superclass`** | `class_declaration` | wrapper `superclass` com qualquer `_type` |
+| `implements X, Y` (em **classe**) | **`interfaces`** | `class_declaration` | wrapper `super_interfaces` com `type_list` |
+| `extends X, Y` (em **interface**) | **posicional, sem field name** | `interface_declaration` | wrapper `extends_interfaces` com `type_list` |
 
-**⚠️ Wrapper nesting pegadinha** — os fields `superclass`, `super_interfaces` e `extends_interfaces`
+**⚠️ Wrapper nesting pegadinha** — `superclass`, `super_interfaces` e `extends_interfaces`
 **não são o nó folha**; são wrappers em volta de outros nós. O range do wrapper inclui keywords
 (`extends`, `implements`) e vírgulas. Pra extrair o texto limpo do tipo, drilla um nível:
 
 | Field | Wrapper | Nó folha dentro | Como extrair texto limpo |
 |---|---|---|---|
-| `superclass` | nó `superclass` | `type_identifier` | `super.ChildByFieldName(...)` ou achar `type_identifier` por Kind |
-| `super_interfaces` | nó `super_interfaces` | `type_list` contendo `type_identifier`s | achar `type_list` por Kind, iterar `type_identifier`s |
-| `extends_interfaces` | nó `extends_interfaces` | `type_list` contendo `type_identifier`s | idem |
+| `superclass` | nó `superclass` | qualquer `_type` | primeiro named child; preserva qualified/generic type |
+| `super_interfaces` | nó `super_interfaces` | `type_list` | achar `type_list` por Kind e iterar filhos |
+| `extends_interfaces` | nó `extends_interfaces` posicional | `type_list` | achar wrapper por Kind, depois iterar `type_list` |
 
 Sem drillar, `sourceText` no wrapper pega "extends BaseModel" (com keyword) ou
 "Auditable, Serializable" (vírgula inclusiva). Bug silencioso — compila, roda, mas dados errados.
@@ -144,9 +147,9 @@ Nota: enum e record têm variações. Enum pode ter `interfaces` (implements); r
 
 Dentro de `class_body`:
 
-- **`field_declaration`** — um field. Fields: `modifiers`, `type`, `declarator` (ou
-  `declarators` se múltiplos). O `declarator` é um `variable_declarator` com fields `name`
-  (`identifier`) e opcionalmente `value` (expressão inicial).
+- **`field_declaration`** — um field. O field `declarator` possui `multiple: true` e
+  aparece repetido para `int x, y, z`; não existe wrapper `declarators`. Iterar named
+  children e filtrar `variable_declarator`. Cada declarator tem fields `name` e `value`.
 
 - **`method_declaration`** — um método. Ver tabela abaixo.
 
@@ -191,6 +194,26 @@ Cada `formal_parameter` (dentro de `formal_parameters`):
 |---|---|
 | Tipo construído (`Foo`) | `type` |
 | Argumentos | `arguments` (`argument_list`) |
+
+### Construtores e method references
+
+- `constructor_declaration` — construtor comum, com fields `name`, `parameters` e `body`.
+- `compact_constructor_declaration` — construtor compacto de record, com `name` e `body`.
+- `explicit_constructor_invocation` — chamadas `this(...)` e `super(...)`.
+- `method_reference` — filhos sem field names; receiver/type e membro final precisam ser
+  interpretados pela ordem/source text. Cobre `obj::method`, `Type::method`, `super::method`
+  e `Type::new`.
+
+### Executable boundaries
+
+Walkers iniciados no body de um método não devem atravessar automaticamente:
+
+- `lambda_expression`;
+- `class_body` de classe local ou anônima;
+- `interface_body`, `enum_body` e `annotation_type_body` aninhados.
+
+Calls e local vars dentro desses nós pertencem a outra unidade executável. Em object
+creation anônima, continuar percorrendo `argument_list`, mas pular somente o `class_body`.
 
 ## Padrões de extração
 

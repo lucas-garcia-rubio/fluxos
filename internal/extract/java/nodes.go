@@ -51,9 +51,10 @@ func extractPackage(source []byte, root *sitter.Node) string {
 
 func extractTypeDecl(filePath string, source []byte, node *sitter.Node, pkg string, kind TypeKind) *TypeDecl {
 	decl := &TypeDecl{
-		Kind: kind,
-		File: filePath,
-		Line: int(node.StartPosition().Row) + 1, // tree-sitter é 0-indexed; arquivos são 1-indexed
+		Kind:     kind,
+		Modifier: extractModifiers(source, node),
+		File:     filePath,
+		Line:     int(node.StartPosition().Row) + 1, // tree-sitter é 0-indexed; arquivos são 1-indexed
 	}
 
 	if nameNode := node.ChildByFieldName("name"); nameNode != nil {
@@ -65,25 +66,22 @@ func extractTypeDecl(filePath string, source []byte, node *sitter.Node, pkg stri
 		decl.FQCN = decl.Name
 	}
 
-	// Superclass só faz sentido em classe. O nó `superclass` é um wrapper em
-	// volta do `type_identifier` (range inclui a keyword "extends") — drilla.
+	// Superclass é um wrapper em volta de qualquer _type. Usar o primeiro filho
+	// nomeado preserva formas qualificadas e genéricas sem a keyword "extends".
 	if kind == TypeKindClass {
 		if super := node.ChildByFieldName("superclass"); super != nil {
-			if inner := findFirstByKind(super, "type_identifier"); inner != nil {
+			if inner := super.NamedChild(0); inner != nil {
 				decl.SuperClass = sourceText(source, inner)
 			}
 		}
 	}
 
-	// Interfaces: field name varia por Kind (ver TREESITTER.md, "assimetria pegadinha").
-	// O wrapper (super_interfaces/extends_interfaces) contém um `type_list`,
-	// que por sua vez contém os `type_identifier`s. Drilla dois níveis.
+	// Class/record/enum expõem interfaces pelo field "interfaces". Interface
+	// extends é filho posicional, então também procuramos pelo Kind do wrapper.
 	var ifNode *sitter.Node
-	for _, field := range []string{"super_interfaces", "extends_interfaces", "interfaces"} {
-		if n := node.ChildByFieldName(field); n != nil {
-			ifNode = n
-			break
-		}
+	ifNode = node.ChildByFieldName("interfaces")
+	if ifNode == nil {
+		ifNode = findFirstByKinds(node, "super_interfaces", "extends_interfaces")
 	}
 	if ifNode != nil {
 		list := ifNode
@@ -104,6 +102,9 @@ func extractTypeDecl(filePath string, source []byte, node *sitter.Node, pkg stri
 	// Garante slices não-nil pra JSON output ([] em vez de null).
 	if decl.Interfaces == nil {
 		decl.Interfaces = []string{}
+	}
+	if decl.Modifier == nil {
+		decl.Modifier = []string{}
 	}
 	if decl.Fields == nil {
 		decl.Fields = []FieldDecl{}
@@ -155,15 +156,13 @@ func extractFieldDecl(source []byte, node *sitter.Node) []FieldDecl {
 		typeStr = sourceText(source, typeNode)
 	}
 
-	// `declarator` (singular, `int x;`) ou `declarators` (plural, `int x, y;`).
-	// variable_declarator_list dentro de `declarators` contém os variable_declarators.
+	// A grammar repete o field `declarator`; iterar named children preserva todos
+	// os variable_declarators em declarações como `int x, y, z;`.
 	var declarators []*sitter.Node
-	if decl := node.ChildByFieldName("declarator"); decl != nil {
-		declarators = append(declarators, decl)
-	}
-	if decls := node.ChildByFieldName("declarators"); decls != nil {
-		for i := 0; i < int(decls.NamedChildCount()); i++ {
-			declarators = append(declarators, decls.NamedChild(uint(i)))
+	for i := 0; i < int(node.NamedChildCount()); i++ {
+		child := node.NamedChild(uint(i))
+		if child.Kind() == "variable_declarator" {
+			declarators = append(declarators, child)
 		}
 	}
 
@@ -249,6 +248,15 @@ func findFirstByKind(node *sitter.Node, kind string) *sitter.Node {
 		c := node.NamedChild(uint(i))
 		if c.Kind() == kind {
 			return c
+		}
+	}
+	return nil
+}
+
+func findFirstByKinds(node *sitter.Node, kinds ...string) *sitter.Node {
+	for _, kind := range kinds {
+		if child := findFirstByKind(node, kind); child != nil {
+			return child
 		}
 	}
 	return nil
