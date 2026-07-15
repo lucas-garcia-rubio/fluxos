@@ -6,7 +6,7 @@ import (
 
 // Extract percorre a AST a partir de tree.RootNode() e devolve todas as
 // declarações de tipo encontradas (classes, interfaces, enums, records),
-// com Methods preenchidos (Passo 7). Fields ainda não são extraídos.
+// com Methods e Fields preenchidos.
 // filePath é o caminho do arquivo .java no disco — populado em TypeDecl.File
 // pra mensagens de erro/warning poderem referenciar arquivo:linha.
 func Extract(filePath string, source []byte, tree *sitter.Tree) ([]*TypeDecl, error) {
@@ -117,7 +117,7 @@ func extractTypeDecl(filePath string, source []byte, node *sitter.Node, pkg stri
 
 // extractMethods percorre o body de um tipo (class_body, interface_body, etc.)
 // e devolve Methods + Constructors. Field declarations, initializers e inner
-// classes são ignorados (Fields virão noutra passada; inner classes em v2).
+// classes são ignorados (fields são extraídos separadamente; inner classes em v2).
 func extractMethods(filePath string, source []byte, body *sitter.Node) []MethodDecl {
 	var methods []MethodDecl
 	for i := 0; i < int(body.NamedChildCount()); i++ {
@@ -206,6 +206,7 @@ func extractMethod(filePath string, source []byte, node *sitter.Node) MethodDecl
 		m.Params = extractParams(source, paramsNode)
 	}
 	m.Calls = extractCalls(source, node, filePath)
+	m.LocalVars = extractLocalVars(source, node)
 	// Garante slices não-nil pra JSON output ([] em vez de null).
 	if m.Modifier == nil {
 		m.Modifier = []string{}

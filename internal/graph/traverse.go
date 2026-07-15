@@ -19,7 +19,6 @@ import (
 //  5. Marca black.
 //
 // method.Calls já vem populado do Passo 2 (extractCalls). Walk não re-extrai.
-// LocalVars em MethodContext fica nil neste paso (Passo 7 traz extractLocalVars).
 func Walk(
 	g *Graph,
 	enclosingType *java.TypeDecl,
@@ -46,8 +45,8 @@ func Walk(
 	for _, call := range method.Calls {
 		ctx := resolve.MethodContext{
 			EnclosingType: enclosingType,
+			LocalVars:     method.LocalVars,
 			File:          enclosingType.File,
-			// LocalVars: nil por enquanto; Passo 7 traz extractLocalVars.
 		}
 		resolution := resolver.Resolve(call, ctx)
 		for _, target := range resolution.Targets {

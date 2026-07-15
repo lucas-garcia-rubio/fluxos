@@ -13,6 +13,15 @@ type stubResolver struct {
 	rules map[string]resolve.Resolution
 }
 
+type contextResolver struct {
+	localVars map[string]string
+}
+
+func (r *contextResolver) Resolve(_ java.CallSite, ctx resolve.MethodContext) resolve.Resolution {
+	r.localVars = ctx.LocalVars
+	return resolve.Resolution{Note: "captured context"}
+}
+
 func (s stubResolver) Resolve(call java.CallSite, ctx resolve.MethodContext) resolve.Resolution {
 	if r, ok := s.rules[call.MethodName]; ok {
 		return r
@@ -230,5 +239,18 @@ func TestWalkExternalTarget(t *testing.T) {
 	}
 	if g.IsBlack(mkHandle("External", "doStuff")) || g.IsGray(mkHandle("External", "doStuff")) {
 		t.Error("External target should remain white (never walked)")
+	}
+}
+
+func TestWalkPassesLocalVarsToResolver(t *testing.T) {
+	method := mkMethod("run", mkCall("helper"))
+	method.LocalVars = map[string]string{"helper": "Helper"}
+	typ := mkType("Example", method)
+	resolver := &contextResolver{}
+
+	Walk(NewGraph(), typ, method, []*java.TypeDecl{typ}, resolver)
+
+	if got := resolver.localVars["helper"]; got != "Helper" {
+		t.Fatalf("resolver received local var type %q, want %q", got, "Helper")
 	}
 }

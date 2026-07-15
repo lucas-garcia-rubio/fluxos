@@ -68,11 +68,12 @@ type (
 		Line       int      `json:"line"`
 	}
 	MethodDecl struct {
-		Name       string     `json:"name"`
-		Modifier   []string   `json:"modifier"`
-		ReturnType string     `json:"returnType"`
-		Params     []Param    `json:"params"`
-		Calls      []CallSite `json:"calls"`
+		Name       string            `json:"name"`
+		Modifier   []string          `json:"modifier"`
+		ReturnType string            `json:"returnType"`
+		Params     []Param           `json:"params"`
+		Calls      []CallSite        `json:"calls"`
+		LocalVars  map[string]string `json:"localVars,omitempty"`
 	}
 )
 

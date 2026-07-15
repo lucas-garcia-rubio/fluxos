@@ -26,7 +26,7 @@ func mkCall(receiver, methodName string) java.CallSite {
 
 // Teste 1: this.foo() com foo existente no enclosing type.
 func TestResolveThisMethodExists(t *testing.T) {
-	r := NewSyntacticResolver()
+	r := NewSyntacticResolver(nil)
 	enclosing := mkType("User", mkMethod("foo"))
 	ctx := MethodContext{EnclosingType: enclosing}
 
@@ -43,7 +43,7 @@ func TestResolveThisMethodExists(t *testing.T) {
 
 // Teste 2: this.foo() sem foo no enclosing type.
 func TestResolveThisMethodMissing(t *testing.T) {
-	r := NewSyntacticResolver()
+	r := NewSyntacticResolver(nil)
 	enclosing := mkType("User", mkMethod("bar")) // sem foo
 	ctx := MethodContext{EnclosingType: enclosing}
 
@@ -59,7 +59,7 @@ func TestResolveThisMethodMissing(t *testing.T) {
 
 // Teste 3: foo() (unqualified) — mesmo caminho que this.foo().
 func TestResolveUnqualifiedMethodExists(t *testing.T) {
-	r := NewSyntacticResolver()
+	r := NewSyntacticResolver(nil)
 	enclosing := mkType("User", mkMethod("foo"))
 	ctx := MethodContext{EnclosingType: enclosing}
 
@@ -74,9 +74,9 @@ func TestResolveUnqualifiedMethodExists(t *testing.T) {
 	}
 }
 
-// Teste 4: other.foo() (identifier receiver) — Passo 6 não trata.
-func TestResolveIdentifierNotHandled(t *testing.T) {
-	r := NewSyntacticResolver()
+// Teste 4: identifier desconhecido continua unresolved.
+func TestResolveUnknownIdentifier(t *testing.T) {
+	r := NewSyntacticResolver(nil)
 	enclosing := mkType("User", mkMethod("foo"))
 	ctx := MethodContext{EnclosingType: enclosing}
 
@@ -90,9 +90,9 @@ func TestResolveIdentifierNotHandled(t *testing.T) {
 	}
 }
 
-// Teste 5: super.foo() — Passo 6 não trata (defer Passo 8).
+// Teste 5: super.foo() — deferido para o Passo 8.
 func TestResolveSuperNotHandled(t *testing.T) {
-	r := NewSyntacticResolver()
+	r := NewSyntacticResolver(nil)
 	enclosing := mkType("User", mkMethod("foo"))
 	ctx := MethodContext{EnclosingType: enclosing}
 
@@ -106,9 +106,9 @@ func TestResolveSuperNotHandled(t *testing.T) {
 	}
 }
 
-// Teste 6: complex receiver (System.out) — Passo 6 não trata.
+// Teste 6: complex receiver (System.out) continua unresolved.
 func TestResolveComplexReceiverNotHandled(t *testing.T) {
-	r := NewSyntacticResolver()
+	r := NewSyntacticResolver(nil)
 	enclosing := mkType("User", mkMethod("foo"))
 	ctx := MethodContext{EnclosingType: enclosing}
 
@@ -124,7 +124,7 @@ func TestResolveComplexReceiverNotHandled(t *testing.T) {
 
 // Teste 7: enclosing type nil — proteção contra contexto malformado.
 func TestResolveNilEnclosingType(t *testing.T) {
-	r := NewSyntacticResolver()
+	r := NewSyntacticResolver(nil)
 	ctx := MethodContext{EnclosingType: nil}
 
 	res := r.Resolve(mkCall("this", "foo"), ctx)
@@ -134,5 +134,75 @@ func TestResolveNilEnclosingType(t *testing.T) {
 	}
 	if res.Note == "" {
 		t.Error("expected Note explaining nil enclosing type")
+	}
+}
+
+func TestResolveFieldMethod(t *testing.T) {
+	helper := mkType("Helper", mkMethod("log"))
+	enclosing := mkType("User")
+	enclosing.Fields = []java.FieldDecl{{Name: "helper", Type: "Helper"}}
+	r := NewSyntacticResolver([]*java.TypeDecl{enclosing, helper})
+
+	res := r.Resolve(mkCall("helper", "log"), MethodContext{EnclosingType: enclosing})
+
+	want := MethodHandle{TypeFQCN: "Helper", Method: "log"}
+	if len(res.Targets) != 1 || res.Targets[0] != want {
+		t.Fatalf("got targets %+v (note: %q), want [%+v]", res.Targets, res.Note, want)
+	}
+}
+
+func TestResolveFieldWithExternalType(t *testing.T) {
+	enclosing := mkType("User")
+	enclosing.Fields = []java.FieldDecl{{Name: "client", Type: "ExternalClient"}}
+	r := NewSyntacticResolver([]*java.TypeDecl{enclosing})
+
+	res := r.Resolve(mkCall("client", "send"), MethodContext{EnclosingType: enclosing})
+
+	if len(res.Targets) != 0 || res.Note == "" {
+		t.Fatalf("expected unresolved field type, got %+v", res)
+	}
+}
+
+func TestResolveLocalVarMethod(t *testing.T) {
+	helper := mkType("Helper", mkMethod("log"))
+	r := NewSyntacticResolver([]*java.TypeDecl{helper})
+	ctx := MethodContext{LocalVars: map[string]string{"helper": "Helper"}}
+
+	res := r.Resolve(mkCall("helper", "log"), ctx)
+
+	want := MethodHandle{TypeFQCN: "Helper", Method: "log"}
+	if len(res.Targets) != 1 || res.Targets[0] != want {
+		t.Fatalf("got targets %+v (note: %q), want [%+v]", res.Targets, res.Note, want)
+	}
+}
+
+func TestResolveLocalVarTakesPrecedenceOverField(t *testing.T) {
+	localType := mkType("LocalHelper", mkMethod("run"))
+	fieldType := mkType("FieldHelper", mkMethod("run"))
+	enclosing := mkType("User")
+	enclosing.Fields = []java.FieldDecl{{Name: "helper", Type: "FieldHelper"}}
+	r := NewSyntacticResolver([]*java.TypeDecl{enclosing, localType, fieldType})
+	ctx := MethodContext{
+		EnclosingType: enclosing,
+		LocalVars:     map[string]string{"helper": "LocalHelper"},
+	}
+
+	res := r.Resolve(mkCall("helper", "run"), ctx)
+
+	want := MethodHandle{TypeFQCN: "LocalHelper", Method: "run"}
+	if len(res.Targets) != 1 || res.Targets[0] != want {
+		t.Fatalf("got targets %+v (note: %q), want local target %+v", res.Targets, res.Note, want)
+	}
+}
+
+func TestResolveLocalVarMethodMissing(t *testing.T) {
+	helper := mkType("Helper", mkMethod("other"))
+	r := NewSyntacticResolver([]*java.TypeDecl{helper})
+	ctx := MethodContext{LocalVars: map[string]string{"helper": "Helper"}}
+
+	res := r.Resolve(mkCall("helper", "log"), ctx)
+
+	if len(res.Targets) != 0 || res.Note == "" {
+		t.Fatalf("expected unresolved missing method, got %+v", res)
 	}
 }
