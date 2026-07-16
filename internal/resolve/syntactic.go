@@ -27,6 +27,18 @@ func NewSyntacticResolver(table *index.Table) *SyntacticResolver {
 // Resolve decide qual método call aponta, baseado em call.Receiver e no
 // MethodContext. Ver Passo 8 em PLANO_M2.md pra algoritmo completo.
 func (r *SyntacticResolver) Resolve(call java.CallSite, ctx MethodContext) Resolution {
+	switch call.Kind {
+	case java.CallObjectCreation:
+		return r.resolveObjectCreation(call, ctx)
+	case java.CallThisConstructor:
+		return r.resolveThisConstructor(call, ctx)
+	case java.CallSuperConstructor:
+		return r.resolveSuperConstructor(call, ctx)
+	}
+	return r.resolveInvocation(call, ctx)
+}
+
+func (r *SyntacticResolver) resolveInvocation(call java.CallSite, ctx MethodContext) Resolution {
 	switch call.Receiver {
 	case "":
 		return r.resolveUnqualified(call, ctx)
@@ -37,6 +49,76 @@ func (r *SyntacticResolver) Resolve(call java.CallSite, ctx MethodContext) Resol
 	default:
 		return r.resolveIdentifier(call.Receiver, call, ctx)
 	}
+}
+
+func (r *SyntacticResolver) resolveObjectCreation(call java.CallSite, ctx MethodContext) Resolution {
+	if call.Anonymous {
+		return Resolution{Note: "anonymous class construction is unsupported"}
+	}
+	if call.Receiver != "" {
+		return Resolution{Note: fmt.Sprintf("qualified object creation receiver %q is unsupported", call.Receiver)}
+	}
+	if call.TargetType == nil {
+		return Resolution{Note: "object creation has no target type"}
+	}
+	typ, note := r.resolveType(*call.TargetType, ctx)
+	if typ == nil {
+		return Resolution{Note: fmt.Sprintf("constructor type %q unresolved: %s", call.TargetType.Raw, note)}
+	}
+	if !r.typeAccessible(typ, ctx) {
+		return Resolution{Note: fmt.Sprintf("constructor type %s is not accessible", typ.FQCN)}
+	}
+	switch typ.Kind {
+	case java.TypeKindClass:
+		if java.HasModifier(typ.Modifier, "abstract") {
+			return Resolution{Note: fmt.Sprintf("cannot instantiate abstract type %s", typ.FQCN)}
+		}
+	case java.TypeKindRecord:
+		// Records are directly instantiable.
+	default:
+		return Resolution{Note: fmt.Sprintf("cannot instantiate %s %s", typ.Kind, typ.FQCN)}
+	}
+
+	candidates := r.accessibleConstructors(typ, ctx, false)
+	if selection := selectConstructorCandidates(candidates, call, typ); selection.Found {
+		return selection.Resolution
+	}
+	return Resolution{Note: fmt.Sprintf("constructor with arity %d not found on %s", call.ArgCount, typ.FQCN)}
+}
+
+func (r *SyntacticResolver) resolveThisConstructor(call java.CallSite, ctx MethodContext) Resolution {
+	if ctx.EnclosingType == nil {
+		return Resolution{Note: "this constructor call has no enclosing type"}
+	}
+	if r.Index == nil {
+		return Resolution{Note: "project index is unavailable"}
+	}
+	candidates := r.Index.ConstructorCandidates(ctx.EnclosingType.FQCN)
+	if selection := selectConstructorCandidates(candidates, call, ctx.EnclosingType); selection.Found {
+		return selection.Resolution
+	}
+	return Resolution{Note: fmt.Sprintf("constructor with arity %d not found on %s", call.ArgCount, ctx.EnclosingType.FQCN)}
+}
+
+func (r *SyntacticResolver) resolveSuperConstructor(call java.CallSite, ctx MethodContext) Resolution {
+	if call.Receiver != "" {
+		return Resolution{Note: fmt.Sprintf("qualified super constructor receiver %q is unsupported", call.Receiver)}
+	}
+	if ctx.EnclosingType == nil {
+		return Resolution{Note: "super constructor call has no enclosing type"}
+	}
+	if r.Index == nil {
+		return Resolution{Note: "project index is unavailable"}
+	}
+	superType, ok := r.Index.DirectSuperclass(ctx.EnclosingType.FQCN)
+	if !ok {
+		return Resolution{Note: fmt.Sprintf("type %s has no project superclass", ctx.EnclosingType.FQCN)}
+	}
+	candidates := r.accessibleConstructors(superType, ctx, true)
+	if selection := selectConstructorCandidates(candidates, call, superType); selection.Found {
+		return selection.Resolution
+	}
+	return Resolution{Note: fmt.Sprintf("constructor with arity %d not found on direct superclass %s", call.ArgCount, superType.FQCN)}
 }
 
 func (r *SyntacticResolver) resolveUnqualified(call java.CallSite, ctx MethodContext) Resolution {
@@ -65,6 +147,14 @@ func selectStaticImportCandidates(candidates []index.MethodResolution, call java
 	selection := selectMethodCandidates(candidates, call, nil)
 	if selection.Found && len(selection.Resolution.Targets) == 0 {
 		selection.Resolution.Note = strings.Replace(selection.Resolution.Note, "ambiguous overload", "ambiguous "+kind+" static import", 1)
+	}
+	return selection
+}
+
+func selectConstructorCandidates(candidates []index.MethodResolution, call java.CallSite, owner *java.TypeDecl) candidateSelection {
+	selection := selectMethodCandidates(candidates, call, owner)
+	if selection.Found && len(selection.Resolution.Targets) == 0 {
+		selection.Resolution.Note = strings.Replace(selection.Resolution.Note, "ambiguous overload", "ambiguous constructor", 1)
 	}
 	return selection
 }
@@ -387,6 +477,48 @@ func (r *SyntacticResolver) staticAccessible(candidate index.MethodResolution, c
 		return true
 	}
 	if java.HasModifier(modifiers, "protected") && ctx.EnclosingType != nil {
+		for _, superclass := range r.Index.SuperclassChain(ctx.EnclosingType.FQCN) {
+			if superclass.FQCN == candidate.DeclaringType.FQCN {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+func (r *SyntacticResolver) accessibleConstructors(owner *java.TypeDecl, ctx MethodContext, allowProtectedSubclass bool) []index.MethodResolution {
+	result := make([]index.MethodResolution, 0)
+	if r.Index == nil || owner == nil {
+		return result
+	}
+	for _, candidate := range r.Index.ConstructorCandidates(owner.FQCN) {
+		if r.constructorAccessible(candidate, ctx, allowProtectedSubclass) {
+			result = append(result, candidate)
+		}
+	}
+	return result
+}
+
+func (r *SyntacticResolver) constructorAccessible(candidate index.MethodResolution, ctx MethodContext, allowProtectedSubclass bool) bool {
+	if candidate.DeclaringType == nil || candidate.Method == nil {
+		return false
+	}
+	if ctx.EnclosingType != nil && ctx.EnclosingType.FQCN == candidate.DeclaringType.FQCN {
+		return true
+	}
+	modifiers := candidate.Method.Modifier
+	if java.HasModifier(modifiers, "private") {
+		return false
+	}
+	if java.HasModifier(modifiers, "public") {
+		return true
+	}
+	callerUnit := r.unitForContext(ctx)
+	ownerUnit := r.Index.UnitForType(candidate.DeclaringType.FQCN)
+	if callerUnit != nil && ownerUnit != nil && callerUnit.Package == ownerUnit.Package {
+		return true
+	}
+	if allowProtectedSubclass && java.HasModifier(modifiers, "protected") && ctx.EnclosingType != nil {
 		for _, superclass := range r.Index.SuperclassChain(ctx.EnclosingType.FQCN) {
 			if superclass.FQCN == candidate.DeclaringType.FQCN {
 				return true

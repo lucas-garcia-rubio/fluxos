@@ -113,6 +113,27 @@ func TestRunTraceImportsFixture(t *testing.T) {
 	}
 }
 
+func TestRunTraceConstructorsFixture(t *testing.T) {
+	var out bytes.Buffer
+	if err := runTrace([]string{"app.Workflow.run", m3FixtureRoot("constructors-methodrefs")}, &out); err != nil {
+		t.Fatalf("runTrace constructors: %v", err)
+	}
+	for _, label := range []string{
+		"model.DefaultValue.<init>()",
+		"model.OverloadedValue.<init>(java.lang.String)",
+		"model.OverloadedValue.<init>(java.lang.String,int)",
+		"model.DelegatingValue.<init>(java.lang.String)",
+		"model.DelegatingValue.<init>(java.lang.String,boolean)",
+		"model.ChildValue.<init>(java.lang.String)",
+		"model.BaseValue.<init>(java.lang.String)",
+		"model.Point.<init>(int,int)",
+	} {
+		if !strings.Contains(out.String(), label) {
+			t.Errorf("constructors trace missing %q:\n%s", label, out.String())
+		}
+	}
+}
+
 func TestRunTraceArgumentErrors(t *testing.T) {
 	tests := []struct {
 		name string

@@ -30,7 +30,7 @@ class Example {
 	for _, call := range method.Calls {
 		got = append(got, call.MethodName)
 	}
-	want := []string{"before", "consume", "argumentCall", "after"}
+	want := []string{"before", "<init>", "consume", "argumentCall", "<init>", "after"}
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("calls = %v, want %v", got, want)
 	}

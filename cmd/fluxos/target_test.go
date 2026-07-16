@@ -264,6 +264,54 @@ func TestResolveTargetAmbiguousDefaultsListsDeclaringOwners(t *testing.T) {
 	}
 }
 
+func TestResolveTargetConstructorBySignature(t *testing.T) {
+	value := &java.TypeDecl{
+		Kind: java.TypeKindClass, Name: "Value", FQCN: "app.Value",
+		Methods: []java.MethodDecl{
+			{Kind: java.MethodConstructor, Name: "<init>", Params: []java.Param{}},
+			{Kind: java.MethodConstructor, Name: "<init>", Params: []java.Param{{Type: java.NewTypeRef("String", false)}}},
+		},
+	}
+	table := buildTableFromTypes(t, "app", value)
+
+	typ, constructor, err := ResolveTarget(table, TargetSpec{TypeName: "app.Value", Method: "<init>", Signature: "java.lang.String", HasSignature: true})
+	if err != nil {
+		t.Fatalf("ResolveTarget constructor: %v", err)
+	}
+	if typ != value || constructor.Kind != java.MethodConstructor || constructor.Signature != "(java.lang.String)" {
+		t.Fatalf("constructor target = %+v %+v", typ, constructor)
+	}
+}
+
+func TestResolveTargetConstructorWithoutSignatureAmbiguous(t *testing.T) {
+	value := &java.TypeDecl{
+		Kind: java.TypeKindClass, Name: "Value", FQCN: "app.Value",
+		Methods: []java.MethodDecl{
+			{Kind: java.MethodConstructor, Name: "<init>", Params: []java.Param{}},
+			{Kind: java.MethodConstructor, Name: "<init>", Params: []java.Param{{Type: java.NewTypeRef("int", false)}}},
+		},
+	}
+	table := buildTableFromTypes(t, "app", value)
+
+	_, _, err := ResolveTarget(table, TargetSpec{TypeName: "app.Value", Method: "<init>"})
+	if err == nil || !strings.Contains(err.Error(), "available signatures: (), (int)") {
+		t.Fatalf("ambiguous constructor error = %v", err)
+	}
+}
+
+func TestResolveTargetSyntheticDefaultConstructor(t *testing.T) {
+	value := &java.TypeDecl{Kind: java.TypeKindClass, Name: "Value", FQCN: "app.Value"}
+	table := buildTableFromTypes(t, "app", value)
+
+	typ, constructor, err := ResolveTarget(table, TargetSpec{TypeName: "app.Value", Method: "<init>", HasSignature: true})
+	if err != nil {
+		t.Fatalf("ResolveTarget synthetic constructor: %v", err)
+	}
+	if typ != value || !constructor.Synthetic || constructor.Signature != "()" {
+		t.Fatalf("synthetic constructor target = %+v %+v", typ, constructor)
+	}
+}
+
 func buildTargetTestTable(t *testing.T) *index.Table {
 	t.Helper()
 	workflow := &java.TypeDecl{

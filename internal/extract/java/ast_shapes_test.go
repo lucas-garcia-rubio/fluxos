@@ -72,9 +72,27 @@ record Point(int x, int y) {
 	if got, want := []string{sourceText(source, invocations[0]), sourceText(source, invocations[1])}, []string{"this(1);", "super();"}; !reflect.DeepEqual(got, want) {
 		t.Fatalf("explicit constructor invocations = %v, want %v", got, want)
 	}
+	for i, invocation := range invocations {
+		constructor := invocation.ChildByFieldName("constructor")
+		arguments := invocation.ChildByFieldName("arguments")
+		if constructor == nil || arguments == nil {
+			t.Fatalf("explicit constructor invocation %d fields: constructor=%v arguments=%v", i, constructor, arguments)
+		}
+	}
 	creation := findAllNodesByKind(tree.RootNode(), "object_creation_expression")[0]
 	if typeNode := creation.ChildByFieldName("type"); typeNode == nil || sourceText(source, typeNode) != "Example" {
 		t.Fatalf("object creation type was not exposed through field type")
+	}
+	if arguments := creation.ChildByFieldName("arguments"); arguments == nil {
+		t.Fatal("object creation arguments field is missing")
+	}
+	record := findAllNodesByKind(tree.RootNode(), "record_declaration")[0]
+	if parameters := record.ChildByFieldName("parameters"); parameters == nil || parameters.Kind() != "formal_parameters" {
+		t.Fatalf("record parameters field = %v, want formal_parameters", parameters)
+	}
+	compact := findAllNodesByKind(tree.RootNode(), "compact_constructor_declaration")[0]
+	if compact.ChildByFieldName("name") == nil || compact.ChildByFieldName("body") == nil || compact.ChildByFieldName("parameters") != nil {
+		t.Fatalf("unexpected compact constructor fields: name=%v body=%v parameters=%v", compact.ChildByFieldName("name"), compact.ChildByFieldName("body"), compact.ChildByFieldName("parameters"))
 	}
 }
 

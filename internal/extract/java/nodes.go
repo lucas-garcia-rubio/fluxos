@@ -77,9 +77,15 @@ func extractTypeDecl(filePath string, source []byte, node *sitter.Node, pkg stri
 		}
 	}
 
+	if kind == TypeKindRecord {
+		if params := node.ChildByFieldName("parameters"); params != nil {
+			decl.RecordComponents = extractParams(source, params)
+		}
+	}
+
 	// Methods + Fields — drilla o body (class_body / interface_body / enum_body).
 	if body := node.ChildByFieldName("body"); body != nil {
-		decl.Methods = extractMethods(filePath, source, body)
+		decl.Methods = extractMethods(filePath, source, body, decl.RecordComponents)
 		decl.Fields = extractFields(source, body)
 	}
 
@@ -103,13 +109,13 @@ func extractTypeDecl(filePath string, source []byte, node *sitter.Node, pkg stri
 // extractMethods percorre o body de um tipo (class_body, interface_body, etc.)
 // e devolve Methods + Constructors. Field declarations, initializers e inner
 // classes são ignorados (fields são extraídos separadamente; inner classes em v2).
-func extractMethods(filePath string, source []byte, body *sitter.Node) []MethodDecl {
+func extractMethods(filePath string, source []byte, body *sitter.Node, recordComponents []Param) []MethodDecl {
 	var methods []MethodDecl
 	for i := 0; i < int(body.NamedChildCount()); i++ {
 		child := body.NamedChild(uint(i))
 		switch child.Kind() {
-		case "method_declaration", "constructor_declaration":
-			methods = append(methods, extractMethod(filePath, source, child))
+		case "method_declaration", "constructor_declaration", "compact_constructor_declaration":
+			methods = append(methods, extractMethod(filePath, source, child, recordComponents))
 		}
 	}
 	return methods
@@ -171,25 +177,34 @@ func extractFieldDecl(source []byte, node *sitter.Node) []FieldDecl {
 	return fields
 }
 
-// extractMethod popula uma MethodDecl a partir de um method_declaration ou
-// constructor_declaration. Constructors não têm field `type` (ReturnType fica "").
+// extractMethod popula uma MethodDecl a partir de method ou constructor declaration.
+// Constructors não têm field `type` (ReturnType fica "").
 // filePath é propagado pra extractCalls popular CallSite.File.
-func extractMethod(filePath string, source []byte, node *sitter.Node) MethodDecl {
+func extractMethod(filePath string, source []byte, node *sitter.Node, recordComponents []Param) MethodDecl {
 	m := MethodDecl{
 		Modifier: extractModifiers(source, node),
 	}
-	if node.Kind() == "constructor_declaration" {
+	switch node.Kind() {
+	case "constructor_declaration":
 		m.Kind = MethodConstructor
 		m.Name = "<init>"
-	} else if nameNode := node.ChildByFieldName("name"); nameNode != nil {
-		m.Name = sourceText(source, nameNode)
+	case "compact_constructor_declaration":
+		m.Kind = MethodCompactConstructor
+		m.Name = "<init>"
+		m.Params = append([]Param(nil), recordComponents...)
+	default:
+		if nameNode := node.ChildByFieldName("name"); nameNode != nil {
+			m.Name = sourceText(source, nameNode)
+		}
 	}
 	// ReturnType — ausente em constructor_declaration (deixa "").
 	if typeNode := node.ChildByFieldName("type"); typeNode != nil {
 		m.ReturnType = NewTypeRef(sourceText(source, typeNode), false)
 	}
-	if paramsNode := node.ChildByFieldName("parameters"); paramsNode != nil {
-		m.Params = extractParams(source, paramsNode)
+	if node.Kind() != "compact_constructor_declaration" {
+		if paramsNode := node.ChildByFieldName("parameters"); paramsNode != nil {
+			m.Params = extractParams(source, paramsNode)
+		}
 	}
 	m.Signature = buildSignature(m.Params)
 	m.Calls = extractCalls(source, node, filePath)

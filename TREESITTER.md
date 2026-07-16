@@ -210,11 +210,19 @@ depende do índice e dos imports e fica para os passos seguintes.
 | Tipo construído (`Foo`) | `type` |
 | Argumentos | `arguments` (`argument_list`) |
 
+Quando a criação é anônima, o node também contém `class_body`. O walker pode emitir a
+criação e percorrer `arguments`, mas deve tratar esse `class_body` como boundary. Em
+criação qualificada (`outer.new Inner()`), o qualifier é filho posicional.
+
 ### Construtores e method references
 
 - `constructor_declaration` — construtor comum, com fields `name`, `parameters` e `body`.
-- `compact_constructor_declaration` — construtor compacto de record, com `name` e `body`.
-- `explicit_constructor_invocation` — chamadas `this(...)` e `super(...)`.
+- `compact_constructor_declaration` — construtor compacto de record, com `name` e `body`,
+  mas sem field `parameters`; os parâmetros semânticos vêm do field `parameters` do
+  `record_declaration`.
+- `explicit_constructor_invocation` — chamadas `this(...)` e `super(...)`; o field
+  `constructor` distingue os tokens, `arguments` contém a lista e `object` preserva o
+  qualifier opcional de formas como `outer.super()`.
 - `method_reference` — filhos sem field names; receiver/type e membro final precisam ser
   interpretados pela ordem/source text. Cobre `obj::method`, `Type::method`, `super::method`
   e `Type::new`.

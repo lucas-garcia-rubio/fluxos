@@ -78,7 +78,10 @@ func Build(units []*java.CompilationUnit) (*Table, error) {
 	}
 	for _, unit := range orderedUnits {
 		table.canonicalizeUnit(unit)
+	}
+	for _, unit := range orderedUnits {
 		for _, typ := range unit.Types {
+			synthesizeImplicitConstructor(typ)
 			methods := make(map[java.MethodKey]*java.MethodDecl, len(typ.Methods))
 			for i := range typ.Methods {
 				method := &typ.Methods[i]

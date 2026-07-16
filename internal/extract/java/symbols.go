@@ -146,8 +146,10 @@ type (
 		Kind       CallKind `json:"kind"`
 		MethodName string   `json:"methodName"`
 		Receiver   string   `json:"receiver"`
+		TargetType *TypeRef `json:"targetType,omitempty"`
 		Args       []string `json:"args"`
 		ArgCount   int      `json:"argCount"`
+		Anonymous  bool     `json:"anonymous,omitempty"`
 		File       string   `json:"file"`
 		Line       int      `json:"line"`
 		StartByte  uint     `json:"startByte"`
@@ -173,6 +175,7 @@ type (
 		Params     []Param        `json:"params"`
 		Calls      []CallSite     `json:"calls"`
 		LocalVars  []LocalVarDecl `json:"localVars,omitempty"`
+		Synthetic  bool           `json:"synthetic,omitempty"`
 	}
 )
 
@@ -191,14 +194,15 @@ func HasModifier(modifiers []string, modifier string) bool {
 }
 
 type TypeDecl struct {
-	Kind       TypeKind     `json:"kind"`
-	Name       string       `json:"name"`
-	FQCN       string       `json:"fqcn"`
-	Modifier   []string     `json:"modifier"`
-	SuperClass TypeRef      `json:"superClass"`
-	Interfaces []TypeRef    `json:"interfaces"`
-	File       string       `json:"file"`
-	Line       int          `json:"line"`
-	Fields     []FieldDecl  `json:"fields"`
-	Methods    []MethodDecl `json:"methods"`
+	Kind             TypeKind     `json:"kind"`
+	Name             string       `json:"name"`
+	FQCN             string       `json:"fqcn"`
+	Modifier         []string     `json:"modifier"`
+	SuperClass       TypeRef      `json:"superClass"`
+	Interfaces       []TypeRef    `json:"interfaces"`
+	File             string       `json:"file"`
+	Line             int          `json:"line"`
+	Fields           []FieldDecl  `json:"fields"`
+	Methods          []MethodDecl `json:"methods"`
+	RecordComponents []Param      `json:"recordComponents,omitempty"`
 }

@@ -26,6 +26,14 @@ func mkStaticMethod(name string) java.MethodDecl {
 	return java.MethodDecl{Name: name, Signature: "()", Modifier: []string{"public", "static"}}
 }
 
+func mkConstructor(modifiers []string, parameterTypes ...string) java.MethodDecl {
+	params := make([]java.Param, len(parameterTypes))
+	for i, parameterType := range parameterTypes {
+		params[i].Type = ref(parameterType)
+	}
+	return java.MethodDecl{Kind: java.MethodConstructor, Name: "<init>", Modifier: modifiers, Params: params}
+}
+
 func mkCall(receiver, methodName string) java.CallSite {
 	return java.CallSite{Receiver: receiver, MethodName: methodName}
 }
@@ -743,6 +751,140 @@ func TestResolveImportedInheritedStaticMethodUsesDeclaringOwner(t *testing.T) {
 	want := MethodHandle{TypeFQCN: "tasks.Parent", Method: "run", Signature: "()"}
 	if len(res.Targets) != 1 || res.Targets[0] != want {
 		t.Fatalf("inherited static import = %+v (note: %q), want %+v", res.Targets, res.Note, want)
+	}
+}
+
+func TestResolveObjectCreationByImportAndArity(t *testing.T) {
+	caller := mkType("app.Caller")
+	caller.Name, caller.File = "Caller", "Caller.java"
+	value := mkType("model.Value",
+		mkConstructor([]string{"public"}),
+		mkConstructor([]string{"public"}, "String"),
+	)
+	value.Name, value.File = "Value", "Value.java"
+	value.Modifier = []string{"public"}
+	r := newResolverFromUnits(t,
+		&java.CompilationUnit{File: caller.File, Package: "app", Imports: []java.ImportDecl{{Target: "model.Value"}}, Types: []*java.TypeDecl{caller}},
+		&java.CompilationUnit{File: value.File, Package: "model", Types: []*java.TypeDecl{value}},
+	)
+	target := java.NewTypeRef("Value", false)
+	call := java.CallSite{Kind: java.CallObjectCreation, MethodName: "<init>", TargetType: &target, ArgCount: 1}
+
+	res := r.Resolve(call, MethodContext{EnclosingType: caller, File: caller.File})
+	want := MethodHandle{TypeFQCN: "model.Value", Method: "<init>", Signature: "(java.lang.String)"}
+	if len(res.Targets) != 1 || res.Targets[0] != want {
+		t.Fatalf("object creation = %+v (note: %q), want %+v", res.Targets, res.Note, want)
+	}
+}
+
+func TestResolveThisAndSuperConstructorsUseDirectOwners(t *testing.T) {
+	grandparent := mkType("model.Grandparent", mkConstructor([]string{"public"}, "long"))
+	grandparent.Name, grandparent.File = "Grandparent", "Grandparent.java"
+	parent := mkType("model.Parent", mkConstructor([]string{"protected"}, "int"))
+	parent.Name, parent.File = "Parent", "Parent.java"
+	parent.SuperClass = ref("model.Grandparent")
+	child := mkType("app.Child",
+		mkConstructor([]string{"public"}),
+		mkConstructor([]string{"private"}, "String"),
+	)
+	child.Name, child.File = "Child", "Child.java"
+	child.SuperClass = ref("model.Parent")
+	r := newResolverFromUnits(t,
+		&java.CompilationUnit{File: child.File, Package: "app", Types: []*java.TypeDecl{child}},
+		&java.CompilationUnit{File: parent.File, Package: "model", Types: []*java.TypeDecl{parent}},
+		&java.CompilationUnit{File: grandparent.File, Package: "model", Types: []*java.TypeDecl{grandparent}},
+	)
+	ctx := MethodContext{EnclosingType: child, File: child.File}
+
+	thisCall := java.CallSite{Kind: java.CallThisConstructor, MethodName: "<init>", ArgCount: 1}
+	thisResult := r.Resolve(thisCall, ctx)
+	wantThis := MethodHandle{TypeFQCN: "app.Child", Method: "<init>", Signature: "(java.lang.String)"}
+	if len(thisResult.Targets) != 1 || thisResult.Targets[0] != wantThis {
+		t.Fatalf("this constructor = %+v (note: %q), want %+v", thisResult.Targets, thisResult.Note, wantThis)
+	}
+
+	superCall := java.CallSite{Kind: java.CallSuperConstructor, MethodName: "<init>", ArgCount: 1}
+	superResult := r.Resolve(superCall, ctx)
+	wantSuper := MethodHandle{TypeFQCN: "model.Parent", Method: "<init>", Signature: "(int)"}
+	if len(superResult.Targets) != 1 || superResult.Targets[0] != wantSuper {
+		t.Fatalf("super constructor = %+v (note: %q), want %+v", superResult.Targets, superResult.Note, wantSuper)
+	}
+	if superResult.Targets[0].TypeFQCN == grandparent.FQCN {
+		t.Fatal("super constructor incorrectly used grandparent")
+	}
+}
+
+func TestResolveObjectCreationRejectsInvalidKindsAndAnonymous(t *testing.T) {
+	caller := mkType("app.Caller")
+	caller.Name, caller.File = "Caller", "Caller.java"
+	abstractType := mkType("app.AbstractValue")
+	abstractType.Name, abstractType.File = "AbstractValue", "AbstractValue.java"
+	abstractType.Modifier = []string{"abstract"}
+	interfaceType := mkType("app.Contract")
+	interfaceType.Kind = java.TypeKindInterface
+	interfaceType.Name, interfaceType.File = "Contract", "Contract.java"
+	r := newResolverFromUnits(t, &java.CompilationUnit{
+		File: caller.File, Package: "app", Types: []*java.TypeDecl{caller, abstractType, interfaceType},
+	})
+	ctx := MethodContext{EnclosingType: caller, File: caller.File}
+
+	for _, test := range []struct {
+		name      string
+		typeName  string
+		anonymous bool
+	}{
+		{name: "abstract", typeName: "AbstractValue"},
+		{name: "interface", typeName: "Contract"},
+		{name: "anonymous", typeName: "AbstractValue", anonymous: true},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			target := java.NewTypeRef(test.typeName, false)
+			res := r.Resolve(java.CallSite{Kind: java.CallObjectCreation, MethodName: "<init>", TargetType: &target, Anonymous: test.anonymous}, ctx)
+			if len(res.Targets) != 0 || res.Note == "" {
+				t.Fatalf("invalid creation resolved: %+v", res)
+			}
+		})
+	}
+}
+
+func TestResolveConstructorSameArityIsAmbiguous(t *testing.T) {
+	caller := mkType("app.Caller")
+	caller.Name, caller.File = "Caller", "Caller.java"
+	value := mkType("app.Value",
+		mkConstructor([]string{"public"}, "String"),
+		mkConstructor([]string{"public"}, "int"),
+	)
+	value.Name, value.File = "Value", "Value.java"
+	r := newResolverFromUnits(t, &java.CompilationUnit{File: caller.File, Package: "app", Types: []*java.TypeDecl{caller, value}})
+	target := java.NewTypeRef("Value", false)
+
+	res := r.Resolve(java.CallSite{Kind: java.CallObjectCreation, MethodName: "<init>", TargetType: &target, ArgCount: 1}, MethodContext{EnclosingType: caller, File: caller.File})
+	if len(res.Targets) != 0 || !strings.Contains(res.Note, "ambiguous constructor") || !strings.Contains(res.Note, "(int), (java.lang.String)") {
+		t.Fatalf("constructor ambiguity = %+v", res)
+	}
+}
+
+func TestResolveObjectCreationRejectsQualifiedAndProtectedSuperclassConstructor(t *testing.T) {
+	parent := mkType("model.Parent", mkConstructor([]string{"protected"}))
+	parent.Name, parent.File = "Parent", "Parent.java"
+	parent.Modifier = []string{"public"}
+	child := mkType("app.Child")
+	child.Name, child.File = "Child", "Child.java"
+	child.SuperClass = ref("model.Parent")
+	r := newResolverFromUnits(t,
+		&java.CompilationUnit{File: child.File, Package: "app", Imports: []java.ImportDecl{{Target: "model.Parent"}}, Types: []*java.TypeDecl{child}},
+		&java.CompilationUnit{File: parent.File, Package: "model", Types: []*java.TypeDecl{parent}},
+	)
+	ctx := MethodContext{EnclosingType: child, File: child.File}
+	target := java.NewTypeRef("Parent", false)
+
+	protected := r.Resolve(java.CallSite{Kind: java.CallObjectCreation, MethodName: "<init>", TargetType: &target}, ctx)
+	if len(protected.Targets) != 0 || protected.Note == "" {
+		t.Fatalf("protected superclass constructor resolved through new: %+v", protected)
+	}
+	qualified := r.Resolve(java.CallSite{Kind: java.CallObjectCreation, MethodName: "<init>", TargetType: &target, Receiver: "outer"}, ctx)
+	if len(qualified.Targets) != 0 || !strings.Contains(qualified.Note, "qualified object creation") {
+		t.Fatalf("qualified object creation resolved: %+v", qualified)
 	}
 }
 

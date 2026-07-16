@@ -85,6 +85,9 @@ func (t *Table) canonicalizeUnit(unit *java.CompilationUnit) {
 		for i := range typ.Interfaces {
 			typ.Interfaces[i] = t.ResolveTypeRef(typ.Interfaces[i], unit).Ref
 		}
+		for i := range typ.RecordComponents {
+			typ.RecordComponents[i].Type = t.ResolveTypeRef(typ.RecordComponents[i].Type, unit).Ref
+		}
 		for i := range typ.Fields {
 			typ.Fields[i].Type = t.ResolveTypeRef(typ.Fields[i].Type, unit).Ref
 		}
@@ -96,6 +99,13 @@ func (t *Table) canonicalizeUnit(unit *java.CompilationUnit) {
 			}
 			for j := range method.LocalVars {
 				method.LocalVars[j].Type = t.ResolveTypeRef(method.LocalVars[j].Type, unit).Ref
+			}
+			for j := range method.Calls {
+				if method.Calls[j].TargetType == nil {
+					continue
+				}
+				resolved := t.ResolveTypeRef(*method.Calls[j].TargetType, unit).Ref
+				*method.Calls[j].TargetType = resolved
 			}
 			java.RebuildSignature(method)
 		}

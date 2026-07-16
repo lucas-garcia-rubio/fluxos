@@ -135,6 +135,9 @@ func resolveTargetType(table *index.Table, typeName string) (*java.TypeDecl, err
 }
 
 func resolveTargetMethod(table *index.Table, typ *java.TypeDecl, spec TargetSpec) (*java.TypeDecl, *java.MethodDecl, error) {
+	if spec.Method == "<init>" {
+		return resolveTargetConstructor(table, typ, spec)
+	}
 	if spec.HasSignature {
 		key := java.MethodKey{Name: spec.Method, Signature: formatSignature(spec.Signature)}
 		candidates := table.EffectiveMethod(typ.FQCN, key)
@@ -162,6 +165,29 @@ func resolveTargetMethod(table *index.Table, typ *java.TypeDecl, spec TargetSpec
 		}
 		return nil, nil, fmt.Errorf("ambiguous method %q in %s; available signatures: %s",
 			spec.Method, typ.FQCN, listSignatures(table, typ.FQCN, spec.Method))
+	}
+}
+
+func resolveTargetConstructor(table *index.Table, typ *java.TypeDecl, spec TargetSpec) (*java.TypeDecl, *java.MethodDecl, error) {
+	if spec.HasSignature {
+		signature := formatSignature(spec.Signature)
+		candidate, ok := table.Constructor(typ.FQCN, signature)
+		if !ok {
+			return nil, nil, fmt.Errorf("constructor %s<init>%s not found; available signatures: %s",
+				typ.FQCN+".", signature, listConstructorSignatures(table, typ.FQCN))
+		}
+		return candidate.DeclaringType, candidate.Method, nil
+	}
+
+	candidates := table.ConstructorCandidates(typ.FQCN)
+	switch len(candidates) {
+	case 0:
+		return nil, nil, fmt.Errorf("constructor not found in %s", typ.FQCN)
+	case 1:
+		return candidates[0].DeclaringType, candidates[0].Method, nil
+	default:
+		return nil, nil, fmt.Errorf("ambiguous constructor in %s; available signatures: %s",
+			typ.FQCN, listConstructorSignatures(table, typ.FQCN))
 	}
 }
 
@@ -198,4 +224,13 @@ func listMethodCandidates(candidates []index.MethodResolution) string {
 		values[i] = candidate.DeclaringType.FQCN + "." + candidate.Method.Name + candidate.Method.Signature
 	}
 	return strings.Join(values, ", ")
+}
+
+func listConstructorSignatures(table *index.Table, typeFQCN string) string {
+	candidates := table.ConstructorCandidates(typeFQCN)
+	signatures := make([]string, len(candidates))
+	for i, candidate := range candidates {
+		signatures[i] = candidate.Method.Signature
+	}
+	return strings.Join(signatures, ", ")
 }

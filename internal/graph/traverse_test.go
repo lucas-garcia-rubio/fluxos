@@ -378,3 +378,32 @@ func TestWalkInheritedMethodUsesDeclaringTypeAndTraversesBody(t *testing.T) {
 		t.Fatalf("edge count = %d, want 2; edges=%+v", len(g.Edges), g.Edges)
 	}
 }
+
+func TestWalkObjectCreationTraversesConstructorBody(t *testing.T) {
+	targetType := java.NewTypeRef("Value", false)
+	run := mkMethod("run", java.CallSite{
+		Kind: java.CallObjectCreation, MethodName: "<init>", TargetType: &targetType,
+	})
+	caller := mkType("Caller", run)
+	caller.File = "Caller.java"
+	validate := mkMethod("validate")
+	constructor := java.MethodDecl{
+		Kind: java.MethodConstructor, Name: "<init>", Signature: "()", Modifier: []string{"public"},
+		Calls: []java.CallSite{{MethodName: "validate"}},
+	}
+	value := mkType("Value", constructor, validate)
+	value.File = "Value.java"
+	table := tableForTypes([]*java.TypeDecl{caller, value})
+
+	g := NewGraph()
+	Walk(g, caller, run, table, resolve.NewSyntacticResolver(table))
+
+	constructorHandle := resolve.MethodHandle{TypeFQCN: "Value", Method: "<init>", Signature: "()"}
+	validateHandle := resolve.MethodHandle{TypeFQCN: "Value", Method: "validate", Signature: "()"}
+	if !g.IsBlack(constructorHandle) || !g.IsBlack(validateHandle) {
+		t.Fatalf("constructor body was not traversed; nodes=%+v", g.Nodes)
+	}
+	if len(g.Edges) != 2 || g.Edges[0].Call.Kind != java.CallObjectCreation {
+		t.Fatalf("constructor edges = %+v", g.Edges)
+	}
+}
