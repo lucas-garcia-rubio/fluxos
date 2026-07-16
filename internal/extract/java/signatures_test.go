@@ -9,10 +9,10 @@ func TestBuildSignature(t *testing.T) {
 		want   string
 	}{
 		{name: "empty", want: "()"},
-		{name: "simple", params: []Param{{Type: "String"}, {Type: "int"}}, want: "(String,int)"},
-		{name: "array", params: []Param{{Type: "String[]"}}, want: "(String[])"},
-		{name: "qualified", params: []Param{{Type: "java.time.Instant"}}, want: "(java.time.Instant)"},
-		{name: "variadic", params: []Param{{Type: "String", Variadic: true}}, want: "(String[])"},
+		{name: "simple", params: []Param{{Type: NewTypeRef("String", false)}, {Type: NewTypeRef("int", false)}}, want: "(String,int)"},
+		{name: "array", params: []Param{{Type: NewTypeRef("String[]", false)}}, want: "(String[])"},
+		{name: "qualified", params: []Param{{Type: NewTypeRef("java.time.Instant", false)}}, want: "(java.time.Instant)"},
+		{name: "variadic", params: []Param{{Type: NewTypeRef("String", true), Variadic: true}}, want: "(String[])"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -25,8 +25,8 @@ func TestBuildSignature(t *testing.T) {
 
 func TestBuildSignatureErasesNestedGenerics(t *testing.T) {
 	params := []Param{
-		{Type: "Map<String, List<User>>"},
-		{Type: " java.util.List < User > [] "},
+		{Type: NewTypeRef("Map<String, List<User>>", false)},
+		{Type: NewTypeRef(" java.util.List < User > [] ", false)},
 	}
 	if got, want := buildSignature(params), "(Map,java.util.List[])"; got != want {
 		t.Fatalf("buildSignature() = %q, want %q", got, want)

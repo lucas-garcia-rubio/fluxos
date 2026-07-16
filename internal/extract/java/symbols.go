@@ -124,16 +124,23 @@ type (
 		Imports    []ImportDecl `json:"imports"`
 		Types      []*TypeDecl  `json:"types"`
 	}
+	TypeRef struct {
+		Raw        string `json:"raw"`
+		FQCN       string `json:"fqcn,omitempty"`
+		ArrayDepth int    `json:"arrayDepth,omitempty"`
+		Primitive  bool   `json:"primitive,omitempty"`
+		Unresolved bool   `json:"unresolved,omitempty"`
+	}
 	FieldDecl struct {
 		Name        string   `json:"name"`
 		Modifier    []string `json:"modifier"`
-		Type        string   `json:"type"`
+		Type        TypeRef  `json:"type"`
 		Initializer string   `json:"initializer,omitempty"`
 	}
 	Param struct {
-		Name     string `json:"name"`
-		Type     string `json:"type"`
-		Variadic bool   `json:"variadic,omitempty"`
+		Name     string  `json:"name"`
+		Type     TypeRef `json:"type"`
+		Variadic bool    `json:"variadic,omitempty"`
 	}
 	CallSite struct {
 		Kind       CallKind `json:"kind"`
@@ -149,14 +156,14 @@ type (
 		Signature string
 	}
 	MethodDecl struct {
-		Kind       MethodKind        `json:"kind"`
-		Name       string            `json:"name"`
-		Signature  string            `json:"signature"`
-		Modifier   []string          `json:"modifier"`
-		ReturnType string            `json:"returnType"`
-		Params     []Param           `json:"params"`
-		Calls      []CallSite        `json:"calls"`
-		LocalVars  map[string]string `json:"localVars,omitempty"`
+		Kind       MethodKind         `json:"kind"`
+		Name       string             `json:"name"`
+		Signature  string             `json:"signature"`
+		Modifier   []string           `json:"modifier"`
+		ReturnType TypeRef            `json:"returnType"`
+		Params     []Param            `json:"params"`
+		Calls      []CallSite         `json:"calls"`
+		LocalVars  map[string]TypeRef `json:"localVars,omitempty"`
 	}
 )
 
@@ -169,8 +176,8 @@ type TypeDecl struct {
 	Name       string       `json:"name"`
 	FQCN       string       `json:"fqcn"`
 	Modifier   []string     `json:"modifier"`
-	SuperClass string       `json:"superClass"`
-	Interfaces []string     `json:"interfaces"`
+	SuperClass TypeRef      `json:"superClass"`
+	Interfaces []TypeRef    `json:"interfaces"`
 	File       string       `json:"file"`
 	Line       int          `json:"line"`
 	Fields     []FieldDecl  `json:"fields"`

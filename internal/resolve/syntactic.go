@@ -13,8 +13,8 @@ import (
 // tree-sitter + heurísticas sobre a AST. Não usa type info beyond what's
 // diretamente acessível no MethodContext.
 //
-// M2 cobre `this.method()`, chamadas unqualified, fields, variáveis locais,
-// super e chamadas estáticas para tipos declarados no mesmo arquivo.
+// M3 Passo 5 canonicaliza receivers por package e imports, sem ainda percorrer
+// heranca cross-file.
 type SyntacticResolver struct {
 	Index *index.Table
 }
@@ -41,22 +41,22 @@ func (r *SyntacticResolver) resolveSuper(call java.CallSite, ctx MethodContext) 
 	if ctx.EnclosingType == nil {
 		return Resolution{Note: "no enclosing type"}
 	}
-	if ctx.EnclosingType.SuperClass == "" {
+	if ctx.EnclosingType.SuperClass.Raw == "" {
 		return Resolution{Note: fmt.Sprintf("type %s has no superclass", ctx.EnclosingType.FQCN)}
 	}
 
-	superType := r.findTypeInFile(ctx.EnclosingType.SuperClass, ctx.File)
+	superType := r.findTypeInFile(ctx.EnclosingType.SuperClass.FQCN, ctx.File)
 	if superType == nil {
-		return Resolution{Note: fmt.Sprintf("superclass %q not found in same file", ctx.EnclosingType.SuperClass)}
+		return Resolution{Note: fmt.Sprintf("superclass %q not found in same file", ctx.EnclosingType.SuperClass.SignatureToken())}
 	}
 	return r.resolveOnType(superType, call)
 }
 
 func (r *SyntacticResolver) resolveIdentifier(receiver string, call java.CallSite, ctx MethodContext) Resolution {
 	if typeName, ok := ctx.LocalVars[receiver]; ok {
-		t := r.findTypeByName(typeName)
+		t, note := r.resolveType(typeName, ctx)
 		if t == nil {
-			return Resolution{Note: fmt.Sprintf("local var type %q not found in project", typeName)}
+			return Resolution{Note: fmt.Sprintf("local var type %q unresolved: %s", typeName.Raw, note)}
 		}
 		return r.resolveOnType(t, call)
 	}
@@ -66,30 +66,19 @@ func (r *SyntacticResolver) resolveIdentifier(receiver string, call java.CallSit
 			if field.Name != receiver {
 				continue
 			}
-			t := r.findTypeByName(field.Type)
+			t, note := r.resolveType(field.Type, ctx)
 			if t == nil {
-				return Resolution{Note: fmt.Sprintf("field type %q not found in project", field.Type)}
+				return Resolution{Note: fmt.Sprintf("field type %q unresolved: %s", field.Type.Raw, note)}
 			}
 			return r.resolveOnType(t, call)
 		}
 	}
 
-	t := r.findTypeInFile(receiver, ctx.File)
+	t, note := r.resolveType(java.NewTypeRef(receiver, false), ctx)
 	if t == nil {
-		return Resolution{Note: fmt.Sprintf("receiver %q is not a local var, field, or type in same file", receiver)}
+		return Resolution{Note: fmt.Sprintf("receiver %q is not a local var, field, or resolvable type: %s", receiver, note)}
 	}
 	return r.resolveOnType(t, call)
-}
-
-func (r *SyntacticResolver) findTypeByName(name string) *java.TypeDecl {
-	if typ, ok := r.Index.TypeByFQCN(name); ok {
-		return typ
-	}
-	candidates := r.Index.TypesBySimple(name)
-	if len(candidates) == 1 {
-		return candidates[0]
-	}
-	return nil
 }
 
 func (r *SyntacticResolver) findTypeInFile(name, file string) *java.TypeDecl {
@@ -101,11 +90,33 @@ func (r *SyntacticResolver) findTypeInFile(name, file string) *java.TypeDecl {
 		return nil
 	}
 	for _, t := range unit.Types {
-		if t.Name == name {
+		if t.FQCN == name || t.Name == name {
 			return t
 		}
 	}
 	return nil
+}
+
+func (r *SyntacticResolver) resolveType(ref java.TypeRef, ctx MethodContext) (*java.TypeDecl, string) {
+	if r.Index == nil {
+		return nil, "project index is unavailable"
+	}
+	unit := r.Index.UnitsByFile[ctx.File]
+	if unit == nil && ctx.EnclosingType != nil {
+		unit = r.Index.UnitForType(ctx.EnclosingType.FQCN)
+	}
+	resolution := r.Index.ResolveTypeRef(ref, unit)
+	if len(resolution.Candidates) > 1 {
+		return nil, fmt.Sprintf("ambiguous type; candidates: %s", strings.Join(resolution.Candidates, ", "))
+	}
+	if resolution.Ref.FQCN == "" {
+		return nil, "no candidate"
+	}
+	typ, ok := r.Index.TypeByFQCN(resolution.Ref.FQCN)
+	if !ok {
+		return nil, fmt.Sprintf("external type %s", resolution.Ref.FQCN)
+	}
+	return typ, ""
 }
 
 // resolveOnType seleciona métodos por nome e aridade. Tipos de argumentos serão

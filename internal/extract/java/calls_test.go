@@ -55,10 +55,10 @@ class Example {
 `)
 
 	got := findTypeBySimpleName(t, types, "Example").Methods[0].LocalVars
-	want := map[string]string{
-		"outer":     "String",
-		"lambda":    "Runnable",
-		"anonymous": "Runnable",
+	want := map[string]TypeRef{
+		"outer":     NewTypeRef("String", false),
+		"lambda":    NewTypeRef("Runnable", false),
+		"anonymous": NewTypeRef("Runnable", false),
 	}
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("local vars = %v, want %v", got, want)

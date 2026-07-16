@@ -35,9 +35,9 @@ type Resolution struct {
 // chamada (o "caller"). Inclui o tipo que o contém, as variáveis locais no
 // escopo (nome → tipo), e o arquivo source.
 type MethodContext struct {
-	EnclosingType *java.TypeDecl    // classe/interface onde o caller está declarado
-	LocalVars     map[string]string // name → type (ex.: "userService" → "UserService")
-	File          string            // path do arquivo (pra warnings file:line)
+	EnclosingType *java.TypeDecl          // classe/interface onde o caller está declarado
+	LocalVars     map[string]java.TypeRef // name -> canonical type reference
+	File          string                  // path do arquivo (pra warnings file:line)
 }
 
 // Resolver é a interface que transforma CallSite em Resolution.

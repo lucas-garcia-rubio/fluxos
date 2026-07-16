@@ -131,7 +131,7 @@ class Example {
 `)
 
 	method := findTypeBySimpleName(t, types, "Example").Methods[0]
-	if want := []Param{{Name: "service", Type: "Service"}}; !reflect.DeepEqual(method.Params, want) {
+	if want := []Param{{Name: "service", Type: NewTypeRef("Service", false)}}; !reflect.DeepEqual(method.Params, want) {
 		t.Fatalf("params = %v, want %v", method.Params, want)
 	}
 	if len(method.Calls) != 1 || method.Calls[0].Receiver != "service" || method.Calls[0].MethodName != "execute" {

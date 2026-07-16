@@ -26,6 +26,10 @@ func mkCall(receiver, methodName string) java.CallSite {
 	return java.CallSite{Receiver: receiver, MethodName: methodName}
 }
 
+func ref(raw string) java.TypeRef {
+	return java.NewTypeRef(raw, false)
+}
+
 func newTestResolver(types []*java.TypeDecl) *SyntacticResolver {
 	unitsByFile := make(map[string]*java.CompilationUnit)
 	for _, typ := range types {
@@ -163,7 +167,7 @@ func TestResolveNilEnclosingType(t *testing.T) {
 func TestResolveFieldMethod(t *testing.T) {
 	helper := mkType("Helper", mkMethod("log"))
 	enclosing := mkType("User")
-	enclosing.Fields = []java.FieldDecl{{Name: "helper", Type: "Helper"}}
+	enclosing.Fields = []java.FieldDecl{{Name: "helper", Type: ref("Helper")}}
 	r := newTestResolver([]*java.TypeDecl{enclosing, helper})
 
 	res := r.Resolve(mkCall("helper", "log"), MethodContext{EnclosingType: enclosing})
@@ -176,7 +180,7 @@ func TestResolveFieldMethod(t *testing.T) {
 
 func TestResolveFieldWithExternalType(t *testing.T) {
 	enclosing := mkType("User")
-	enclosing.Fields = []java.FieldDecl{{Name: "client", Type: "ExternalClient"}}
+	enclosing.Fields = []java.FieldDecl{{Name: "client", Type: ref("ExternalClient")}}
 	r := newTestResolver([]*java.TypeDecl{enclosing})
 
 	res := r.Resolve(mkCall("client", "send"), MethodContext{EnclosingType: enclosing})
@@ -189,7 +193,7 @@ func TestResolveFieldWithExternalType(t *testing.T) {
 func TestResolveLocalVarMethod(t *testing.T) {
 	helper := mkType("Helper", mkMethod("log"))
 	r := newTestResolver([]*java.TypeDecl{helper})
-	ctx := MethodContext{LocalVars: map[string]string{"helper": "Helper"}}
+	ctx := MethodContext{LocalVars: map[string]java.TypeRef{"helper": ref("Helper")}}
 
 	res := r.Resolve(mkCall("helper", "log"), ctx)
 
@@ -203,11 +207,11 @@ func TestResolveLocalVarTakesPrecedenceOverField(t *testing.T) {
 	localType := mkType("LocalHelper", mkMethod("run"))
 	fieldType := mkType("FieldHelper", mkMethod("run"))
 	enclosing := mkType("User")
-	enclosing.Fields = []java.FieldDecl{{Name: "helper", Type: "FieldHelper"}}
+	enclosing.Fields = []java.FieldDecl{{Name: "helper", Type: ref("FieldHelper")}}
 	r := newTestResolver([]*java.TypeDecl{enclosing, localType, fieldType})
 	ctx := MethodContext{
 		EnclosingType: enclosing,
-		LocalVars:     map[string]string{"helper": "LocalHelper"},
+		LocalVars:     map[string]java.TypeRef{"helper": ref("LocalHelper")},
 	}
 
 	res := r.Resolve(mkCall("helper", "run"), ctx)
@@ -221,7 +225,7 @@ func TestResolveLocalVarTakesPrecedenceOverField(t *testing.T) {
 func TestResolveLocalVarMethodMissing(t *testing.T) {
 	helper := mkType("Helper", mkMethod("other"))
 	r := newTestResolver([]*java.TypeDecl{helper})
-	ctx := MethodContext{LocalVars: map[string]string{"helper": "Helper"}}
+	ctx := MethodContext{LocalVars: map[string]java.TypeRef{"helper": ref("Helper")}}
 
 	res := r.Resolve(mkCall("helper", "log"), ctx)
 
@@ -236,7 +240,7 @@ func TestResolveSuperMethod(t *testing.T) {
 	base.File = file
 	child := mkType("Child")
 	child.File = file
-	child.SuperClass = "Base"
+	child.SuperClass = ref("Base")
 	r := newTestResolver([]*java.TypeDecl{child, base})
 	ctx := MethodContext{EnclosingType: child, File: file}
 
@@ -263,7 +267,7 @@ func TestResolveSuperclassInOtherFile(t *testing.T) {
 	base.File = "Base.java"
 	child := mkType("Child")
 	child.File = "Child.java"
-	child.SuperClass = "Base"
+	child.SuperClass = ref("Base")
 	r := newTestResolver([]*java.TypeDecl{child, base})
 	ctx := MethodContext{EnclosingType: child, File: child.File}
 
@@ -280,7 +284,7 @@ func TestResolveSuperMethodMissing(t *testing.T) {
 	base.File = file
 	child := mkType("Child")
 	child.File = file
-	child.SuperClass = "Base"
+	child.SuperClass = ref("Base")
 	r := newTestResolver([]*java.TypeDecl{child, base})
 	ctx := MethodContext{EnclosingType: child, File: file}
 
@@ -308,7 +312,7 @@ func TestResolveStaticMethodInSameFile(t *testing.T) {
 	}
 }
 
-func TestResolveStaticTypeInOtherFile(t *testing.T) {
+func TestResolveStaticTypeInSamePackageOtherFile(t *testing.T) {
 	caller := mkType("Caller")
 	caller.File = "Caller.java"
 	utils := mkType("Utils", mkMethod("log"))
@@ -318,8 +322,9 @@ func TestResolveStaticTypeInOtherFile(t *testing.T) {
 
 	res := r.Resolve(mkCall("Utils", "log"), ctx)
 
-	if len(res.Targets) != 0 || res.Note == "" {
-		t.Fatalf("expected cross-file static type to remain unresolved, got %+v", res)
+	want := MethodHandle{TypeFQCN: "Utils", Method: "log", Signature: "()"}
+	if len(res.Targets) != 1 || res.Targets[0] != want {
+		t.Fatalf("got targets %+v (note: %q), want [%+v]", res.Targets, res.Note, want)
 	}
 }
 
@@ -332,7 +337,7 @@ func TestResolveLocalVarTakesPrecedenceOverType(t *testing.T) {
 	r := newTestResolver([]*java.TypeDecl{localType, classType})
 	ctx := MethodContext{
 		File:      file,
-		LocalVars: map[string]string{"helper": "LocalHelper"},
+		LocalVars: map[string]java.TypeRef{"helper": ref("LocalHelper")},
 	}
 
 	res := r.Resolve(mkCall("helper", "run"), ctx)
@@ -351,7 +356,7 @@ func TestResolveFieldTakesPrecedenceOverType(t *testing.T) {
 	classType.File = file
 	enclosing := mkType("Caller")
 	enclosing.File = file
-	enclosing.Fields = []java.FieldDecl{{Name: "helper", Type: "FieldHelper"}}
+	enclosing.Fields = []java.FieldDecl{{Name: "helper", Type: ref("FieldHelper")}}
 	r := newTestResolver([]*java.TypeDecl{enclosing, fieldType, classType})
 	ctx := MethodContext{EnclosingType: enclosing, File: file}
 
@@ -363,7 +368,7 @@ func TestResolveFieldTakesPrecedenceOverType(t *testing.T) {
 	}
 }
 
-func TestResolveQualifiedStaticReceiverRemainsUnresolved(t *testing.T) {
+func TestResolveQualifiedStaticReceiver(t *testing.T) {
 	const file = "Example.java"
 	utils := mkType("com.example.Utils", mkMethod("log"))
 	utils.Name = "Utils"
@@ -372,21 +377,22 @@ func TestResolveQualifiedStaticReceiverRemainsUnresolved(t *testing.T) {
 
 	res := r.Resolve(mkCall("com.example.Utils", "log"), MethodContext{File: file})
 
-	if len(res.Targets) != 0 || res.Note == "" {
-		t.Fatalf("expected qualified static receiver to remain unresolved, got %+v", res)
+	want := MethodHandle{TypeFQCN: "com.example.Utils", Method: "log", Signature: "()"}
+	if len(res.Targets) != 1 || res.Targets[0] != want {
+		t.Fatalf("got targets %+v (note: %q), want [%+v]", res.Targets, res.Note, want)
 	}
 }
 
 func TestResolveOverloadByArity(t *testing.T) {
 	typ := mkType("Service",
 		java.MethodDecl{Name: "run", Signature: "()"},
-		java.MethodDecl{Name: "run", Signature: "(String)", Params: []java.Param{{Type: "String"}}},
+		java.MethodDecl{Name: "run", Signature: "(String)", Params: []java.Param{{Type: ref("String")}}},
 	)
 	r := newTestResolver([]*java.TypeDecl{typ})
 
 	res := r.Resolve(java.CallSite{MethodName: "run", ArgCount: 1}, MethodContext{EnclosingType: typ})
 
-	want := MethodHandle{TypeFQCN: "Service", Method: "run", Signature: "(String)"}
+	want := MethodHandle{TypeFQCN: "Service", Method: "run", Signature: "(java.lang.String)"}
 	if len(res.Targets) != 1 || res.Targets[0] != want {
 		t.Fatalf("targets = %+v (note: %q), want [%+v]", res.Targets, res.Note, want)
 	}
@@ -394,8 +400,8 @@ func TestResolveOverloadByArity(t *testing.T) {
 
 func TestResolveAmbiguousOverload(t *testing.T) {
 	typ := mkType("Service",
-		java.MethodDecl{Name: "run", Signature: "(String)", Params: []java.Param{{Type: "String"}}},
-		java.MethodDecl{Name: "run", Signature: "(int)", Params: []java.Param{{Type: "int"}}},
+		java.MethodDecl{Name: "run", Signature: "(String)", Params: []java.Param{{Type: ref("String")}}},
+		java.MethodDecl{Name: "run", Signature: "(int)", Params: []java.Param{{Type: ref("int")}}},
 	)
 	r := newTestResolver([]*java.TypeDecl{typ})
 
@@ -404,7 +410,7 @@ func TestResolveAmbiguousOverload(t *testing.T) {
 	if len(res.Targets) != 0 || !strings.Contains(res.Note, "ambiguous overload") {
 		t.Fatalf("expected overload ambiguity, got %+v", res)
 	}
-	if !strings.Contains(res.Note, "(String), (int)") {
+	if !strings.Contains(res.Note, "(int), (java.lang.String)") {
 		t.Fatalf("ambiguity note is not deterministically sorted: %q", res.Note)
 	}
 }
@@ -413,7 +419,7 @@ func TestResolveVariadicArity(t *testing.T) {
 	typ := mkType("Logger", java.MethodDecl{
 		Name:      "log",
 		Signature: "(String[])",
-		Params:    []java.Param{{Type: "String", Variadic: true}},
+		Params:    []java.Param{{Type: java.NewTypeRef("String", true), Variadic: true}},
 	})
 	r := newTestResolver([]*java.TypeDecl{typ})
 
@@ -432,9 +438,40 @@ func TestResolveDoesNotChooseFirstDuplicateSimpleName(t *testing.T) {
 	second.Name = "Helper"
 	r := newTestResolver([]*java.TypeDecl{first, second})
 
-	res := r.Resolve(mkCall("helper", "run"), MethodContext{LocalVars: map[string]string{"helper": "Helper"}})
+	res := r.Resolve(mkCall("helper", "run"), MethodContext{LocalVars: map[string]java.TypeRef{"helper": ref("Helper")}})
 
 	if len(res.Targets) != 0 || res.Note == "" {
 		t.Fatalf("duplicate simple name must remain unresolved: %+v", res)
+	}
+}
+
+func TestResolveReportsWildcardTypeAmbiguityDeterministically(t *testing.T) {
+	caller := mkType("app.Caller")
+	caller.Name = "Caller"
+	caller.File = "Caller.java"
+	caller.Fields = []java.FieldDecl{{Name: "helper", Type: ref("Helper")}}
+	left := mkType("left.Helper", mkMethod("run"))
+	left.Name = "Helper"
+	left.File = "Left.java"
+	right := mkType("right.Helper", mkMethod("run"))
+	right.Name = "Helper"
+	right.File = "Right.java"
+	table, err := index.Build([]*java.CompilationUnit{
+		{
+			File:    caller.File,
+			Package: "app",
+			Imports: []java.ImportDecl{{Target: "right", Wildcard: true}, {Target: "left", Wildcard: true}},
+			Types:   []*java.TypeDecl{caller},
+		},
+		{File: left.File, Package: "left", Types: []*java.TypeDecl{left}},
+		{File: right.File, Package: "right", Types: []*java.TypeDecl{right}},
+	})
+	if err != nil {
+		t.Fatalf("Build: %v", err)
+	}
+
+	res := NewSyntacticResolver(table).Resolve(mkCall("helper", "run"), MethodContext{EnclosingType: caller, File: caller.File})
+	if len(res.Targets) != 0 || !strings.Contains(res.Note, "candidates: left.Helper, right.Helper") {
+		t.Fatalf("expected deterministic type ambiguity, got %+v", res)
 	}
 }

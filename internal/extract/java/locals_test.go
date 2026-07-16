@@ -34,8 +34,8 @@ class Example {
 		t.Fatalf("local vars count: got %d (%v), want %d", len(got), got, len(want))
 	}
 	for name, typeName := range want {
-		if got[name] != typeName {
-			t.Errorf("local var %q: got %q, want %q", name, got[name], typeName)
+		if got[name].Raw != typeName {
+			t.Errorf("local var %q: got %q, want %q", name, got[name].Raw, typeName)
 		}
 	}
 	if _, ok := got["inferred"]; ok {

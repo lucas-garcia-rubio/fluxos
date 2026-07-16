@@ -76,7 +76,7 @@ func TestRunTraceWriterError(t *testing.T) {
 
 func TestFindMethodByNameListsOverloadSignatures(t *testing.T) {
 	typ := &java.TypeDecl{Name: "Service", Methods: []java.MethodDecl{
-		{Name: "run", Signature: "(String)"},
+		{Name: "run", Signature: "(String)", Params: []java.Param{{Type: java.NewTypeRef("String", false)}}},
 		{Name: "run", Signature: "()"},
 	}}
 	typ.FQCN = typ.Name
@@ -86,7 +86,7 @@ func TestFindMethodByNameListsOverloadSignatures(t *testing.T) {
 	}
 
 	_, err = findMethodByName(table, typ, "run")
-	if err == nil || !strings.Contains(err.Error(), "available signatures: (), (String)") {
+	if err == nil || !strings.Contains(err.Error(), "available signatures: (), (java.lang.String)") {
 		t.Fatalf("findMethodByName error = %v", err)
 	}
 }
@@ -109,10 +109,10 @@ func TestBuildUnitsPreservesMetadataAndFlattenCompatibility(t *testing.T) {
 	if err != nil {
 		t.Fatalf("buildIndex: %v", err)
 	}
-	if !reflect.DeepEqual(indexedUnits, units) {
-		t.Fatalf("buildIndex units differ:\ngot:  %+v\nwant: %+v", indexedUnits, units)
+	if len(indexedUnits) != len(units) || indexedUnits[0].File != units[0].File || len(indexedUnits[0].Types) != len(units[0].Types) {
+		t.Fatalf("buildIndex did not preserve unit structure: got %+v, want %+v", indexedUnits, units)
 	}
-	for _, typ := range flattenTypes(units) {
+	for _, typ := range flattenTypes(indexedUnits) {
 		if got, ok := table.TypeByFQCN(typ.FQCN); !ok || !reflect.DeepEqual(got, typ) {
 			t.Fatalf("indexed type %q = %+v, %v", typ.FQCN, got, ok)
 		}

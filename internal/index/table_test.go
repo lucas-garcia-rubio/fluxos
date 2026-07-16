@@ -16,7 +16,7 @@ func TestBuildAndLookup(t *testing.T) {
 	serviceFile := "src/com/foo/Service.java"
 	otherFile := "src/com/bar/Service.java"
 	service := fixtureType("Service", "com.foo.Service", serviceFile,
-		java.MethodDecl{Name: "run", Signature: "(String)"},
+		java.MethodDecl{Name: "run", Signature: "(String)", Params: []java.Param{{Type: java.NewTypeRef("String", false)}}},
 		java.MethodDecl{Name: "run", Signature: "()"},
 	)
 	other := fixtureType("Service", "com.bar.Service", otherFile)
@@ -46,7 +46,7 @@ func TestBuildAndLookup(t *testing.T) {
 		t.Fatalf("Method = %+v, %v", got, ok)
 	}
 	candidates := table.MethodCandidates(service.FQCN, "run")
-	if len(candidates) != 2 || candidates[0].Signature != "()" || candidates[1].Signature != "(String)" {
+	if len(candidates) != 2 || candidates[0].Signature != "()" || candidates[1].Signature != "(java.lang.String)" {
 		t.Fatalf("MethodCandidates = %+v", candidates)
 	}
 }

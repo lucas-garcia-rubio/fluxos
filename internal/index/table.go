@@ -67,6 +67,18 @@ func Build(units []*java.CompilationUnit) (*Table, error) {
 			table.TypesByPackage[unit.Package] = append(table.TypesByPackage[unit.Package], typ)
 			table.unitsByType[typ.FQCN] = unit
 
+		}
+	}
+
+	for _, candidates := range table.TypesBySimpleName {
+		sortTypes(candidates)
+	}
+	for _, candidates := range table.TypesByPackage {
+		sortTypes(candidates)
+	}
+	for _, unit := range orderedUnits {
+		table.canonicalizeUnit(unit)
+		for _, typ := range unit.Types {
 			methods := make(map[java.MethodKey]*java.MethodDecl, len(typ.Methods))
 			for i := range typ.Methods {
 				method := &typ.Methods[i]
@@ -78,13 +90,6 @@ func Build(units []*java.CompilationUnit) (*Table, error) {
 			}
 			table.MethodsByType[typ.FQCN] = methods
 		}
-	}
-
-	for _, candidates := range table.TypesBySimpleName {
-		sortTypes(candidates)
-	}
-	for _, candidates := range table.TypesByPackage {
-		sortTypes(candidates)
 	}
 
 	return table, nil

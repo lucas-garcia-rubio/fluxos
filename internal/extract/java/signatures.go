@@ -2,29 +2,19 @@ package java
 
 import (
 	"strings"
-	"unicode"
 )
 
 func buildSignature(params []Param) string {
 	types := make([]string, len(params))
 	for i, param := range params {
-		types[i] = normalizeSignatureType(param.Type, param.Variadic)
+		types[i] = param.Type.SignatureToken()
 	}
 	return "(" + strings.Join(types, ",") + ")"
 }
 
-func normalizeSignatureType(raw string, variadic bool) string {
-	typeName := eraseGenericArguments(raw)
-	typeName = strings.Map(func(r rune) rune {
-		if unicode.IsSpace(r) {
-			return -1
-		}
-		return r
-	}, typeName)
-	if variadic {
-		typeName += "[]"
-	}
-	return typeName
+// RebuildSignature refreshes a method key after its parameter refs are canonicalized.
+func RebuildSignature(method *MethodDecl) {
+	method.Signature = buildSignature(method.Params)
 }
 
 func eraseGenericArguments(raw string) string {

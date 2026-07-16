@@ -15,7 +15,7 @@ class ServiceImpl implements Service, Auditable {}
 	if typ.FQCN != "com.example.ServiceImpl" {
 		t.Fatalf("FQCN = %q, want %q", typ.FQCN, "com.example.ServiceImpl")
 	}
-	if want := []string{"Service", "Auditable"}; !reflect.DeepEqual(typ.Interfaces, want) {
+	if want := []TypeRef{NewTypeRef("Service", false), NewTypeRef("Auditable", false)}; !reflect.DeepEqual(typ.Interfaces, want) {
 		t.Fatalf("interfaces = %v, want %v", typ.Interfaces, want)
 	}
 }
@@ -28,10 +28,10 @@ interface Bottom extends Left, Right {}
 
 	tests := []struct {
 		name string
-		want []string
+		want []TypeRef
 	}{
-		{name: "Child", want: []string{"Parent"}},
-		{name: "Bottom", want: []string{"Left", "Right"}},
+		{name: "Child", want: []TypeRef{NewTypeRef("Parent", false)}},
+		{name: "Bottom", want: []TypeRef{NewTypeRef("Left", false), NewTypeRef("Right", false)}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -57,7 +57,7 @@ class Generic extends Parent<String> {}
 	}
 	for name, want := range tests {
 		t.Run(name, func(t *testing.T) {
-			if got := findTypeBySimpleName(t, types, name).SuperClass; got != want {
+			if got := findTypeBySimpleName(t, types, name).SuperClass.Raw; got != want {
 				t.Fatalf("superclass = %q, want %q", got, want)
 			}
 		})
@@ -103,11 +103,11 @@ class Example {
 		t.Fatalf("field count = %d, want 5: %+v", len(fields), fields)
 	}
 	want := []FieldDecl{
-		{Name: "first", Modifier: []string{"private"}, Type: "int", Initializer: "1"},
-		{Name: "second", Modifier: []string{"private"}, Type: "int"},
-		{Name: "third", Modifier: []string{"private"}, Type: "int", Initializer: "3"},
-		{Name: "single", Modifier: []string{}, Type: "String"},
-		{Name: "genericArray", Modifier: []string{}, Type: "java.util.List<String>[]"},
+		{Name: "first", Modifier: []string{"private"}, Type: NewTypeRef("int", false), Initializer: "1"},
+		{Name: "second", Modifier: []string{"private"}, Type: NewTypeRef("int", false)},
+		{Name: "third", Modifier: []string{"private"}, Type: NewTypeRef("int", false), Initializer: "3"},
+		{Name: "single", Modifier: []string{}, Type: NewTypeRef("String", false)},
+		{Name: "genericArray", Modifier: []string{}, Type: NewTypeRef("java.util.List<String>[]", false)},
 	}
 	if !reflect.DeepEqual(fields, want) {
 		t.Fatalf("fields = %+v, want %+v", fields, want)

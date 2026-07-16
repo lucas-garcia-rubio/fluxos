@@ -15,7 +15,7 @@ type stubResolver struct {
 }
 
 type contextResolver struct {
-	localVars map[string]string
+	localVars map[string]java.TypeRef
 }
 
 func (r *contextResolver) Resolve(_ java.CallSite, ctx resolve.MethodContext) resolve.Resolution {
@@ -292,13 +292,13 @@ func TestWalkExternalTarget(t *testing.T) {
 
 func TestWalkPassesLocalVarsToResolver(t *testing.T) {
 	method := mkMethod("run", mkCall("helper"))
-	method.LocalVars = map[string]string{"helper": "Helper"}
+	method.LocalVars = map[string]java.TypeRef{"helper": java.NewTypeRef("Helper", false)}
 	typ := mkType("Example", method)
 	resolver := &contextResolver{}
 
 	Walk(NewGraph(), typ, method, tableForTypes([]*java.TypeDecl{typ}), resolver)
 
-	if got := resolver.localVars["helper"]; got != "Helper" {
+	if got := resolver.localVars["helper"].Raw; got != "Helper" {
 		t.Fatalf("resolver received local var type %q, want %q", got, "Helper")
 	}
 }
@@ -312,7 +312,7 @@ func TestWalkKeepsOverloadsDistinctAndDetectsCycle(t *testing.T) {
 	withInt := java.MethodDecl{
 		Name:      "run",
 		Signature: "(int)",
-		Params:    []java.Param{{Type: "int"}},
+		Params:    []java.Param{{Type: java.NewTypeRef("int", false)}},
 		Calls:     []java.CallSite{{MethodName: "toZero"}},
 	}
 	typ := mkType("Service", zero, withInt)

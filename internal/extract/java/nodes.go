@@ -55,7 +55,7 @@ func extractTypeDecl(filePath string, source []byte, node *sitter.Node, pkg stri
 	if kind == TypeKindClass {
 		if super := node.ChildByFieldName("superclass"); super != nil {
 			if inner := super.NamedChild(0); inner != nil {
-				decl.SuperClass = sourceText(source, inner)
+				decl.SuperClass = NewTypeRef(sourceText(source, inner), false)
 			}
 		}
 	}
@@ -85,7 +85,7 @@ func extractTypeDecl(filePath string, source []byte, node *sitter.Node, pkg stri
 
 	// Garante slices não-nil pra JSON output ([] em vez de null).
 	if decl.Interfaces == nil {
-		decl.Interfaces = []string{}
+		decl.Interfaces = []TypeRef{}
 	}
 	if decl.Modifier == nil {
 		decl.Modifier = []string{}
@@ -153,7 +153,7 @@ func extractFieldDecl(source []byte, node *sitter.Node) []FieldDecl {
 	var fields []FieldDecl
 	for _, d := range declarators {
 		fd := FieldDecl{
-			Type:     typeStr,
+			Type:     NewTypeRef(typeStr, false),
 			Modifier: mods,
 		}
 		if nameNode := d.ChildByFieldName("name"); nameNode != nil {
@@ -186,7 +186,7 @@ func extractMethod(filePath string, source []byte, node *sitter.Node) MethodDecl
 	}
 	// ReturnType — ausente em constructor_declaration (deixa "").
 	if typeNode := node.ChildByFieldName("type"); typeNode != nil {
-		m.ReturnType = sourceText(source, typeNode)
+		m.ReturnType = NewTypeRef(sourceText(source, typeNode), false)
 	}
 	if paramsNode := node.ChildByFieldName("parameters"); paramsNode != nil {
 		m.Params = extractParams(source, paramsNode)
@@ -221,7 +221,7 @@ func extractParams(source []byte, paramsNode *sitter.Node) []Param {
 				p.Name = sourceText(source, nameNode)
 			}
 			if typeNode := child.ChildByFieldName("type"); typeNode != nil {
-				p.Type = sourceText(source, typeNode)
+				p.Type = NewTypeRef(sourceText(source, typeNode), false)
 			}
 			params = append(params, p)
 		case "spread_parameter":
@@ -234,8 +234,8 @@ func extractParams(source []byte, paramsNode *sitter.Node) []Param {
 					}
 					continue
 				}
-				if p.Type == "" && part.Kind() != "modifiers" && part.Kind() != "annotation" && part.Kind() != "marker_annotation" {
-					p.Type = sourceText(source, part)
+				if p.Type.Raw == "" && part.Kind() != "modifiers" && part.Kind() != "annotation" && part.Kind() != "marker_annotation" {
+					p.Type = NewTypeRef(sourceText(source, part), true)
 				}
 			}
 			params = append(params, p)
@@ -281,11 +281,11 @@ func extractModifiers(source []byte, node *sitter.Node) []string {
 	return mods
 }
 
-func extractTypeList(source []byte, node *sitter.Node) []string {
-	var result []string
+func extractTypeList(source []byte, node *sitter.Node) []TypeRef {
+	var result []TypeRef
 	for i := 0; i < int(node.NamedChildCount()); i++ {
 		child := node.NamedChild(uint(i))
-		result = append(result, sourceText(source, child))
+		result = append(result, NewTypeRef(sourceText(source, child), false))
 	}
 	return result
 }
