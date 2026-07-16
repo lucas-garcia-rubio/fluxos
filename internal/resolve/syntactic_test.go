@@ -30,6 +30,19 @@ func ref(raw string) java.TypeRef {
 	return java.NewTypeRef(raw, false)
 }
 
+// localVar cria uma LocalVarDecl visível em qualquer posição (escopo cobre todo
+// o método e declaração precede qualquer call). Útil em testes onde não vale a
+// pena construir byte ranges reais.
+func localVar(name, typeName string) java.LocalVarDecl {
+	return java.LocalVarDecl{
+		Name:       name,
+		Type:       ref(typeName),
+		ScopeStart: 0,
+		ScopeEnd:   ^uint(0),
+		DeclStart:  0,
+	}
+}
+
 func newTestResolver(types []*java.TypeDecl) *SyntacticResolver {
 	unitsByFile := make(map[string]*java.CompilationUnit)
 	for _, typ := range types {
@@ -193,7 +206,7 @@ func TestResolveFieldWithExternalType(t *testing.T) {
 func TestResolveLocalVarMethod(t *testing.T) {
 	helper := mkType("Helper", mkMethod("log"))
 	r := newTestResolver([]*java.TypeDecl{helper})
-	ctx := MethodContext{LocalVars: map[string]java.TypeRef{"helper": ref("Helper")}}
+	ctx := MethodContext{LocalVars: []java.LocalVarDecl{localVar("helper", "Helper")}}
 
 	res := r.Resolve(mkCall("helper", "log"), ctx)
 
@@ -211,7 +224,7 @@ func TestResolveLocalVarTakesPrecedenceOverField(t *testing.T) {
 	r := newTestResolver([]*java.TypeDecl{enclosing, localType, fieldType})
 	ctx := MethodContext{
 		EnclosingType: enclosing,
-		LocalVars:     map[string]java.TypeRef{"helper": ref("LocalHelper")},
+		LocalVars:     []java.LocalVarDecl{localVar("helper", "LocalHelper")},
 	}
 
 	res := r.Resolve(mkCall("helper", "run"), ctx)
@@ -225,7 +238,7 @@ func TestResolveLocalVarTakesPrecedenceOverField(t *testing.T) {
 func TestResolveLocalVarMethodMissing(t *testing.T) {
 	helper := mkType("Helper", mkMethod("other"))
 	r := newTestResolver([]*java.TypeDecl{helper})
-	ctx := MethodContext{LocalVars: map[string]java.TypeRef{"helper": ref("Helper")}}
+	ctx := MethodContext{LocalVars: []java.LocalVarDecl{localVar("helper", "Helper")}}
 
 	res := r.Resolve(mkCall("helper", "log"), ctx)
 
@@ -337,7 +350,7 @@ func TestResolveLocalVarTakesPrecedenceOverType(t *testing.T) {
 	r := newTestResolver([]*java.TypeDecl{localType, classType})
 	ctx := MethodContext{
 		File:      file,
-		LocalVars: map[string]java.TypeRef{"helper": ref("LocalHelper")},
+		LocalVars: []java.LocalVarDecl{localVar("helper", "LocalHelper")},
 	}
 
 	res := r.Resolve(mkCall("helper", "run"), ctx)
@@ -438,7 +451,7 @@ func TestResolveDoesNotChooseFirstDuplicateSimpleName(t *testing.T) {
 	second.Name = "Helper"
 	r := newTestResolver([]*java.TypeDecl{first, second})
 
-	res := r.Resolve(mkCall("helper", "run"), MethodContext{LocalVars: map[string]java.TypeRef{"helper": ref("Helper")}})
+	res := r.Resolve(mkCall("helper", "run"), MethodContext{LocalVars: []java.LocalVarDecl{localVar("helper", "Helper")}})
 
 	if len(res.Targets) != 0 || res.Note == "" {
 		t.Fatalf("duplicate simple name must remain unresolved: %+v", res)
@@ -473,5 +486,126 @@ func TestResolveReportsWildcardTypeAmbiguityDeterministically(t *testing.T) {
 	res := NewSyntacticResolver(table).Resolve(mkCall("helper", "run"), MethodContext{EnclosingType: caller, File: caller.File})
 	if len(res.Targets) != 0 || !strings.Contains(res.Note, "candidates: left.Helper, right.Helper") {
 		t.Fatalf("expected deterministic type ambiguity, got %+v", res)
+	}
+}
+
+// Passo 7: scoped lookup com byte ranges
+
+func TestResolveLocalVarInScope(t *testing.T) {
+	helper := mkType("Helper", mkMethod("run"))
+	r := newTestResolver([]*java.TypeDecl{helper})
+	// call no byte 50; local visível em [0, 100), declarada no byte 10.
+	ctx := MethodContext{LocalVars: []java.LocalVarDecl{{
+		Name: "helper", Type: ref("Helper"),
+		ScopeStart: 0, ScopeEnd: 100, DeclStart: 10,
+	}}}
+
+	res := r.Resolve(java.CallSite{Receiver: "helper", MethodName: "run", StartByte: 50}, ctx)
+
+	want := MethodHandle{TypeFQCN: "Helper", Method: "run", Signature: "()"}
+	if len(res.Targets) != 1 || res.Targets[0] != want {
+		t.Fatalf("got %+v (note: %q), want %+v", res.Targets, res.Note, want)
+	}
+}
+
+func TestResolveLocalVarDeclaredAfterCallRejected(t *testing.T) {
+	helper := mkType("Helper", mkMethod("run"))
+	r := newTestResolver([]*java.TypeDecl{helper})
+	// call no byte 5; local declarada no byte 10 — não deveria resolver.
+	ctx := MethodContext{LocalVars: []java.LocalVarDecl{{
+		Name: "helper", Type: ref("Helper"),
+		ScopeStart: 0, ScopeEnd: 100, DeclStart: 10,
+	}}}
+
+	res := r.Resolve(java.CallSite{Receiver: "helper", MethodName: "run", StartByte: 5}, ctx)
+
+	if len(res.Targets) != 0 {
+		t.Fatalf("local var declarada após a call não deveria resolver: %+v", res)
+	}
+}
+
+func TestResolveLocalVarOutOfScopeRejected(t *testing.T) {
+	helper := mkType("Helper", mkMethod("run"))
+	r := newTestResolver([]*java.TypeDecl{helper})
+	// call no byte 200 (fora do bloco onde a local vive).
+	ctx := MethodContext{LocalVars: []java.LocalVarDecl{{
+		Name: "helper", Type: ref("Helper"),
+		ScopeStart: 50, ScopeEnd: 100, DeclStart: 60,
+	}}}
+
+	res := r.Resolve(java.CallSite{Receiver: "helper", MethodName: "run", StartByte: 200}, ctx)
+
+	if len(res.Targets) != 0 {
+		t.Fatalf("local var fora do escopo não deveria resolver: %+v", res)
+	}
+}
+
+func TestResolveLocalVarShadowedByInnerBlock(t *testing.T) {
+	outer := mkType("OuterHelper", mkMethod("run"))
+	inner := mkType("InnerHelper", mkMethod("run"))
+	r := newTestResolver([]*java.TypeDecl{outer, inner})
+	// dois blocos sobrepostos: outer [0, 200) e inner [50, 100).
+	// call no byte 60 — inner deve vencer por shadowing.
+	ctx := MethodContext{LocalVars: []java.LocalVarDecl{
+		{Name: "helper", Type: ref("OuterHelper"), ScopeStart: 0, ScopeEnd: 200, DeclStart: 10},
+		{Name: "helper", Type: ref("InnerHelper"), ScopeStart: 50, ScopeEnd: 100, DeclStart: 55},
+	}}
+
+	res := r.Resolve(java.CallSite{Receiver: "helper", MethodName: "run", StartByte: 60}, ctx)
+
+	want := MethodHandle{TypeFQCN: "InnerHelper", Method: "run", Signature: "()"}
+	if len(res.Targets) != 1 || res.Targets[0] != want {
+		t.Fatalf("got %+v (note: %q), want inner shadow %+v", res.Targets, res.Note, want)
+	}
+}
+
+func TestResolveParamShadowsField(t *testing.T) {
+	paramType := mkType("ParamType", mkMethod("run"))
+	fieldType := mkType("FieldType", mkMethod("run"))
+	enclosing := mkType("Owner")
+	enclosing.Fields = []java.FieldDecl{{Name: "helper", Type: ref("FieldType")}}
+	r := newTestResolver([]*java.TypeDecl{enclosing, paramType, fieldType})
+	ctx := MethodContext{
+		EnclosingType: enclosing,
+		Params:        []java.Param{{Name: "helper", Type: ref("ParamType")}},
+	}
+
+	res := r.Resolve(mkCall("helper", "run"), ctx)
+
+	want := MethodHandle{TypeFQCN: "ParamType", Method: "run", Signature: "()"}
+	if len(res.Targets) != 1 || res.Targets[0] != want {
+		t.Fatalf("got %+v (note: %q), want param target %+v", res.Targets, res.Note, want)
+	}
+}
+
+func TestResolveLocalVarShadowsParam(t *testing.T) {
+	localType := mkType("LocalType", mkMethod("run"))
+	paramType := mkType("ParamType", mkMethod("run"))
+	r := newTestResolver([]*java.TypeDecl{localType, paramType})
+	ctx := MethodContext{
+		Params:    []java.Param{{Name: "helper", Type: ref("ParamType")}},
+		LocalVars: []java.LocalVarDecl{localVar("helper", "LocalType")},
+	}
+
+	res := r.Resolve(mkCall("helper", "run"), ctx)
+
+	want := MethodHandle{TypeFQCN: "LocalType", Method: "run", Signature: "()"}
+	if len(res.Targets) != 1 || res.Targets[0] != want {
+		t.Fatalf("got %+v (note: %q), want local target %+v", res.Targets, res.Note, want)
+	}
+}
+
+func TestResolveFieldWhenNoLocalNoParam(t *testing.T) {
+	fieldType := mkType("FieldType", mkMethod("run"))
+	enclosing := mkType("Owner")
+	enclosing.Fields = []java.FieldDecl{{Name: "helper", Type: ref("FieldType")}}
+	r := newTestResolver([]*java.TypeDecl{enclosing, fieldType})
+	ctx := MethodContext{EnclosingType: enclosing}
+
+	res := r.Resolve(mkCall("helper", "run"), ctx)
+
+	want := MethodHandle{TypeFQCN: "FieldType", Method: "run", Signature: "()"}
+	if len(res.Targets) != 1 || res.Targets[0] != want {
+		t.Fatalf("got %+v (note: %q), want field target %+v", res.Targets, res.Note, want)
 	}
 }

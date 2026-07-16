@@ -53,10 +53,18 @@ func (r *SyntacticResolver) resolveSuper(call java.CallSite, ctx MethodContext) 
 }
 
 func (r *SyntacticResolver) resolveIdentifier(receiver string, call java.CallSite, ctx MethodContext) Resolution {
-	if typeName, ok := ctx.LocalVars[receiver]; ok {
-		t, note := r.resolveType(typeName, ctx)
+	if local, ok := findLocalVarAt(ctx.LocalVars, receiver, call.StartByte); ok {
+		t, note := r.resolveType(local.Type, ctx)
 		if t == nil {
-			return Resolution{Note: fmt.Sprintf("local var type %q unresolved: %s", typeName.Raw, note)}
+			return Resolution{Note: fmt.Sprintf("local var type %q unresolved: %s", local.Type.Raw, note)}
+		}
+		return r.resolveOnType(t, call)
+	}
+
+	if param := findParam(ctx.Params, receiver); param != nil {
+		t, note := r.resolveType(param.Type, ctx)
+		if t == nil {
+			return Resolution{Note: fmt.Sprintf("param type %q unresolved: %s", param.Type.Raw, note)}
 		}
 		return r.resolveOnType(t, call)
 	}
@@ -79,6 +87,40 @@ func (r *SyntacticResolver) resolveIdentifier(receiver string, call java.CallSit
 		return Resolution{Note: fmt.Sprintf("receiver %q is not a local var, field, or resolvable type: %s", receiver, note)}
 	}
 	return r.resolveOnType(t, call)
+}
+
+// findLocalVarAt devolve a local var visível no ponto da chamada (byte offset).
+// Filtro: nome bate, call dentro de [ScopeStart, ScopeEnd), DeclStart <= callPos.
+// Desempate: bloco mais interno (maior ScopeStart vence — shadowing).
+// Retorna (LocalVarDecl, true) ou (zero, false).
+func findLocalVarAt(vars []java.LocalVarDecl, name string, callPos uint) (java.LocalVarDecl, bool) {
+	var winner java.LocalVarDecl
+	found := false
+	for _, v := range vars {
+		if v.Name != name {
+			continue
+		}
+		if callPos < v.ScopeStart || callPos >= v.ScopeEnd {
+			continue
+		}
+		if v.DeclStart > callPos {
+			continue
+		}
+		if !found || v.ScopeStart > winner.ScopeStart {
+			winner = v
+			found = true
+		}
+	}
+	return winner, found
+}
+
+func findParam(params []java.Param, name string) *java.Param {
+	for i := range params {
+		if params[i].Name == name {
+			return &params[i]
+		}
+	}
+	return nil
 }
 
 func (r *SyntacticResolver) findTypeInFile(name, file string) *java.TypeDecl {

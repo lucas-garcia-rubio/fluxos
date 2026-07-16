@@ -102,7 +102,7 @@ func TestBuildCanonicalizesTypeReferencesAndSignatures(t *testing.T) {
 		Signature:  "(List[])",
 		ReturnType: java.NewTypeRef("Service", false),
 		Params:     []java.Param{{Name: "values", Type: java.NewTypeRef("List<Service>[]", false)}},
-		LocalVars:  map[string]java.TypeRef{"local": java.NewTypeRef("Service", false)},
+		LocalVars:  []java.LocalVarDecl{{Name: "local", Type: java.NewTypeRef("Service", false)}},
 	}}
 	unit := &java.CompilationUnit{
 		File:    caller.File,
@@ -133,7 +133,7 @@ func TestBuildCanonicalizesTypeReferencesAndSignatures(t *testing.T) {
 	if caller.SuperClass.FQCN != "dep.Parent" || caller.Interfaces[0].FQCN != "dep.Contract" || caller.Fields[0].Type.FQCN != "dep.Service" {
 		t.Fatalf("type relationships were not canonicalized: %+v", caller)
 	}
-	if method.ReturnType.FQCN != "dep.Service" || method.LocalVars["local"].FQCN != "dep.Service" || method.Params[0].Type.FQCN != "java.util.List" {
+	if method.ReturnType.FQCN != "dep.Service" || method.LocalVars[0].Type.FQCN != "dep.Service" || method.Params[0].Type.FQCN != "java.util.List" {
 		t.Fatalf("method type refs were not canonicalized: %+v", method)
 	}
 	if method.Signature != "(java.util.List[])" {

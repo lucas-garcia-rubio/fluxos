@@ -47,6 +47,7 @@ func Walk(
 	for _, call := range method.Calls {
 		ctx := resolve.MethodContext{
 			EnclosingType: enclosingType,
+			Params:        method.Params,
 			LocalVars:     method.LocalVars,
 			File:          enclosingType.File,
 		}

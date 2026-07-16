@@ -55,13 +55,29 @@ class Example {
 `)
 
 	got := findTypeBySimpleName(t, types, "Example").Methods[0].LocalVars
-	want := map[string]TypeRef{
-		"outer":     NewTypeRef("String", false),
-		"lambda":    NewTypeRef("Runnable", false),
-		"anonymous": NewTypeRef("Runnable", false),
+	want := map[string]string{
+		"outer":     "String",
+		"lambda":    "Runnable",
+		"anonymous": "Runnable",
 	}
-	if !reflect.DeepEqual(got, want) {
-		t.Fatalf("local vars = %v, want %v", got, want)
+	if len(got) != len(want) {
+		t.Fatalf("local vars count = %d, want %d: %+v", len(got), len(want), got)
+	}
+	for _, decl := range got {
+		wantType, ok := want[decl.Name]
+		if !ok {
+			t.Errorf("unexpected local var %q", decl.Name)
+			continue
+		}
+		if decl.Type.Raw != wantType {
+			t.Errorf("local var %q type = %q, want %q", decl.Name, decl.Type.Raw, wantType)
+		}
+	}
+	// Confirma boundary: lambda/local class/anonymous não contaminam o método externo.
+	for _, decl := range got {
+		if decl.Name == "insideLambda" || decl.Name == "insideLocal" || decl.Name == "insideAnonymous" {
+			t.Errorf("nested executable var leaked into outer method: %q", decl.Name)
+		}
 	}
 }
 

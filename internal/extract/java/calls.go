@@ -57,10 +57,12 @@ func isNestedExecutableBoundary(node *sitter.Node) bool {
 // O resolver (Passo 6+) decide o que fazer com cada caso.
 func buildCallSite(source []byte, node *sitter.Node, filePath string) CallSite {
 	cs := CallSite{
-		Kind: CallInvocation,
-		File: filePath,
-		Line: int(node.StartPosition().Row) + 1, // 0-indexed → 1-indexed
-		Args: []string{},
+		Kind:      CallInvocation,
+		File:      filePath,
+		Line:      int(node.StartPosition().Row) + 1, // 0-indexed → 1-indexed
+		StartByte: uint(node.StartByte()),
+		EndByte:   uint(node.EndByte()),
+		Args:      []string{},
 	}
 	if nameNode := node.ChildByFieldName("name"); nameNode != nil {
 		cs.MethodName = sourceText(source, nameNode)

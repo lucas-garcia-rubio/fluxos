@@ -15,11 +15,13 @@ type stubResolver struct {
 }
 
 type contextResolver struct {
-	localVars map[string]java.TypeRef
+	localVars []java.LocalVarDecl
+	params    []java.Param
 }
 
 func (r *contextResolver) Resolve(_ java.CallSite, ctx resolve.MethodContext) resolve.Resolution {
 	r.localVars = ctx.LocalVars
+	r.params = ctx.Params
 	return resolve.Resolution{Note: "captured context"}
 }
 
@@ -292,14 +294,27 @@ func TestWalkExternalTarget(t *testing.T) {
 
 func TestWalkPassesLocalVarsToResolver(t *testing.T) {
 	method := mkMethod("run", mkCall("helper"))
-	method.LocalVars = map[string]java.TypeRef{"helper": java.NewTypeRef("Helper", false)}
+	method.LocalVars = []java.LocalVarDecl{{Name: "helper", Type: java.NewTypeRef("Helper", false)}}
 	typ := mkType("Example", method)
 	resolver := &contextResolver{}
 
 	Walk(NewGraph(), typ, method, tableForTypes([]*java.TypeDecl{typ}), resolver)
 
-	if got := resolver.localVars["helper"].Raw; got != "Helper" {
-		t.Fatalf("resolver received local var type %q, want %q", got, "Helper")
+	if len(resolver.localVars) != 1 || resolver.localVars[0].Name != "helper" || resolver.localVars[0].Type.Raw != "Helper" {
+		t.Fatalf("resolver received local vars = %+v, want [{Name: helper, Type.Raw: Helper}]", resolver.localVars)
+	}
+}
+
+func TestWalkPassesParamsToResolver(t *testing.T) {
+	method := mkMethod("run", mkCall("helper"))
+	method.Params = []java.Param{{Name: "helper", Type: java.NewTypeRef("Helper", false)}}
+	typ := mkType("Example", method)
+	resolver := &contextResolver{}
+
+	Walk(NewGraph(), typ, method, tableForTypes([]*java.TypeDecl{typ}), resolver)
+
+	if len(resolver.params) != 1 || resolver.params[0].Name != "helper" || resolver.params[0].Type.Raw != "Helper" {
+		t.Fatalf("resolver received params = %+v, want [{Name: helper, Type.Raw: Helper}]", resolver.params)
 	}
 }
 

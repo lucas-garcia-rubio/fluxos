@@ -32,12 +32,13 @@ type Resolution struct {
 }
 
 // MethodContext é o que o resolver precisa saber sobre o método que faz a
-// chamada (o "caller"). Inclui o tipo que o contém, as variáveis locais no
-// escopo (nome → tipo), e o arquivo source.
+// chamada (o "caller"). Inclui o tipo que o contém, os parâmetros, as
+// variáveis locais (com ranges para scoped lookup), e o arquivo source.
 type MethodContext struct {
-	EnclosingType *java.TypeDecl          // classe/interface onde o caller está declarado
-	LocalVars     map[string]java.TypeRef // name -> canonical type reference
-	File          string                  // path do arquivo (pra warnings file:line)
+	EnclosingType *java.TypeDecl      // classe/interface onde o caller está declarado
+	Params        []java.Param        // parâmetros do método caller
+	LocalVars     []java.LocalVarDecl // locais com ScopeStart/ScopeEnd/DeclStart
+	File          string              // path do arquivo (pra warnings file:line)
 }
 
 // Resolver é a interface que transforma CallSite em Resolution.

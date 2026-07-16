@@ -94,8 +94,8 @@ func (t *Table) canonicalizeUnit(unit *java.CompilationUnit) {
 			for j := range method.Params {
 				method.Params[j].Type = t.ResolveTypeRef(method.Params[j].Type, unit).Ref
 			}
-			for name, ref := range method.LocalVars {
-				method.LocalVars[name] = t.ResolveTypeRef(ref, unit).Ref
+			for j := range method.LocalVars {
+				method.LocalVars[j].Type = t.ResolveTypeRef(method.LocalVars[j].Type, unit).Ref
 			}
 			java.RebuildSignature(method)
 		}

@@ -150,20 +150,29 @@ type (
 		ArgCount   int      `json:"argCount"`
 		File       string   `json:"file"`
 		Line       int      `json:"line"`
+		StartByte  uint     `json:"startByte"`
+		EndByte    uint     `json:"endByte"`
 	}
 	MethodKey struct {
 		Name      string
 		Signature string
 	}
+	LocalVarDecl struct {
+		Name       string  `json:"name"`
+		Type       TypeRef `json:"type"`
+		ScopeStart uint    `json:"scopeStart"`
+		ScopeEnd   uint    `json:"scopeEnd"`
+		DeclStart  uint    `json:"declStart"`
+	}
 	MethodDecl struct {
-		Kind       MethodKind         `json:"kind"`
-		Name       string             `json:"name"`
-		Signature  string             `json:"signature"`
-		Modifier   []string           `json:"modifier"`
-		ReturnType TypeRef            `json:"returnType"`
-		Params     []Param            `json:"params"`
-		Calls      []CallSite         `json:"calls"`
-		LocalVars  map[string]TypeRef `json:"localVars,omitempty"`
+		Kind       MethodKind     `json:"kind"`
+		Name       string         `json:"name"`
+		Signature  string         `json:"signature"`
+		Modifier   []string       `json:"modifier"`
+		ReturnType TypeRef        `json:"returnType"`
+		Params     []Param        `json:"params"`
+		Calls      []CallSite     `json:"calls"`
+		LocalVars  []LocalVarDecl `json:"localVars,omitempty"`
 	}
 )
 
