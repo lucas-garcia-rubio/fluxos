@@ -9,9 +9,6 @@ import (
 	"reflect"
 	"strings"
 	"testing"
-
-	"github.com/lucas-garcia-rubio/fluxos/internal/extract/java"
-	"github.com/lucas-garcia-rubio/fluxos/internal/index"
 )
 
 var errWrite = errors.New("write failed")
@@ -43,6 +40,38 @@ func TestRunTraceMermaidGolden(t *testing.T) {
 	}
 }
 
+func TestRunTraceAcceptsFQCNTarget(t *testing.T) {
+	root := traceFixtureRoot()
+	var out bytes.Buffer
+
+	if err := runTrace([]string{"com.foo.Workflow.start", root}, &out); err != nil {
+		t.Fatalf("runTrace FQCN: %v", err)
+	}
+	want, err := os.ReadFile(filepath.Join(root, "expected.mmd"))
+	if err != nil {
+		t.Fatalf("read golden: %v", err)
+	}
+	if out.String() != string(want) {
+		t.Fatalf("FQCN trace output mismatch:\ngot:\n%s\nwant:\n%s", out.String(), want)
+	}
+}
+
+func TestRunTraceAcceptsSignatureTarget(t *testing.T) {
+	root := traceFixtureRoot()
+	var out bytes.Buffer
+
+	if err := runTrace([]string{"com.foo.Workflow.start()", root}, &out); err != nil {
+		t.Fatalf("runTrace signature: %v", err)
+	}
+	want, err := os.ReadFile(filepath.Join(root, "expected.mmd"))
+	if err != nil {
+		t.Fatalf("read golden: %v", err)
+	}
+	if out.String() != string(want) {
+		t.Fatalf("signature trace output mismatch:\ngot:\n%s\nwant:\n%s", out.String(), want)
+	}
+}
+
 func TestRunTraceArgumentErrors(t *testing.T) {
 	tests := []struct {
 		name string
@@ -50,8 +79,9 @@ func TestRunTraceArgumentErrors(t *testing.T) {
 		want string
 	}{
 		{name: "missing spec", want: "usage"},
-		{name: "invalid spec", args: []string{"Workflow"}, want: "expected ClassName.methodName"},
-		{name: "missing class", args: []string{"Missing.start", traceFixtureRoot()}, want: "class \"Missing\" not found"},
+		{name: "invalid spec", args: []string{"Workflow"}, want: "expected TypeName.method or FQCN.method"},
+		{name: "missing class", args: []string{"Missing.start", traceFixtureRoot()}, want: `class "Missing" not found`},
+		{name: "unknown FQCN", args: []string{"com.foo.Missing.start", traceFixtureRoot()}, want: `"com.foo.Missing" not found`},
 	}
 
 	for _, tt := range tests {
@@ -71,23 +101,6 @@ func TestRunTraceWriterError(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "write trace") {
 		t.Fatalf("runTrace writer error = %q, want context", err)
-	}
-}
-
-func TestFindMethodByNameListsOverloadSignatures(t *testing.T) {
-	typ := &java.TypeDecl{Name: "Service", Methods: []java.MethodDecl{
-		{Name: "run", Signature: "(String)", Params: []java.Param{{Type: java.NewTypeRef("String", false)}}},
-		{Name: "run", Signature: "()"},
-	}}
-	typ.FQCN = typ.Name
-	table, err := index.Build([]*java.CompilationUnit{{File: "Service.java", Types: []*java.TypeDecl{typ}}})
-	if err != nil {
-		t.Fatalf("build index: %v", err)
-	}
-
-	_, err = findMethodByName(table, typ, "run")
-	if err == nil || !strings.Contains(err.Error(), "available signatures: (), (java.lang.String)") {
-		t.Fatalf("findMethodByName error = %v", err)
 	}
 }
 
@@ -116,19 +129,5 @@ func TestBuildUnitsPreservesMetadataAndFlattenCompatibility(t *testing.T) {
 		if got, ok := table.TypeByFQCN(typ.FQCN); !ok || !reflect.DeepEqual(got, typ) {
 			t.Fatalf("indexed type %q = %+v, %v", typ.FQCN, got, ok)
 		}
-	}
-}
-
-func TestFindClassByNameListsSortedCandidates(t *testing.T) {
-	first := &java.TypeDecl{Name: "Service", FQCN: "z.Service"}
-	second := &java.TypeDecl{Name: "Service", FQCN: "a.Service"}
-	table, err := index.Build([]*java.CompilationUnit{{File: "Services.java", Types: []*java.TypeDecl{first, second}}})
-	if err != nil {
-		t.Fatalf("build index: %v", err)
-	}
-
-	_, err = findClassByName(table, "Service")
-	if err == nil || !strings.Contains(err.Error(), "candidates: a.Service, z.Service") {
-		t.Fatalf("findClassByName error = %v", err)
 	}
 }

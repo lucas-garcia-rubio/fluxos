@@ -63,39 +63,30 @@ func runIndex(args []string) error {
 
 func runTrace(args []string, out io.Writer) error {
 	if len(args) < 1 {
-		return fmt.Errorf("usage: fluxos trace <ClassName.methodName> [project-path]")
+		return fmt.Errorf("usage: fluxos trace <[FQCN.]TypeName.method[(signature)]> [project-path]")
 	}
-	spec := args[0]
+	spec, err := ParseTargetSpec(args[0])
+	if err != nil {
+		return err
+	}
 	projectRoot := "."
 	if len(args) >= 2 {
 		projectRoot = args[1]
 	}
-
-	// M2 só suporta ClassName.methodName (2 partes). FQCN é M3.
-	parts := strings.Split(spec, ".")
-	if len(parts) != 2 {
-		return fmt.Errorf("invalid spec %q, expected ClassName.methodName", spec)
-	}
-	className, methodName := parts[0], parts[1]
 
 	_, table, err := buildIndex(projectRoot)
 	if err != nil {
 		return err
 	}
 
-	targetClass, err := findClassByName(table, className)
-	if err != nil {
-		return err
-	}
-
-	targetMethod, err := findMethodByName(table, targetClass, methodName)
+	targetClass, targetMethod, err := ResolveTarget(table, spec)
 	if err != nil {
 		return err
 	}
 
 	resolver := resolve.NewSyntacticResolver(table)
 	g := graph.NewGraph()
-	graph.Walk(g, targetClass, targetMethod, table, resolver)
+	graph.Walk(g, targetClass, *targetMethod, table, resolver)
 
 	if _, err := fmt.Fprint(out, mermaid.Render(g)); err != nil {
 		return fmt.Errorf("write trace: %w", err)
@@ -143,38 +134,6 @@ func flattenTypes(units []*java.CompilationUnit) []*java.TypeDecl {
 		allTypes = append(allTypes, unit.Types...)
 	}
 	return allTypes
-}
-
-func findClassByName(table *index.Table, name string) (*java.TypeDecl, error) {
-	matches := table.TypesBySimple(name)
-	switch len(matches) {
-	case 0:
-		return nil, fmt.Errorf("class %q not found", name)
-	case 1:
-		return matches[0], nil
-	default:
-		fqcn := make([]string, len(matches))
-		for i, typ := range matches {
-			fqcn[i] = typ.FQCN
-		}
-		return nil, fmt.Errorf("ambiguous class name %q; candidates: %s", name, strings.Join(fqcn, ", "))
-	}
-}
-
-func findMethodByName(table *index.Table, class *java.TypeDecl, name string) (java.MethodDecl, error) {
-	matches := table.MethodCandidates(class.FQCN, name)
-	switch len(matches) {
-	case 0:
-		return java.MethodDecl{}, fmt.Errorf("method %q not found in %s", name, class.Name)
-	case 1:
-		return *matches[0], nil
-	default:
-		signatures := make([]string, len(matches))
-		for i, method := range matches {
-			signatures[i] = method.Signature
-		}
-		return java.MethodDecl{}, fmt.Errorf("ambiguous method %q in %s; available signatures: %s", name, class.Name, strings.Join(signatures, ", "))
-	}
 }
 
 func walk(node *tree_sitter.Node, depth int, currentFieldName string) {
