@@ -104,11 +104,11 @@ func ResolveTarget(table *index.Table, spec TargetSpec) (*java.TypeDecl, *java.M
 	if err != nil {
 		return nil, nil, err
 	}
-	method, err := resolveTargetMethod(table, typ, spec)
+	declaringType, method, err := resolveTargetMethod(table, typ, spec)
 	if err != nil {
 		return nil, nil, err
 	}
-	return typ, method, nil
+	return declaringType, method, nil
 }
 
 func resolveTargetType(table *index.Table, typeName string) (*java.TypeDecl, error) {
@@ -134,27 +134,46 @@ func resolveTargetType(table *index.Table, typeName string) (*java.TypeDecl, err
 	}
 }
 
-func resolveTargetMethod(table *index.Table, typ *java.TypeDecl, spec TargetSpec) (*java.MethodDecl, error) {
+func resolveTargetMethod(table *index.Table, typ *java.TypeDecl, spec TargetSpec) (*java.TypeDecl, *java.MethodDecl, error) {
 	if spec.HasSignature {
 		key := java.MethodKey{Name: spec.Method, Signature: formatSignature(spec.Signature)}
-		method, ok := table.Method(typ.FQCN, key)
-		if !ok {
-			return nil, fmt.Errorf("method %s%s not found in %s; available signatures: %s",
+		candidates := table.EffectiveMethod(typ.FQCN, key)
+		if len(candidates) == 0 {
+			return nil, nil, fmt.Errorf("method %s%s not found in %s; available signatures: %s",
 				spec.Method, formatSignature(spec.Signature), typ.FQCN,
 				listSignatures(table, typ.FQCN, spec.Method))
 		}
-		return method, nil
+		if len(candidates) > 1 {
+			return nil, nil, fmt.Errorf("ambiguous method %s%s in %s; candidates: %s",
+				spec.Method, formatSignature(spec.Signature), typ.FQCN, listMethodCandidates(candidates))
+		}
+		return candidates[0].DeclaringType, candidates[0].Method, nil
 	}
-	candidates := table.MethodCandidates(typ.FQCN, spec.Method)
+	candidates := table.EffectiveMethodCandidates(typ.FQCN, spec.Method)
 	switch len(candidates) {
 	case 0:
-		return nil, fmt.Errorf("method %q not found in %s", spec.Method, typ.FQCN)
+		return nil, nil, fmt.Errorf("method %q not found in %s", spec.Method, typ.FQCN)
 	case 1:
-		return candidates[0], nil
+		return candidates[0].DeclaringType, candidates[0].Method, nil
 	default:
-		return nil, fmt.Errorf("ambiguous method %q in %s; available signatures: %s",
+		if hasDuplicateSignatures(candidates) {
+			return nil, nil, fmt.Errorf("ambiguous method %q in %s; candidates: %s",
+				spec.Method, typ.FQCN, listMethodCandidates(candidates))
+		}
+		return nil, nil, fmt.Errorf("ambiguous method %q in %s; available signatures: %s",
 			spec.Method, typ.FQCN, listSignatures(table, typ.FQCN, spec.Method))
 	}
+}
+
+func hasDuplicateSignatures(candidates []index.MethodResolution) bool {
+	seen := make(map[string]struct{}, len(candidates))
+	for _, candidate := range candidates {
+		if _, duplicate := seen[candidate.Method.Signature]; duplicate {
+			return true
+		}
+		seen[candidate.Method.Signature] = struct{}{}
+	}
+	return false
 }
 
 func formatSignature(signature string) string {
@@ -165,10 +184,18 @@ func formatSignature(signature string) string {
 }
 
 func listSignatures(table *index.Table, typeFQCN, methodName string) string {
-	candidates := table.MethodCandidates(typeFQCN, methodName)
+	candidates := table.EffectiveMethodCandidates(typeFQCN, methodName)
 	signatures := make([]string, 0, len(candidates))
-	for _, method := range candidates {
-		signatures = append(signatures, method.Signature)
+	for _, candidate := range candidates {
+		signatures = append(signatures, candidate.Method.Signature)
 	}
 	return strings.Join(signatures, ", ")
+}
+
+func listMethodCandidates(candidates []index.MethodResolution) string {
+	values := make([]string, len(candidates))
+	for i, candidate := range candidates {
+		values[i] = candidate.DeclaringType.FQCN + "." + candidate.Method.Name + candidate.Method.Signature
+	}
+	return strings.Join(values, ", ")
 }

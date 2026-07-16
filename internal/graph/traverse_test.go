@@ -349,3 +349,32 @@ func TestWalkKeepsOverloadsDistinctAndDetectsCycle(t *testing.T) {
 		t.Fatalf("back edge between overloads was not marked: %+v", g.Edges)
 	}
 }
+
+func TestWalkInheritedMethodUsesDeclaringTypeAndTraversesBody(t *testing.T) {
+	parentOnly := mkMethod("parentOnly")
+	inherited := mkMethod("inherited", mkCall("parentOnly"))
+	inherited.Modifier = []string{"public"}
+	parent := mkType("Parent", inherited, parentOnly)
+	parent.File = "Parent.java"
+	entry := mkMethod("entry", mkCall("inherited"))
+	child := mkType("Child", entry)
+	child.File = "Child.java"
+	child.SuperClass = java.NewTypeRef("Parent", false)
+	table := tableForTypes([]*java.TypeDecl{child, parent})
+
+	g := NewGraph()
+	Walk(g, child, entry, table, resolve.NewSyntacticResolver(table))
+
+	for _, handle := range []resolve.MethodHandle{
+		{TypeFQCN: "Child", Method: "entry", Signature: "()"},
+		{TypeFQCN: "Parent", Method: "inherited", Signature: "()"},
+		{TypeFQCN: "Parent", Method: "parentOnly", Signature: "()"},
+	} {
+		if !g.IsBlack(handle) {
+			t.Fatalf("expected inherited traversal node %+v to be black; nodes=%+v", handle, g.Nodes)
+		}
+	}
+	if len(g.Edges) != 2 {
+		t.Fatalf("edge count = %d, want 2; edges=%+v", len(g.Edges), g.Edges)
+	}
+}

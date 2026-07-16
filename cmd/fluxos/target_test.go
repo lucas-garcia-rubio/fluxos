@@ -223,6 +223,47 @@ func TestResolveTargetWithUnknownSignatureListsAvailable(t *testing.T) {
 	}
 }
 
+func TestResolveTargetInheritedMethodReturnsDeclaringType(t *testing.T) {
+	parent := &java.TypeDecl{
+		Name: "Parent", FQCN: "app.Parent",
+		Methods: []java.MethodDecl{{Name: "run", Signature: "()", Modifier: []string{"public"}}},
+	}
+	child := &java.TypeDecl{
+		Name: "Child", FQCN: "app.Child",
+		SuperClass: java.NewTypeRef("Parent", false),
+	}
+	table := buildTableFromTypes(t, "app", parent, child)
+
+	typ, method, err := ResolveTarget(table, TargetSpec{TypeName: "app.Child", Method: "run"})
+	if err != nil {
+		t.Fatalf("ResolveTarget: %v", err)
+	}
+	if typ != parent || method != &parent.Methods[0] {
+		t.Fatalf("inherited target = %s.%s%s, want app.Parent.run()", typ.FQCN, method.Name, method.Signature)
+	}
+}
+
+func TestResolveTargetAmbiguousDefaultsListsDeclaringOwners(t *testing.T) {
+	left := &java.TypeDecl{
+		Kind: java.TypeKindInterface, Name: "Left", FQCN: "app.Left",
+		Methods: []java.MethodDecl{{Name: "run", Signature: "()", Modifier: []string{"default"}}},
+	}
+	right := &java.TypeDecl{
+		Kind: java.TypeKindInterface, Name: "Right", FQCN: "app.Right",
+		Methods: []java.MethodDecl{{Name: "run", Signature: "()", Modifier: []string{"default"}}},
+	}
+	child := &java.TypeDecl{
+		Kind: java.TypeKindClass, Name: "Child", FQCN: "app.Child",
+		Interfaces: []java.TypeRef{java.NewTypeRef("Left", false), java.NewTypeRef("Right", false)},
+	}
+	table := buildTableFromTypes(t, "app", left, right, child)
+
+	_, _, err := ResolveTarget(table, TargetSpec{TypeName: "app.Child", Method: "run"})
+	if err == nil || !strings.Contains(err.Error(), "app.Left.run()") || !strings.Contains(err.Error(), "app.Right.run()") {
+		t.Fatalf("ambiguous default error = %v", err)
+	}
+}
+
 func buildTargetTestTable(t *testing.T) *index.Table {
 	t.Helper()
 	workflow := &java.TypeDecl{

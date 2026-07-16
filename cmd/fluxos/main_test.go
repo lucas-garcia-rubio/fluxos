@@ -23,6 +23,10 @@ func traceFixtureRoot() string {
 	return filepath.Join("..", "..", "testdata", "trace")
 }
 
+func m3FixtureRoot(name string) string {
+	return filepath.Join("..", "..", "testdata", "m3", name)
+}
+
 func TestRunTraceMermaidGolden(t *testing.T) {
 	root := traceFixtureRoot()
 	var out bytes.Buffer
@@ -71,6 +75,24 @@ func TestRunTraceAcceptsSignatureTarget(t *testing.T) {
 		t.Fatalf("signature trace output mismatch:\ngot:\n%s\nwant:\n%s", out.String(), want)
 	}
 }
+
+func TestRunTraceInheritanceFixture(t *testing.T) {
+	var out bytes.Buffer
+	if err := runTrace([]string{"app.Workflow.start", m3FixtureRoot("inheritance")}, &out); err != nil {
+		t.Fatalf("runTrace inheritance: %v", err)
+	}
+	for _, label := range []string{
+		"base.BaseService.inheritedMethod()",
+		"base.GrandparentService.grandparentMethod()",
+		"contract.ChildContract.childDefault()",
+		"contract.RootContract.rootDefault()",
+	} {
+		if !strings.Contains(out.String(), label) {
+			t.Errorf("inheritance trace missing %q:\n%s", label, out.String())
+		}
+	}
+}
+
 
 func TestRunTraceArgumentErrors(t *testing.T) {
 	tests := []struct {

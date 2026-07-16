@@ -22,6 +22,7 @@ func mkMethod(name string) java.MethodDecl {
 	return java.MethodDecl{Name: name, Signature: "()"}
 }
 
+
 func mkCall(receiver, methodName string) java.CallSite {
 	return java.CallSite{Receiver: receiver, MethodName: methodName}
 }
@@ -60,6 +61,15 @@ func newTestResolver(types []*java.TypeDecl) *SyntacticResolver {
 	table, err := index.Build(units)
 	if err != nil {
 		panic(err)
+	}
+	return NewSyntacticResolver(table)
+}
+
+func newResolverFromUnits(t *testing.T, units ...*java.CompilationUnit) *SyntacticResolver {
+	t.Helper()
+	table, err := index.Build(units)
+	if err != nil {
+		t.Fatalf("index.Build: %v", err)
 	}
 	return NewSyntacticResolver(table)
 }
@@ -286,8 +296,9 @@ func TestResolveSuperclassInOtherFile(t *testing.T) {
 
 	res := r.Resolve(mkCall("super", "touch"), ctx)
 
-	if len(res.Targets) != 0 || res.Note == "" {
-		t.Fatalf("expected cross-file superclass to remain unresolved, got %+v", res)
+	want := MethodHandle{TypeFQCN: "Base", Method: "touch", Signature: "()"}
+	if len(res.Targets) != 1 || res.Targets[0] != want {
+		t.Fatalf("cross-file superclass target = %+v (note: %q), want %+v", res.Targets, res.Note, want)
 	}
 }
 
@@ -488,6 +499,38 @@ func TestResolveReportsWildcardTypeAmbiguityDeterministically(t *testing.T) {
 		t.Fatalf("expected deterministic type ambiguity, got %+v", res)
 	}
 }
+
+func TestResolveInheritedMethodAndFieldCrossFile(t *testing.T) {
+	helper := mkType("support.Helper", mkMethod("work"))
+	helper.Name = "Helper"
+	helper.File = "Helper.java"
+	parent := mkType("base.Parent", java.MethodDecl{Name: "inherited", Signature: "()", Modifier: []string{"public"}})
+	parent.Name = "Parent"
+	parent.File = "Parent.java"
+	parent.Fields = []java.FieldDecl{{Name: "helper", Modifier: []string{"protected"}, Type: ref("support.Helper")}}
+	child := mkType("app.Child")
+	child.Name = "Child"
+	child.File = "Child.java"
+	child.SuperClass = ref("base.Parent")
+	r := newResolverFromUnits(t,
+		&java.CompilationUnit{File: child.File, Package: "app", Types: []*java.TypeDecl{child}},
+		&java.CompilationUnit{File: parent.File, Package: "base", Types: []*java.TypeDecl{parent}},
+		&java.CompilationUnit{File: helper.File, Package: "support", Types: []*java.TypeDecl{helper}},
+	)
+	ctx := MethodContext{EnclosingType: child, File: child.File}
+
+	method := r.Resolve(mkCall("", "inherited"), ctx)
+	wantMethod := MethodHandle{TypeFQCN: "base.Parent", Method: "inherited", Signature: "()"}
+	if len(method.Targets) != 1 || method.Targets[0] != wantMethod {
+		t.Fatalf("inherited method = %+v (note: %q), want %+v", method.Targets, method.Note, wantMethod)
+	}
+	field := r.Resolve(mkCall("helper", "work"), ctx)
+	wantField := MethodHandle{TypeFQCN: "support.Helper", Method: "work", Signature: "()"}
+	if len(field.Targets) != 1 || field.Targets[0] != wantField {
+		t.Fatalf("inherited field = %+v (note: %q), want %+v", field.Targets, field.Note, wantField)
+	}
+}
+
 
 // Passo 7: scoped lookup com byte ranges
 

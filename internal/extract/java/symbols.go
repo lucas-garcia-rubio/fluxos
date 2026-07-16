@@ -180,6 +180,16 @@ func (m MethodDecl) Key() MethodKey {
 	return MethodKey{Name: m.Name, Signature: m.Signature}
 }
 
+// HasModifier reports whether modifiers contains the exact Java modifier.
+func HasModifier(modifiers []string, modifier string) bool {
+	for _, candidate := range modifiers {
+		if candidate == modifier {
+			return true
+		}
+	}
+	return false
+}
+
 type TypeDecl struct {
 	Kind       TypeKind     `json:"kind"`
 	Name       string       `json:"name"`

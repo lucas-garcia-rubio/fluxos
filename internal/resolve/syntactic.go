@@ -45,9 +45,12 @@ func (r *SyntacticResolver) resolveSuper(call java.CallSite, ctx MethodContext) 
 		return Resolution{Note: fmt.Sprintf("type %s has no superclass", ctx.EnclosingType.FQCN)}
 	}
 
-	superType := r.findTypeInFile(ctx.EnclosingType.SuperClass.FQCN, ctx.File)
-	if superType == nil {
-		return Resolution{Note: fmt.Sprintf("superclass %q not found in same file", ctx.EnclosingType.SuperClass.SignatureToken())}
+	if r.Index == nil {
+		return Resolution{Note: "project index is unavailable"}
+	}
+	superType, ok := r.Index.DirectSuperclass(ctx.EnclosingType.FQCN)
+	if !ok {
+		return Resolution{Note: fmt.Sprintf("superclass %q not found in project", ctx.EnclosingType.SuperClass.SignatureToken())}
 	}
 	return r.resolveOnType(superType, call)
 }
@@ -70,13 +73,13 @@ func (r *SyntacticResolver) resolveIdentifier(receiver string, call java.CallSit
 	}
 
 	if ctx.EnclosingType != nil {
-		for _, field := range ctx.EnclosingType.Fields {
-			if field.Name != receiver {
-				continue
-			}
-			t, note := r.resolveType(field.Type, ctx)
+		if field, ok := r.effectiveField(ctx.EnclosingType, receiver); ok {
+			fieldCtx := ctx
+			fieldCtx.EnclosingType = field.DeclaringType
+			fieldCtx.File = field.DeclaringType.File
+			t, note := r.resolveType(field.Field.Type, fieldCtx)
 			if t == nil {
-				return Resolution{Note: fmt.Sprintf("field type %q unresolved: %s", field.Type.Raw, note)}
+				return Resolution{Note: fmt.Sprintf("field type %q unresolved: %s", field.Field.Type.Raw, note)}
 			}
 			return r.resolveOnType(t, call)
 		}
@@ -123,22 +126,6 @@ func findParam(params []java.Param, name string) *java.Param {
 	return nil
 }
 
-func (r *SyntacticResolver) findTypeInFile(name, file string) *java.TypeDecl {
-	if r.Index == nil {
-		return nil
-	}
-	unit := r.Index.UnitsByFile[file]
-	if unit == nil {
-		return nil
-	}
-	for _, t := range unit.Types {
-		if t.FQCN == name || t.Name == name {
-			return t
-		}
-	}
-	return nil
-}
-
 func (r *SyntacticResolver) resolveType(ref java.TypeRef, ctx MethodContext) (*java.TypeDecl, string) {
 	if r.Index == nil {
 		return nil, "project index is unavailable"
@@ -167,31 +154,95 @@ func (r *SyntacticResolver) resolveOnType(t *java.TypeDecl, call java.CallSite) 
 	if t == nil {
 		return Resolution{Note: "no enclosing type"}
 	}
-	var candidates []java.MethodDecl
-	for _, m := range t.Methods {
-		if m.Name == call.MethodName && arityCompatible(m, call.ArgCount) {
-			candidates = append(candidates, m)
-		}
-	}
-	if len(candidates) == 1 {
-		method := candidates[0]
-		return Resolution{Targets: []MethodHandle{{
-			TypeFQCN:  t.FQCN,
-			Method:    method.Name,
-			Signature: method.Signature,
-		}}}
-	}
-	if len(candidates) > 1 {
-		signatures := make([]string, len(candidates))
-		for i, method := range candidates {
-			signatures[i] = method.Signature
-		}
-		sort.Strings(signatures)
-		return Resolution{Note: fmt.Sprintf("ambiguous overload %q on %s: %s", call.MethodName, t.FQCN, strings.Join(signatures, ", "))}
+	candidates := r.methodCandidatesOnType(t, call.MethodName)
+	if selection := selectMethodCandidates(candidates, call, t); selection.Found {
+		return selection.Resolution
 	}
 	return Resolution{
 		Note: fmt.Sprintf("method %q with arity %d not found on %s", call.MethodName, call.ArgCount, t.FQCN),
 	}
+}
+
+type candidateSelection struct {
+	Resolution Resolution
+	Found      bool
+}
+
+func selectMethodCandidates(candidates []index.MethodResolution, call java.CallSite, receiver *java.TypeDecl) candidateSelection {
+	applicable := make([]index.MethodResolution, 0, len(candidates))
+	for _, candidate := range candidates {
+		if candidate.DeclaringType != nil && candidate.Method != nil && arityCompatible(*candidate.Method, call.ArgCount) {
+			applicable = append(applicable, candidate)
+		}
+	}
+	if len(applicable) == 0 {
+		return candidateSelection{}
+	}
+	if len(applicable) == 1 {
+		candidate := applicable[0]
+		return candidateSelection{Found: true, Resolution: Resolution{Targets: []MethodHandle{{
+			TypeFQCN:  candidate.DeclaringType.FQCN,
+			Method:    candidate.Method.Name,
+			Signature: candidate.Method.Signature,
+		}}}}
+	}
+
+	descriptions := make([]string, len(applicable))
+	sameOwner := true
+	owner := applicable[0].DeclaringType.FQCN
+	for i, candidate := range applicable {
+		if candidate.DeclaringType.FQCN != owner {
+			sameOwner = false
+		}
+		descriptions[i] = candidate.DeclaringType.FQCN + "." + candidate.Method.Name + candidate.Method.Signature
+	}
+	if sameOwner {
+		for i, candidate := range applicable {
+			descriptions[i] = candidate.Method.Signature
+		}
+	}
+	sort.Strings(descriptions)
+	subject := owner
+	if receiver != nil {
+		subject = receiver.FQCN
+	}
+	return candidateSelection{
+		Found:      true,
+		Resolution: Resolution{Note: fmt.Sprintf("ambiguous overload %q on %s: %s", call.MethodName, subject, strings.Join(descriptions, ", "))},
+	}
+}
+
+func (r *SyntacticResolver) methodCandidatesOnType(t *java.TypeDecl, name string) []index.MethodResolution {
+	result := make([]index.MethodResolution, 0)
+	if t == nil {
+		return result
+	}
+	if r.Index != nil {
+		if _, ok := r.Index.TypeByFQCN(t.FQCN); ok {
+			return r.Index.EffectiveMethodCandidates(t.FQCN, name)
+		}
+	}
+	for i := range t.Methods {
+		method := &t.Methods[i]
+		if method.Name == name {
+			result = append(result, index.MethodResolution{DeclaringType: t, Method: method})
+		}
+	}
+	return result
+}
+
+func (r *SyntacticResolver) effectiveField(t *java.TypeDecl, name string) (index.FieldResolution, bool) {
+	if r.Index != nil {
+		if _, ok := r.Index.TypeByFQCN(t.FQCN); ok {
+			return r.Index.EffectiveField(t.FQCN, name)
+		}
+	}
+	for i := range t.Fields {
+		if t.Fields[i].Name == name {
+			return index.FieldResolution{DeclaringType: t, Field: &t.Fields[i]}, true
+		}
+	}
+	return index.FieldResolution{}, false
 }
 
 func arityCompatible(method java.MethodDecl, argCount int) bool {
