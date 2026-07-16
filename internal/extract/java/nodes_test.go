@@ -89,6 +89,58 @@ interface Plain {}
 	}
 }
 
+func TestExtractMethodModifiers(t *testing.T) {
+	types := extractJavaSource(t, `
+class Util {
+    public static void run() {}
+    private static void hidden() {}
+    void instance() {}
+}
+interface Contract {
+    default void work() {}
+    static void create() {}
+}
+`)
+
+	tests := []struct {
+		typeName   string
+		methodName string
+		want       []string
+	}{
+		{typeName: "Util", methodName: "run", want: []string{"public", "static"}},
+		{typeName: "Util", methodName: "hidden", want: []string{"private", "static"}},
+		{typeName: "Util", methodName: "instance", want: []string{}},
+		{typeName: "Contract", methodName: "work", want: []string{"default"}},
+		{typeName: "Contract", methodName: "create", want: []string{"static"}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.typeName+"/"+tt.methodName, func(t *testing.T) {
+			typ := findTypeBySimpleName(t, types, tt.typeName)
+			var got []string
+			for _, method := range typ.Methods {
+				if method.Name == tt.methodName {
+					got = method.Modifier
+					break
+				}
+			}
+			if !reflect.DeepEqual(got, tt.want) {
+				t.Fatalf("modifiers = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestHasModifierUsesExactMembership(t *testing.T) {
+	if !HasModifier([]string{"public", "static"}, "static") {
+		t.Fatal("HasModifier did not find exact modifier")
+	}
+	for _, modifiers := range [][]string{{"@Static"}, {"nonstatic"}, {"Static"}, nil} {
+		if HasModifier(modifiers, "static") {
+			t.Fatalf("HasModifier matched %v as static", modifiers)
+		}
+	}
+}
+
 func TestExtractMultipleFieldDeclarators(t *testing.T) {
 	types := extractJavaSource(t, `
 class Example {

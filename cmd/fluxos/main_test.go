@@ -93,6 +93,25 @@ func TestRunTraceInheritanceFixture(t *testing.T) {
 	}
 }
 
+func TestRunTraceImportsFixture(t *testing.T) {
+	var out bytes.Buffer
+	if err := runTrace([]string{"app.Workflow.start", m3FixtureRoot("imports")}, &out); err != nil {
+		t.Fatalf("runTrace imports: %v", err)
+	}
+	for _, label := range []string{
+		"explicit.ExplicitTasks.explicitRun()",
+		"explicit.ExplicitTasks.explicitRun(types.Helper)",
+		"wildcard.WildcardTasks.wildcardRun()",
+		"inherited.BaseTasks.inheritedRun()",
+		"contract.ContractTasks.interfaceRun()",
+		"app.Workflow.currentRun()",
+		"types.Helper.work()",
+	} {
+		if !strings.Contains(out.String(), label) {
+			t.Errorf("imports trace missing %q:\n%s", label, out.String())
+		}
+	}
+}
 
 func TestRunTraceArgumentErrors(t *testing.T) {
 	tests := []struct {

@@ -22,6 +22,9 @@ func mkMethod(name string) java.MethodDecl {
 	return java.MethodDecl{Name: name, Signature: "()"}
 }
 
+func mkStaticMethod(name string) java.MethodDecl {
+	return java.MethodDecl{Name: name, Signature: "()", Modifier: []string{"public", "static"}}
+}
 
 func mkCall(receiver, methodName string) java.CallSite {
 	return java.CallSite{Receiver: receiver, MethodName: methodName}
@@ -323,7 +326,7 @@ func TestResolveStaticMethodInSameFile(t *testing.T) {
 	const file = "Example.java"
 	caller := mkType("Caller")
 	caller.File = file
-	utils := mkType("Utils", mkMethod("log"))
+	utils := mkType("Utils", mkStaticMethod("log"))
 	utils.File = file
 	r := newTestResolver([]*java.TypeDecl{caller, utils})
 	ctx := MethodContext{EnclosingType: caller, File: file}
@@ -339,7 +342,7 @@ func TestResolveStaticMethodInSameFile(t *testing.T) {
 func TestResolveStaticTypeInSamePackageOtherFile(t *testing.T) {
 	caller := mkType("Caller")
 	caller.File = "Caller.java"
-	utils := mkType("Utils", mkMethod("log"))
+	utils := mkType("Utils", mkStaticMethod("log"))
 	utils.File = "Utils.java"
 	r := newTestResolver([]*java.TypeDecl{caller, utils})
 	ctx := MethodContext{EnclosingType: caller, File: caller.File}
@@ -394,7 +397,7 @@ func TestResolveFieldTakesPrecedenceOverType(t *testing.T) {
 
 func TestResolveQualifiedStaticReceiver(t *testing.T) {
 	const file = "Example.java"
-	utils := mkType("com.example.Utils", mkMethod("log"))
+	utils := mkType("com.example.Utils", mkStaticMethod("log"))
 	utils.Name = "Utils"
 	utils.File = file
 	r := newTestResolver([]*java.TypeDecl{utils})
@@ -531,6 +534,217 @@ func TestResolveInheritedMethodAndFieldCrossFile(t *testing.T) {
 	}
 }
 
+func TestResolveExplicitAndWildcardStaticImports(t *testing.T) {
+	caller := mkType("app.Caller")
+	caller.Name = "Caller"
+	caller.File = "Caller.java"
+	explicit := mkType("tasks.Explicit", mkStaticMethod("explicitRun"))
+	explicit.Name = "Explicit"
+	explicit.File = "Explicit.java"
+	explicit.Modifier = []string{"public"}
+	wildcard := mkType("tasks.Wildcard", mkStaticMethod("wildcardRun"))
+	wildcard.Name = "Wildcard"
+	wildcard.File = "Wildcard.java"
+	wildcard.Modifier = []string{"public"}
+	r := newResolverFromUnits(t,
+		&java.CompilationUnit{File: caller.File, Package: "app", Imports: []java.ImportDecl{
+			{Target: "tasks.Explicit.explicitRun", Static: true},
+			{Target: "tasks.Wildcard", Static: true, Wildcard: true},
+		}, Types: []*java.TypeDecl{caller}},
+		&java.CompilationUnit{File: explicit.File, Package: "tasks", Types: []*java.TypeDecl{explicit}},
+		&java.CompilationUnit{File: wildcard.File, Package: "tasks", Types: []*java.TypeDecl{wildcard}},
+	)
+	ctx := MethodContext{EnclosingType: caller, File: caller.File}
+
+	for _, test := range []struct {
+		name string
+		want MethodHandle
+	}{
+		{name: "explicitRun", want: MethodHandle{TypeFQCN: "tasks.Explicit", Method: "explicitRun", Signature: "()"}},
+		{name: "wildcardRun", want: MethodHandle{TypeFQCN: "tasks.Wildcard", Method: "wildcardRun", Signature: "()"}},
+	} {
+		res := r.Resolve(mkCall("", test.name), ctx)
+		if len(res.Targets) != 1 || res.Targets[0] != test.want {
+			t.Fatalf("%s targets = %+v (note: %q), want %+v", test.name, res.Targets, res.Note, test.want)
+		}
+	}
+}
+
+func TestResolveStaticImportsDeduplicateAndRejectPrivate(t *testing.T) {
+	caller := mkType("app.Caller")
+	caller.Name, caller.File = "Caller", "Caller.java"
+	publicRun := mkStaticMethod("run")
+	privateRun := mkStaticMethod("hidden")
+	privateRun.Modifier = []string{"private", "static"}
+	utils := mkType("tasks.Utils", publicRun, privateRun)
+	utils.Name, utils.File = "Utils", "Utils.java"
+	utils.Modifier = []string{"public"}
+	r := newResolverFromUnits(t,
+		&java.CompilationUnit{File: caller.File, Package: "app", Imports: []java.ImportDecl{
+			{Target: "tasks.Utils.run", Static: true},
+			{Target: "tasks.Utils.run", Static: true},
+			{Target: "tasks.Utils.hidden", Static: true},
+		}, Types: []*java.TypeDecl{caller}},
+		&java.CompilationUnit{File: utils.File, Package: "tasks", Types: []*java.TypeDecl{utils}},
+	)
+	ctx := MethodContext{EnclosingType: caller, File: caller.File}
+
+	if res := r.Resolve(mkCall("", "run"), ctx); len(res.Targets) != 1 || res.Targets[0].TypeFQCN != "tasks.Utils" {
+		t.Fatalf("duplicate static import = %+v (note: %q)", res.Targets, res.Note)
+	}
+	if res := r.Resolve(mkCall("", "hidden"), ctx); len(res.Targets) != 0 {
+		t.Fatalf("private static import resolved: %+v", res.Targets)
+	}
+}
+
+func TestResolveStaticImportRejectsInaccessibleOwnerType(t *testing.T) {
+	caller := mkType("app.Caller")
+	caller.Name, caller.File = "Caller", "Caller.java"
+	hidden := mkType("tasks.Hidden", mkStaticMethod("run"))
+	hidden.Name, hidden.File = "Hidden", "Hidden.java"
+	r := newResolverFromUnits(t,
+		&java.CompilationUnit{File: caller.File, Package: "app", Imports: []java.ImportDecl{{Target: "tasks.Hidden.run", Static: true}}, Types: []*java.TypeDecl{caller}},
+		&java.CompilationUnit{File: hidden.File, Package: "tasks", Types: []*java.TypeDecl{hidden}},
+	)
+
+	res := r.Resolve(mkCall("", "run"), MethodContext{EnclosingType: caller, File: caller.File})
+	if len(res.Targets) != 0 {
+		t.Fatalf("static import through inaccessible owner resolved: %+v", res.Targets)
+	}
+}
+
+func TestResolveStaticImportPrecedenceUsesApplicableArity(t *testing.T) {
+	caller := mkType("app.Caller", java.MethodDecl{
+		Name: "run", Signature: "(int)", Params: []java.Param{{Type: ref("int")}},
+	})
+	caller.Name = "Caller"
+	caller.File = "Caller.java"
+	explicit := mkType("tasks.Explicit", mkStaticMethod("run"))
+	explicit.Name = "Explicit"
+	explicit.File = "Explicit.java"
+	explicit.Modifier = []string{"public"}
+	wildcard := mkType("tasks.Wildcard", mkStaticMethod("run"))
+	wildcard.Name = "Wildcard"
+	wildcard.File = "Wildcard.java"
+	wildcard.Modifier = []string{"public"}
+	r := newResolverFromUnits(t,
+		&java.CompilationUnit{File: caller.File, Package: "app", Imports: []java.ImportDecl{
+			{Target: "tasks.Explicit.run", Static: true},
+			{Target: "tasks.Wildcard", Static: true, Wildcard: true},
+		}, Types: []*java.TypeDecl{caller}},
+		&java.CompilationUnit{File: explicit.File, Package: "tasks", Types: []*java.TypeDecl{explicit}},
+		&java.CompilationUnit{File: wildcard.File, Package: "tasks", Types: []*java.TypeDecl{wildcard}},
+	)
+	ctx := MethodContext{EnclosingType: caller, File: caller.File}
+
+	zero := r.Resolve(java.CallSite{MethodName: "run", ArgCount: 0}, ctx)
+	wantImported := MethodHandle{TypeFQCN: "tasks.Explicit", Method: "run", Signature: "()"}
+	if len(zero.Targets) != 1 || zero.Targets[0] != wantImported {
+		t.Fatalf("zero-arity precedence = %+v (note: %q), want %+v", zero.Targets, zero.Note, wantImported)
+	}
+	one := r.Resolve(java.CallSite{MethodName: "run", ArgCount: 1}, ctx)
+	wantCurrent := MethodHandle{TypeFQCN: "app.Caller", Method: "run", Signature: "(int)"}
+	if len(one.Targets) != 1 || one.Targets[0] != wantCurrent {
+		t.Fatalf("current precedence = %+v (note: %q), want %+v", one.Targets, one.Note, wantCurrent)
+	}
+}
+
+func TestResolveStaticImportCollisionDoesNotFanOut(t *testing.T) {
+	caller := mkType("app.Caller")
+	caller.Name = "Caller"
+	caller.File = "Caller.java"
+	left := mkType("left.Tasks", mkStaticMethod("run"))
+	left.Name, left.File = "Tasks", "Left.java"
+	left.Modifier = []string{"public"}
+	right := mkType("right.Tasks", mkStaticMethod("run"))
+	right.Name, right.File = "Tasks", "Right.java"
+	right.Modifier = []string{"public"}
+	r := newResolverFromUnits(t,
+		&java.CompilationUnit{File: caller.File, Package: "app", Imports: []java.ImportDecl{
+			{Target: "right.Tasks.run", Static: true},
+			{Target: "left.Tasks.run", Static: true},
+		}, Types: []*java.TypeDecl{caller}},
+		&java.CompilationUnit{File: left.File, Package: "left", Types: []*java.TypeDecl{left}},
+		&java.CompilationUnit{File: right.File, Package: "right", Types: []*java.TypeDecl{right}},
+	)
+
+	res := r.Resolve(mkCall("", "run"), MethodContext{EnclosingType: caller, File: caller.File})
+	if len(res.Targets) != 0 {
+		t.Fatalf("static collision fanned out: %+v", res.Targets)
+	}
+	if !strings.Contains(res.Note, "ambiguous explicit static import") || !strings.Contains(res.Note, "left.Tasks.run()") || !strings.Contains(res.Note, "right.Tasks.run()") {
+		t.Fatalf("static collision note = %q", res.Note)
+	}
+}
+
+func TestResolveThisDoesNotUseStaticImportAndTypeReceiverRequiresStatic(t *testing.T) {
+	caller := mkType("app.Caller")
+	caller.Name, caller.File = "Caller", "Caller.java"
+	utils := mkType("tasks.Utils", mkMethod("instance"), mkStaticMethod("staticRun"))
+	utils.Name, utils.File = "Utils", "Utils.java"
+	r := newResolverFromUnits(t,
+		&java.CompilationUnit{File: caller.File, Package: "app", Imports: []java.ImportDecl{
+			{Target: "tasks.Utils.staticRun", Static: true},
+			{Target: "tasks.Utils"},
+		}, Types: []*java.TypeDecl{caller}},
+		&java.CompilationUnit{File: utils.File, Package: "tasks", Types: []*java.TypeDecl{utils}},
+	)
+	ctx := MethodContext{EnclosingType: caller, File: caller.File}
+
+	if res := r.Resolve(mkCall("this", "staticRun"), ctx); len(res.Targets) != 0 {
+		t.Fatalf("this used static import: %+v", res.Targets)
+	}
+	if res := r.Resolve(mkCall("Utils", "instance"), ctx); len(res.Targets) != 0 {
+		t.Fatalf("type receiver selected instance method: %+v", res.Targets)
+	}
+	if res := r.Resolve(mkCall("Utils", "staticRun"), ctx); len(res.Targets) != 1 || res.Targets[0].TypeFQCN != "tasks.Utils" {
+		t.Fatalf("type receiver static method = %+v (note: %q)", res.Targets, res.Note)
+	}
+}
+
+func TestResolveInterfaceStaticMethodRequiresTypeReceiver(t *testing.T) {
+	contract := mkType("contract.Tasks", java.MethodDecl{Name: "create", Signature: "()", Modifier: []string{"static"}})
+	contract.Kind = java.TypeKindInterface
+	contract.Modifier = []string{"public"}
+	contract.Name, contract.File = "Tasks", "Tasks.java"
+	caller := mkType("app.Caller")
+	caller.Name, caller.File = "Caller", "Caller.java"
+	caller.Fields = []java.FieldDecl{{Name: "tasks", Type: ref("contract.Tasks")}}
+	r := newResolverFromUnits(t,
+		&java.CompilationUnit{File: caller.File, Package: "app", Imports: []java.ImportDecl{{Target: "contract.Tasks"}}, Types: []*java.TypeDecl{caller}},
+		&java.CompilationUnit{File: contract.File, Package: "contract", Types: []*java.TypeDecl{contract}},
+	)
+	ctx := MethodContext{EnclosingType: caller, File: caller.File}
+
+	if res := r.Resolve(mkCall("tasks", "create"), ctx); len(res.Targets) != 0 {
+		t.Fatalf("interface static method resolved through instance: %+v", res.Targets)
+	}
+	if res := r.Resolve(mkCall("Tasks", "create"), ctx); len(res.Targets) != 1 || res.Targets[0].TypeFQCN != "contract.Tasks" {
+		t.Fatalf("interface static type receiver = %+v (note: %q)", res.Targets, res.Note)
+	}
+}
+
+func TestResolveImportedInheritedStaticMethodUsesDeclaringOwner(t *testing.T) {
+	caller := mkType("app.Caller")
+	caller.Name, caller.File = "Caller", "Caller.java"
+	parent := mkType("tasks.Parent", mkStaticMethod("run"))
+	parent.Name, parent.File = "Parent", "Parent.java"
+	child := mkType("tasks.Child")
+	child.Name, child.File = "Child", "Child.java"
+	child.Modifier = []string{"public"}
+	child.SuperClass = ref("tasks.Parent")
+	r := newResolverFromUnits(t,
+		&java.CompilationUnit{File: caller.File, Package: "app", Imports: []java.ImportDecl{{Target: "tasks.Child.run", Static: true}}, Types: []*java.TypeDecl{caller}},
+		&java.CompilationUnit{File: parent.File, Package: "tasks", Types: []*java.TypeDecl{parent}},
+		&java.CompilationUnit{File: child.File, Package: "tasks", Types: []*java.TypeDecl{child}},
+	)
+
+	res := r.Resolve(mkCall("", "run"), MethodContext{EnclosingType: caller, File: caller.File})
+	want := MethodHandle{TypeFQCN: "tasks.Parent", Method: "run", Signature: "()"}
+	if len(res.Targets) != 1 || res.Targets[0] != want {
+		t.Fatalf("inherited static import = %+v (note: %q), want %+v", res.Targets, res.Note, want)
+	}
+}
 
 // Passo 7: scoped lookup com byte ranges
 

@@ -28,13 +28,45 @@ func NewSyntacticResolver(table *index.Table) *SyntacticResolver {
 // MethodContext. Ver Passo 8 em PLANO_M2.md pra algoritmo completo.
 func (r *SyntacticResolver) Resolve(call java.CallSite, ctx MethodContext) Resolution {
 	switch call.Receiver {
-	case "", "this":
+	case "":
+		return r.resolveUnqualified(call, ctx)
+	case "this":
 		return r.resolveOnType(ctx.EnclosingType, call)
 	case "super":
 		return r.resolveSuper(call, ctx)
 	default:
 		return r.resolveIdentifier(call.Receiver, call, ctx)
 	}
+}
+
+func (r *SyntacticResolver) resolveUnqualified(call java.CallSite, ctx MethodContext) Resolution {
+	if selection := selectMethodCandidates(r.methodCandidatesOnType(ctx.EnclosingType, call.MethodName), call, ctx.EnclosingType); selection.Found {
+		return selection.Resolution
+	}
+
+	unit := r.unitForContext(ctx)
+	if unit != nil {
+		if selection := selectStaticImportCandidates(r.staticImportCandidates(unit, call.MethodName, false, ctx), call, "explicit"); selection.Found {
+			return selection.Resolution
+		}
+		if selection := selectStaticImportCandidates(r.staticImportCandidates(unit, call.MethodName, true, ctx), call, "wildcard"); selection.Found {
+			return selection.Resolution
+		}
+	}
+
+	owner := "<unknown>"
+	if ctx.EnclosingType != nil {
+		owner = ctx.EnclosingType.FQCN
+	}
+	return Resolution{Note: fmt.Sprintf("method %q with arity %d not found on %s or static imports", call.MethodName, call.ArgCount, owner)}
+}
+
+func selectStaticImportCandidates(candidates []index.MethodResolution, call java.CallSite, kind string) candidateSelection {
+	selection := selectMethodCandidates(candidates, call, nil)
+	if selection.Found && len(selection.Resolution.Targets) == 0 {
+		selection.Resolution.Note = strings.Replace(selection.Resolution.Note, "ambiguous overload", "ambiguous "+kind+" static import", 1)
+	}
+	return selection
 }
 
 func (r *SyntacticResolver) resolveSuper(call java.CallSite, ctx MethodContext) Resolution {
@@ -89,7 +121,7 @@ func (r *SyntacticResolver) resolveIdentifier(receiver string, call java.CallSit
 	if t == nil {
 		return Resolution{Note: fmt.Sprintf("receiver %q is not a local var, field, or resolvable type: %s", receiver, note)}
 	}
-	return r.resolveOnType(t, call)
+	return r.resolveStaticOnType(t, call, ctx)
 }
 
 // findLocalVarAt devolve a local var visível no ponto da chamada (byte offset).
@@ -155,12 +187,39 @@ func (r *SyntacticResolver) resolveOnType(t *java.TypeDecl, call java.CallSite) 
 		return Resolution{Note: "no enclosing type"}
 	}
 	candidates := r.methodCandidatesOnType(t, call.MethodName)
+	if t.Kind == java.TypeKindInterface {
+		instanceCandidates := candidates[:0]
+		for _, candidate := range candidates {
+			if !java.HasModifier(candidate.Method.Modifier, "static") {
+				instanceCandidates = append(instanceCandidates, candidate)
+			}
+		}
+		candidates = instanceCandidates
+	}
 	if selection := selectMethodCandidates(candidates, call, t); selection.Found {
 		return selection.Resolution
 	}
 	return Resolution{
 		Note: fmt.Sprintf("method %q with arity %d not found on %s", call.MethodName, call.ArgCount, t.FQCN),
 	}
+}
+
+func (r *SyntacticResolver) resolveStaticOnType(t *java.TypeDecl, call java.CallSite, ctx MethodContext) Resolution {
+	if t == nil {
+		return Resolution{Note: "no receiver type"}
+	}
+	candidates := make([]index.MethodResolution, 0)
+	if r.Index != nil {
+		for _, candidate := range r.Index.StaticMethodCandidates(t.FQCN, call.MethodName) {
+			if r.staticAccessible(candidate, ctx, false) {
+				candidates = append(candidates, candidate)
+			}
+		}
+	}
+	if selection := selectMethodCandidates(candidates, call, t); selection.Found {
+		return selection.Resolution
+	}
+	return Resolution{Note: fmt.Sprintf("static method %q with arity %d not found on %s", call.MethodName, call.ArgCount, t.FQCN)}
 }
 
 type candidateSelection struct {
@@ -243,6 +302,111 @@ func (r *SyntacticResolver) effectiveField(t *java.TypeDecl, name string) (index
 		}
 	}
 	return index.FieldResolution{}, false
+}
+
+func (r *SyntacticResolver) staticImportCandidates(unit *java.CompilationUnit, name string, wildcard bool, ctx MethodContext) []index.MethodResolution {
+	result := make([]index.MethodResolution, 0)
+	if r.Index == nil || unit == nil {
+		return result
+	}
+	type candidateKey struct {
+		owner string
+		key   java.MethodKey
+	}
+	seen := make(map[candidateKey]struct{})
+	for _, importDecl := range unit.Imports {
+		if !importDecl.Static || importDecl.Wildcard != wildcard {
+			continue
+		}
+		owner, member := importDecl.Target, name
+		if !wildcard {
+			dot := strings.LastIndexByte(importDecl.Target, '.')
+			if dot < 1 || dot == len(importDecl.Target)-1 {
+				continue
+			}
+			owner, member = importDecl.Target[:dot], importDecl.Target[dot+1:]
+			if member != name {
+				continue
+			}
+		}
+		importedOwner, ok := r.Index.TypeByFQCN(owner)
+		if !ok || !r.typeAccessible(importedOwner, ctx) {
+			continue
+		}
+		for _, candidate := range r.Index.StaticMethodCandidates(owner, member) {
+			if !r.staticAccessible(candidate, ctx, true) {
+				continue
+			}
+			key := candidateKey{owner: candidate.DeclaringType.FQCN, key: candidate.Method.Key()}
+			if _, duplicate := seen[key]; duplicate {
+				continue
+			}
+			seen[key] = struct{}{}
+			result = append(result, candidate)
+		}
+	}
+	sort.Slice(result, func(i, j int) bool {
+		left, right := result[i], result[j]
+		if left.DeclaringType.FQCN != right.DeclaringType.FQCN {
+			return left.DeclaringType.FQCN < right.DeclaringType.FQCN
+		}
+		if left.Method.Name != right.Method.Name {
+			return left.Method.Name < right.Method.Name
+		}
+		return left.Method.Signature < right.Method.Signature
+	})
+	return result
+}
+
+func (r *SyntacticResolver) typeAccessible(typ *java.TypeDecl, ctx MethodContext) bool {
+	if typ == nil {
+		return false
+	}
+	if java.HasModifier(typ.Modifier, "public") || ctx.EnclosingType != nil && ctx.EnclosingType.FQCN == typ.FQCN {
+		return true
+	}
+	callerUnit := r.unitForContext(ctx)
+	ownerUnit := r.Index.UnitForType(typ.FQCN)
+	return callerUnit != nil && ownerUnit != nil && callerUnit.Package == ownerUnit.Package
+}
+
+func (r *SyntacticResolver) staticAccessible(candidate index.MethodResolution, ctx MethodContext, imported bool) bool {
+	if candidate.DeclaringType == nil || candidate.Method == nil {
+		return false
+	}
+	modifiers := candidate.Method.Modifier
+	if java.HasModifier(modifiers, "private") {
+		return !imported && ctx.EnclosingType != nil && ctx.EnclosingType.FQCN == candidate.DeclaringType.FQCN
+	}
+	if java.HasModifier(modifiers, "public") || candidate.DeclaringType.Kind == java.TypeKindInterface {
+		return true
+	}
+	callerUnit := r.unitForContext(ctx)
+	ownerUnit := r.Index.UnitForType(candidate.DeclaringType.FQCN)
+	if callerUnit != nil && ownerUnit != nil && callerUnit.Package == ownerUnit.Package {
+		return true
+	}
+	if java.HasModifier(modifiers, "protected") && ctx.EnclosingType != nil {
+		for _, superclass := range r.Index.SuperclassChain(ctx.EnclosingType.FQCN) {
+			if superclass.FQCN == candidate.DeclaringType.FQCN {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+func (r *SyntacticResolver) unitForContext(ctx MethodContext) *java.CompilationUnit {
+	if r.Index == nil {
+		return nil
+	}
+	if unit := r.Index.UnitsByFile[ctx.File]; unit != nil {
+		return unit
+	}
+	if ctx.EnclosingType != nil {
+		return r.Index.UnitForType(ctx.EnclosingType.FQCN)
+	}
+	return nil
 }
 
 func arityCompatible(method java.MethodDecl, argCount int) bool {
