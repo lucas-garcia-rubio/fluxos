@@ -136,8 +136,9 @@ class Outer {
 	if got := len(findAllNodesByKind(tree.RootNode(), "class_declaration")); got != 2 {
 		t.Fatalf("class declaration count = %d, want 2", got)
 	}
-	if got := len(extractJavaSource(t, `class Outer { class Inner {} }`)); got != 1 {
-		t.Fatalf("current top-level extraction count = %d, want 1", got)
+	types := extractJavaSource(t, `class Outer { class Inner {} }`)
+	if len(types) != 2 || types[1].FQCN != "Outer.Inner" || types[1].EnclosingFQCN != "Outer" {
+		t.Fatalf("nested extraction = %+v", types)
 	}
 }
 

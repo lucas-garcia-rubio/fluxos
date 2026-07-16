@@ -72,3 +72,36 @@ func TestExtractRemainsCompatibleWithExtractUnitTypes(t *testing.T) {
 		t.Fatalf("Extract types = %+v, ExtractUnit types = %+v", types, unit.Types)
 	}
 }
+
+func TestExtractNamedNestedTypesInSourcePreorder(t *testing.T) {
+	tree, source := parseJavaSource(t, `
+package app;
+class Outer {
+    interface Contract { class Nested {} }
+    enum Choice { ONE; record Data(int value) {} }
+    void method() { class Local {} }
+    Object anonymous = new Object() { class Hidden {} };
+}
+record Second() {}
+`)
+	unit, err := ExtractUnit("Types.java", source, tree)
+	if err != nil {
+		t.Fatalf("ExtractUnit: %v", err)
+	}
+	want := []struct{ fqcn, enclosing string }{
+		{"app.Outer", ""},
+		{"app.Outer.Contract", "app.Outer"},
+		{"app.Outer.Contract.Nested", "app.Outer.Contract"},
+		{"app.Outer.Choice", "app.Outer"},
+		{"app.Outer.Choice.Data", "app.Outer.Choice"},
+		{"app.Second", ""},
+	}
+	if len(unit.Types) != len(want) {
+		t.Fatalf("types = %+v, want %d declarations", unit.Types, len(want))
+	}
+	for i, expected := range want {
+		if unit.Types[i].FQCN != expected.fqcn || unit.Types[i].EnclosingFQCN != expected.enclosing {
+			t.Errorf("type %d = %s enclosing %s, want %s enclosing %s", i, unit.Types[i].FQCN, unit.Types[i].EnclosingFQCN, expected.fqcn, expected.enclosing)
+		}
+	}
+}

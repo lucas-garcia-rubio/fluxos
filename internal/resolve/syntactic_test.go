@@ -1008,3 +1008,152 @@ func TestResolveFieldWhenNoLocalNoParam(t *testing.T) {
 		t.Fatalf("got %+v (note: %q), want field target %+v", res.Targets, res.Note, want)
 	}
 }
+
+func TestResolveBoundMethodReferenceUsesLexicalReceiverWithoutArity(t *testing.T) {
+	zero := mkMethod("run")
+	one := mkMethod("run")
+	one.Params = []java.Param{{Type: ref("String")}}
+	java.RebuildSignature(&one)
+	static := mkStaticMethod("staticOnly")
+	service := mkType("Service", zero, one, static)
+	caller := mkType("Caller")
+	r := newTestResolver([]*java.TypeDecl{caller, service})
+	ctx := MethodContext{EnclosingType: caller, LocalVars: []java.LocalVarDecl{localVar("service", "Service")}}
+
+	call := java.CallSite{Kind: java.CallMethodReference, Receiver: "service", MethodName: "run", ReferenceQualifier: java.ReferenceQualifierName, StartByte: 1}
+	res := r.Resolve(call, ctx)
+	if len(res.Targets) != 0 || !strings.Contains(res.Note, "ambiguous method reference") || !strings.Contains(res.Note, "run()") || !strings.Contains(res.Note, "run(java.lang.String)") {
+		t.Fatalf("bound overload reference = %+v", res)
+	}
+
+	call.MethodName = "staticOnly"
+	res = r.Resolve(call, ctx)
+	if len(res.Targets) != 0 || !strings.Contains(res.Note, "not found") {
+		t.Fatalf("bound reference resolved static method: %+v", res)
+	}
+}
+
+func TestResolveTypeMethodReferenceCombinesStaticAndUnboundCandidates(t *testing.T) {
+	static := mkStaticMethod("map")
+	instance := mkMethod("map")
+	instance.Params = []java.Param{{Type: ref("String")}}
+	java.RebuildSignature(&instance)
+	service := mkType("Service", static, instance, mkStaticMethod("normalize"), mkMethod("value"))
+	caller := mkType("Caller")
+	r := newTestResolver([]*java.TypeDecl{caller, service})
+	ctx := MethodContext{EnclosingType: caller}
+
+	call := java.CallSite{Kind: java.CallMethodReference, Receiver: "Service", MethodName: "map", ReferenceQualifier: java.ReferenceQualifierName}
+	if res := r.Resolve(call, ctx); len(res.Targets) != 0 || !strings.Contains(res.Note, "ambiguous method reference") {
+		t.Fatalf("static/unbound ambiguity = %+v", res)
+	}
+	call.MethodName = "normalize"
+	if res := r.Resolve(call, ctx); len(res.Targets) != 1 || res.Targets[0] != (MethodHandle{TypeFQCN: "Service", Method: "normalize", Signature: "()"}) {
+		t.Fatalf("static method reference = %+v", res)
+	}
+	call.MethodName = "value"
+	if res := r.Resolve(call, ctx); len(res.Targets) != 1 || res.Targets[0] != (MethodHandle{TypeFQCN: "Service", Method: "value", Signature: "()"}) {
+		t.Fatalf("unbound method reference = %+v", res)
+	}
+}
+
+func TestResolveSuperMethodReferencePreservesDeclaringOwner(t *testing.T) {
+	grandparent := mkType("Grandparent", mkMethod("run"))
+	parent := mkType("Parent")
+	parent.SuperClass = ref("Grandparent")
+	child := mkType("Child")
+	child.SuperClass = ref("Parent")
+	r := newTestResolver([]*java.TypeDecl{child, parent, grandparent})
+	call := java.CallSite{Kind: java.CallMethodReference, Receiver: "super", MethodName: "run", ReferenceQualifier: java.ReferenceQualifierSuper}
+
+	res := r.Resolve(call, MethodContext{EnclosingType: child})
+	want := MethodHandle{TypeFQCN: "Grandparent", Method: "run", Signature: "()"}
+	if len(res.Targets) != 1 || res.Targets[0] != want {
+		t.Fatalf("super method reference = %+v, want %+v", res, want)
+	}
+}
+
+func TestResolveConstructorReferenceDoesNotUseArgCount(t *testing.T) {
+	value := mkType("Value", mkConstructor([]string{"public"}), mkConstructor([]string{"public"}, "String"))
+	unique := mkType("Unique", mkConstructor([]string{"public"}, "String"))
+	outer := mkType("Outer")
+	inner := mkType("Outer.Inner", mkConstructor([]string{"private"}))
+	inner.Name, inner.EnclosingFQCN, inner.Modifier = "Inner", "Outer", []string{"private", "static"}
+	caller := mkType("Outer.Caller")
+	caller.Name, caller.EnclosingFQCN = "Caller", "Outer"
+	r := newTestResolver([]*java.TypeDecl{outer, inner, caller, value, unique})
+	ctx := MethodContext{EnclosingType: caller}
+
+	target := ref("Value")
+	res := r.Resolve(java.CallSite{Kind: java.CallConstructorReference, MethodName: "<init>", TargetType: &target}, ctx)
+	if len(res.Targets) != 0 || !strings.Contains(res.Note, "ambiguous constructor reference") || !strings.Contains(res.Note, "Value.<init>()") || !strings.Contains(res.Note, "Value.<init>(java.lang.String)") {
+		t.Fatalf("constructor reference overload = %+v", res)
+	}
+
+	target = ref("Unique")
+	res = r.Resolve(java.CallSite{Kind: java.CallConstructorReference, MethodName: "<init>", TargetType: &target}, ctx)
+	want := MethodHandle{TypeFQCN: "Unique", Method: "<init>", Signature: "(java.lang.String)"}
+	if len(res.Targets) != 1 || res.Targets[0] != want {
+		t.Fatalf("unique constructor reference = %+v, want %+v", res, want)
+	}
+
+	target = ref("Outer.Inner")
+	res = r.Resolve(java.CallSite{Kind: java.CallConstructorReference, MethodName: "<init>", TargetType: &target}, ctx)
+	if len(res.Targets) != 1 || res.Targets[0].TypeFQCN != "Outer.Inner" {
+		t.Fatalf("same-nest private constructor reference = %+v", res)
+	}
+}
+
+func TestResolveProtectedMethodReferenceChecksQualifierType(t *testing.T) {
+	protected := mkMethod("work")
+	protected.Modifier = []string{"protected"}
+	parent := mkType("model.Parent", protected)
+	parent.Name, parent.File, parent.Modifier = "Parent", "Parent.java", []string{"public"}
+	child := mkType("app.Child")
+	child.Name, child.File, child.Modifier = "Child", "Child.java", []string{"public"}
+	child.SuperClass = ref("model.Parent")
+	r := newResolverFromUnits(t,
+		&java.CompilationUnit{File: parent.File, Package: "model", Types: []*java.TypeDecl{parent}},
+		&java.CompilationUnit{File: child.File, Package: "app", Imports: []java.ImportDecl{{Target: "model.Parent"}}, Types: []*java.TypeDecl{child}},
+	)
+	ctx := MethodContext{EnclosingType: child, File: child.File, Params: []java.Param{{Name: "parent", Type: ref("model.Parent")}}}
+
+	for _, call := range []java.CallSite{
+		{Kind: java.CallMethodReference, Receiver: "Parent", MethodName: "work", ReferenceQualifier: java.ReferenceQualifierName},
+		{Kind: java.CallMethodReference, Receiver: "parent", MethodName: "work", ReferenceQualifier: java.ReferenceQualifierName},
+	} {
+		if res := r.Resolve(call, ctx); len(res.Targets) != 0 {
+			t.Fatalf("protected reference through parent qualifier resolved: %+v", res)
+		}
+	}
+	call := java.CallSite{Kind: java.CallMethodReference, Receiver: "Child", MethodName: "work", ReferenceQualifier: java.ReferenceQualifierName}
+	res := r.Resolve(call, ctx)
+	want := MethodHandle{TypeFQCN: "model.Parent", Method: "work", Signature: "()"}
+	if len(res.Targets) != 1 || res.Targets[0] != want {
+		t.Fatalf("protected reference through child qualifier = %+v, want %+v", res, want)
+	}
+}
+
+func TestResolveReferenceRejectsUnsupportedReceiverAndConstructorForms(t *testing.T) {
+	outer := mkType("Outer")
+	inner := mkType("Outer.Inner", mkConstructor([]string{"public"}))
+	inner.Name, inner.EnclosingFQCN = "Inner", "Outer"
+	value := mkType("Value", mkConstructor([]string{"public"}))
+	r := newTestResolver([]*java.TypeDecl{outer, inner, value})
+	ctx := MethodContext{EnclosingType: outer}
+
+	complex := java.CallSite{Kind: java.CallMethodReference, Receiver: "factory()", MethodName: "run", ReferenceQualifier: java.ReferenceQualifierExpression}
+	if res := r.Resolve(complex, ctx); len(res.Targets) != 0 || !strings.Contains(res.Note, "complex") {
+		t.Fatalf("complex method reference = %+v", res)
+	}
+
+	innerTarget := ref("Outer.Inner")
+	if res := r.Resolve(java.CallSite{Kind: java.CallConstructorReference, MethodName: "<init>", TargetType: &innerTarget}, ctx); len(res.Targets) != 0 || !strings.Contains(res.Note, "non-static inner") {
+		t.Fatalf("non-static inner constructor reference = %+v", res)
+	}
+
+	arrayTarget := ref("Value[]")
+	if res := r.Resolve(java.CallSite{Kind: java.CallConstructorReference, MethodName: "<init>", TargetType: &arrayTarget}, ctx); len(res.Targets) != 0 || !strings.Contains(res.Note, "array") {
+		t.Fatalf("array constructor reference = %+v", res)
+	}
+}

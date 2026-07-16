@@ -33,19 +33,24 @@ func extractPackage(source []byte, root *sitter.Node) string {
 	return ""
 }
 
-func extractTypeDecl(filePath string, source []byte, node *sitter.Node, pkg string, kind TypeKind) *TypeDecl {
+func extractTypeDecl(filePath string, source []byte, node *sitter.Node, pkg, enclosingFQCN string, kind TypeKind) *TypeDecl {
 	decl := &TypeDecl{
-		Kind:     kind,
-		Modifier: extractModifiers(source, node),
-		File:     filePath,
-		Line:     int(node.StartPosition().Row) + 1, // tree-sitter é 0-indexed; arquivos são 1-indexed
+		Kind:          kind,
+		EnclosingFQCN: enclosingFQCN,
+		Modifier:      extractModifiers(source, node),
+		File:          filePath,
+		Line:          int(node.StartPosition().Row) + 1, // tree-sitter é 0-indexed; arquivos são 1-indexed
 	}
 
 	if nameNode := node.ChildByFieldName("name"); nameNode != nil {
 		decl.Name = sourceText(source, nameNode)
 	}
-	if pkg != "" && decl.Name != "" {
-		decl.FQCN = pkg + "." + decl.Name
+	prefix := pkg
+	if enclosingFQCN != "" {
+		prefix = enclosingFQCN
+	}
+	if prefix != "" && decl.Name != "" {
+		decl.FQCN = prefix + "." + decl.Name
 	} else {
 		decl.FQCN = decl.Name
 	}
@@ -111,8 +116,7 @@ func extractTypeDecl(filePath string, source []byte, node *sitter.Node, pkg stri
 // classes são ignorados (fields são extraídos separadamente; inner classes em v2).
 func extractMethods(filePath string, source []byte, body *sitter.Node, recordComponents []Param) []MethodDecl {
 	var methods []MethodDecl
-	for i := 0; i < int(body.NamedChildCount()); i++ {
-		child := body.NamedChild(uint(i))
+	for _, child := range typeBodyMembers(body) {
 		switch child.Kind() {
 		case "method_declaration", "constructor_declaration", "compact_constructor_declaration":
 			methods = append(methods, extractMethod(filePath, source, child, recordComponents))
@@ -126,14 +130,30 @@ func extractMethods(filePath string, source []byte, body *sitter.Node, recordCom
 // declaração vira N FieldDecls.
 func extractFields(source []byte, body *sitter.Node) []FieldDecl {
 	var fields []FieldDecl
-	for i := 0; i < int(body.NamedChildCount()); i++ {
-		child := body.NamedChild(uint(i))
+	for _, child := range typeBodyMembers(body) {
 		if child.Kind() != "field_declaration" {
 			continue
 		}
 		fields = append(fields, extractFieldDecl(source, child)...)
 	}
 	return fields
+}
+
+// typeBodyMembers returns only logical direct members. Enum declarations wrap
+// members after constants in enum_body_declarations.
+func typeBodyMembers(body *sitter.Node) []*sitter.Node {
+	members := make([]*sitter.Node, 0)
+	for i := 0; i < int(body.NamedChildCount()); i++ {
+		child := body.NamedChild(uint(i))
+		if child.Kind() != "enum_body_declarations" {
+			members = append(members, child)
+			continue
+		}
+		for j := 0; j < int(child.NamedChildCount()); j++ {
+			members = append(members, child.NamedChild(uint(j)))
+		}
+	}
+	return members
 }
 
 // extractFieldDecl extrai uma ou mais FieldDecls de uma field_declaration.

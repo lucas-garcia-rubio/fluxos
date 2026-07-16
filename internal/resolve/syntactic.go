@@ -34,6 +34,10 @@ func (r *SyntacticResolver) Resolve(call java.CallSite, ctx MethodContext) Resol
 		return r.resolveThisConstructor(call, ctx)
 	case java.CallSuperConstructor:
 		return r.resolveSuperConstructor(call, ctx)
+	case java.CallMethodReference:
+		return r.resolveMethodReference(call, ctx)
+	case java.CallConstructorReference:
+		return r.resolveConstructorReference(call, ctx)
 	}
 	return r.resolveInvocation(call, ctx)
 }
@@ -256,7 +260,11 @@ func (r *SyntacticResolver) resolveType(ref java.TypeRef, ctx MethodContext) (*j
 	if unit == nil && ctx.EnclosingType != nil {
 		unit = r.Index.UnitForType(ctx.EnclosingType.FQCN)
 	}
-	resolution := r.Index.ResolveTypeRef(ref, unit)
+	enclosingFQCN := ""
+	if ctx.EnclosingType != nil {
+		enclosingFQCN = ctx.EnclosingType.FQCN
+	}
+	resolution := r.Index.ResolveTypeRefInType(ref, unit, enclosingFQCN)
 	if len(resolution.Candidates) > 1 {
 		return nil, fmt.Sprintf("ambiguous type; candidates: %s", strings.Join(resolution.Candidates, ", "))
 	}
@@ -452,12 +460,26 @@ func (r *SyntacticResolver) typeAccessible(typ *java.TypeDecl, ctx MethodContext
 	if typ == nil {
 		return false
 	}
-	if java.HasModifier(typ.Modifier, "public") || ctx.EnclosingType != nil && ctx.EnclosingType.FQCN == typ.FQCN {
+	if typ.EnclosingFQCN == "" {
+		return java.HasModifier(typ.Modifier, "public") || r.samePackage(typ.FQCN, ctx)
+	}
+	enclosing, ok := r.Index.TypeByFQCN(typ.EnclosingFQCN)
+	if !ok || !r.typeAccessible(enclosing, ctx) {
+		return false
+	}
+	if enclosing.Kind == java.TypeKindInterface || java.HasModifier(typ.Modifier, "public") {
 		return true
 	}
-	callerUnit := r.unitForContext(ctx)
-	ownerUnit := r.Index.UnitForType(typ.FQCN)
-	return callerUnit != nil && ownerUnit != nil && callerUnit.Package == ownerUnit.Package
+	if java.HasModifier(typ.Modifier, "private") {
+		return r.sameNest(typ.FQCN, ctx)
+	}
+	if r.samePackage(typ.FQCN, ctx) {
+		return true
+	}
+	if java.HasModifier(typ.Modifier, "protected") {
+		return r.callerIsSubclassOf(typ.EnclosingFQCN, ctx)
+	}
+	return false
 }
 
 func (r *SyntacticResolver) staticAccessible(candidate index.MethodResolution, ctx MethodContext, imported bool) bool {
@@ -466,7 +488,7 @@ func (r *SyntacticResolver) staticAccessible(candidate index.MethodResolution, c
 	}
 	modifiers := candidate.Method.Modifier
 	if java.HasModifier(modifiers, "private") {
-		return !imported && ctx.EnclosingType != nil && ctx.EnclosingType.FQCN == candidate.DeclaringType.FQCN
+		return !imported && r.sameNest(candidate.DeclaringType.FQCN, ctx)
 	}
 	if java.HasModifier(modifiers, "public") || candidate.DeclaringType.Kind == java.TypeKindInterface {
 		return true
@@ -503,7 +525,7 @@ func (r *SyntacticResolver) constructorAccessible(candidate index.MethodResoluti
 	if candidate.DeclaringType == nil || candidate.Method == nil {
 		return false
 	}
-	if ctx.EnclosingType != nil && ctx.EnclosingType.FQCN == candidate.DeclaringType.FQCN {
+	if r.sameNest(candidate.DeclaringType.FQCN, ctx) {
 		return true
 	}
 	modifiers := candidate.Method.Modifier
@@ -523,6 +545,44 @@ func (r *SyntacticResolver) constructorAccessible(candidate index.MethodResoluti
 			if superclass.FQCN == candidate.DeclaringType.FQCN {
 				return true
 			}
+		}
+	}
+	return false
+}
+
+func (r *SyntacticResolver) samePackage(ownerFQCN string, ctx MethodContext) bool {
+	if r.Index == nil {
+		return false
+	}
+	callerUnit := r.unitForContext(ctx)
+	ownerUnit := r.Index.UnitForType(ownerFQCN)
+	return callerUnit != nil && ownerUnit != nil && callerUnit.Package == ownerUnit.Package
+}
+
+func (r *SyntacticResolver) sameNest(ownerFQCN string, ctx MethodContext) bool {
+	if r.Index == nil || ctx.EnclosingType == nil {
+		return false
+	}
+	return r.nestRoot(ownerFQCN) == r.nestRoot(ctx.EnclosingType.FQCN)
+}
+
+func (r *SyntacticResolver) nestRoot(fqcn string) string {
+	for {
+		typ, ok := r.Index.TypeByFQCN(fqcn)
+		if !ok || typ.EnclosingFQCN == "" {
+			return fqcn
+		}
+		fqcn = typ.EnclosingFQCN
+	}
+}
+
+func (r *SyntacticResolver) callerIsSubclassOf(ownerFQCN string, ctx MethodContext) bool {
+	if r.Index == nil || ctx.EnclosingType == nil {
+		return false
+	}
+	for _, superclass := range r.Index.SuperclassChain(ctx.EnclosingType.FQCN) {
+		if superclass.FQCN == ownerFQCN {
+			return true
 		}
 	}
 	return false

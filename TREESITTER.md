@@ -162,6 +162,11 @@ Dentro de `class_body`:
 
 - **`class_declaration`**, **`interface_declaration`**, etc. — classes internas.
 
+Named member types são coletados apenas dos filhos diretos do body do tipo, em source
+preorder. Não usar busca recursiva genérica: ela também encontraria local classes e tipos
+em anonymous bodies. Em `enum_body`, os membros após as constants ficam dentro do wrapper
+`enum_body_declarations`; é necessário abrir exatamente esse nível adicional.
+
 ### Method declarations (vira `MethodDecl`)
 
 | Java | tree-sitter field | Conteúdo |
@@ -226,6 +231,18 @@ criação qualificada (`outer.new Inner()`), o qualifier é filho posicional.
 - `method_reference` — filhos sem field names; receiver/type e membro final precisam ser
   interpretados pela ordem/source text. Cobre `obj::method`, `Type::method`, `super::method`
   e `Type::new`.
+
+Em `method_reference`, `::` e o terminal `new` são tokens unnamed. O formato direto é:
+
+```text
+qualifier :: [type_arguments] identifier
+qualifier :: [type_arguments] new
+```
+
+Portanto, usar `ChildCount()`/`Child()`, localizar `::`, preservar o filho anterior como
+qualifier e ignorar `type_arguments` ao procurar o terminal. `ChildByFieldName` não serve
+nesse nó. Um `identifier` antes de `::` pode ser nome de variável ou tipo; não classificar
+por capitalização.
 
 ### Executable boundaries
 

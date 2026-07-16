@@ -12,6 +12,7 @@ type Table struct {
 	TypesByFQCN       map[string]*java.TypeDecl
 	TypesBySimpleName map[string][]*java.TypeDecl
 	TypesByPackage    map[string][]*java.TypeDecl
+	TypesByEnclosing  map[string][]*java.TypeDecl
 	MethodsByType     map[string]map[java.MethodKey]*java.MethodDecl
 
 	unitsByType map[string]*java.CompilationUnit
@@ -23,6 +24,7 @@ func Build(units []*java.CompilationUnit) (*Table, error) {
 		TypesByFQCN:       make(map[string]*java.TypeDecl),
 		TypesBySimpleName: make(map[string][]*java.TypeDecl),
 		TypesByPackage:    make(map[string][]*java.TypeDecl),
+		TypesByEnclosing:  make(map[string][]*java.TypeDecl),
 		MethodsByType:     make(map[string]map[java.MethodKey]*java.MethodDecl),
 		unitsByType:       make(map[string]*java.CompilationUnit),
 	}
@@ -65,6 +67,9 @@ func Build(units []*java.CompilationUnit) (*Table, error) {
 			table.TypesByFQCN[typ.FQCN] = typ
 			table.TypesBySimpleName[typ.Name] = append(table.TypesBySimpleName[typ.Name], typ)
 			table.TypesByPackage[unit.Package] = append(table.TypesByPackage[unit.Package], typ)
+			if typ.EnclosingFQCN != "" {
+				table.TypesByEnclosing[typ.EnclosingFQCN] = append(table.TypesByEnclosing[typ.EnclosingFQCN], typ)
+			}
 			table.unitsByType[typ.FQCN] = unit
 
 		}
@@ -74,6 +79,9 @@ func Build(units []*java.CompilationUnit) (*Table, error) {
 		sortTypes(candidates)
 	}
 	for _, candidates := range table.TypesByPackage {
+		sortTypes(candidates)
+	}
+	for _, candidates := range table.TypesByEnclosing {
 		sortTypes(candidates)
 	}
 	for _, unit := range orderedUnits {
@@ -125,6 +133,13 @@ func (t *Table) TypesInPackage(pkg string) []*java.TypeDecl {
 		return []*java.TypeDecl{}
 	}
 	return cloneTypes(t.TypesByPackage[pkg])
+}
+
+func (t *Table) TypesEnclosedBy(fqcn string) []*java.TypeDecl {
+	if t == nil {
+		return []*java.TypeDecl{}
+	}
+	return cloneTypes(t.TypesByEnclosing[fqcn])
 }
 
 func (t *Table) Method(typeFQCN string, key java.MethodKey) (*java.MethodDecl, bool) {

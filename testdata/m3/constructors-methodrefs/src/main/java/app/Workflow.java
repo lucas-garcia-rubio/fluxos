@@ -6,6 +6,7 @@ import model.DefaultValue;
 import model.DelegatingValue;
 import model.OverloadedValue;
 import model.Point;
+import refs.References;
 import support.Validator;
 
 public final class Workflow {
@@ -26,5 +27,10 @@ public final class Workflow {
                 return Validator.normalize("ignored-body");
             }
         };
+    }
+
+    public static void references() {
+        References references = new References();
+        references.references();
     }
 }

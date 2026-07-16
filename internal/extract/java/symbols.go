@@ -38,6 +38,35 @@ func (k MethodKind) MarshalJSON() ([]byte, error) {
 
 type CallKind int
 
+type ReferenceQualifierKind int
+
+const (
+	ReferenceQualifierUnknown ReferenceQualifierKind = iota
+	ReferenceQualifierName
+	ReferenceQualifierExpression
+	ReferenceQualifierType
+	ReferenceQualifierSuper
+)
+
+func (k ReferenceQualifierKind) String() string {
+	switch k {
+	case ReferenceQualifierName:
+		return "name"
+	case ReferenceQualifierExpression:
+		return "expression"
+	case ReferenceQualifierType:
+		return "type"
+	case ReferenceQualifierSuper:
+		return "super"
+	default:
+		return fmt.Sprintf("unknown(%d)", k)
+	}
+}
+
+func (k ReferenceQualifierKind) MarshalJSON() ([]byte, error) {
+	return json.Marshal(k.String())
+}
+
 const (
 	CallInvocation CallKind = iota
 	CallObjectCreation
@@ -143,17 +172,18 @@ type (
 		Variadic bool    `json:"variadic,omitempty"`
 	}
 	CallSite struct {
-		Kind       CallKind `json:"kind"`
-		MethodName string   `json:"methodName"`
-		Receiver   string   `json:"receiver"`
-		TargetType *TypeRef `json:"targetType,omitempty"`
-		Args       []string `json:"args"`
-		ArgCount   int      `json:"argCount"`
-		Anonymous  bool     `json:"anonymous,omitempty"`
-		File       string   `json:"file"`
-		Line       int      `json:"line"`
-		StartByte  uint     `json:"startByte"`
-		EndByte    uint     `json:"endByte"`
+		Kind               CallKind               `json:"kind"`
+		MethodName         string                 `json:"methodName"`
+		Receiver           string                 `json:"receiver"`
+		TargetType         *TypeRef               `json:"targetType,omitempty"`
+		ReferenceQualifier ReferenceQualifierKind `json:"referenceQualifier,omitempty"`
+		Args               []string               `json:"args"`
+		ArgCount           int                    `json:"argCount"`
+		Anonymous          bool                   `json:"anonymous,omitempty"`
+		File               string                 `json:"file"`
+		Line               int                    `json:"line"`
+		StartByte          uint                   `json:"startByte"`
+		EndByte            uint                   `json:"endByte"`
 	}
 	MethodKey struct {
 		Name      string
@@ -197,6 +227,7 @@ type TypeDecl struct {
 	Kind             TypeKind     `json:"kind"`
 	Name             string       `json:"name"`
 	FQCN             string       `json:"fqcn"`
+	EnclosingFQCN    string       `json:"enclosingFqcn,omitempty"`
 	Modifier         []string     `json:"modifier"`
 	SuperClass       TypeRef      `json:"superClass"`
 	Interfaces       []TypeRef    `json:"interfaces"`

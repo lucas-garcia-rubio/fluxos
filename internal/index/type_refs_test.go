@@ -143,3 +143,98 @@ func TestBuildCanonicalizesTypeReferencesAndSignatures(t *testing.T) {
 		t.Fatalf("canonical method key lookup = %+v, %v", got, ok)
 	}
 }
+
+func TestResolveTypeRefUsesEnclosingChainAndQualifiedNames(t *testing.T) {
+	outer := refType("Outer", "app.Outer", "Outer.java")
+	inner := refType("Inner", "app.Outer.Inner", "Outer.java")
+	inner.EnclosingFQCN = outer.FQCN
+	deep := refType("Deep", "app.Outer.Inner.Deep", "Outer.java")
+	deep.EnclosingFQCN = inner.FQCN
+	neighbor := refType("Neighbor", "app.Outer.Neighbor", "Outer.java")
+	neighbor.EnclosingFQCN = outer.FQCN
+	unit := &java.CompilationUnit{File: outer.File, Package: "app", Types: []*java.TypeDecl{outer, inner, deep, neighbor}}
+	table, err := Build([]*java.CompilationUnit{unit})
+	if err != nil {
+		t.Fatalf("Build: %v", err)
+	}
+
+	for raw, want := range map[string]string{
+		"Inner":           inner.FQCN,
+		"Deep":            deep.FQCN,
+		"Neighbor":        neighbor.FQCN,
+		"Outer.Inner":     inner.FQCN,
+		"Inner.Deep":      deep.FQCN,
+		"app.Outer.Inner": inner.FQCN,
+	} {
+		got := table.ResolveTypeRefInType(java.NewTypeRef(raw, false), unit, inner.FQCN)
+		if got.Ref.FQCN != want || got.Ref.Unresolved {
+			t.Errorf("ResolveTypeRefInType(%q) = %+v, want %s", raw, got, want)
+		}
+	}
+	if got := table.TypesEnclosedBy(outer.FQCN); len(got) != 2 || got[0].FQCN != inner.FQCN || got[1].FQCN != neighbor.FQCN {
+		t.Fatalf("TypesEnclosedBy = %+v", got)
+	}
+}
+
+func TestResolveTypeRefNestedImportsRespectWildcardBoundary(t *testing.T) {
+	caller := refType("Caller", "app.Caller", "Caller.java")
+	outer := refType("Outer", "dep.Outer", "Outer.java")
+	inner := refType("Inner", "dep.Outer.Inner", "Outer.java")
+	inner.EnclosingFQCN = outer.FQCN
+	callerUnit := &java.CompilationUnit{
+		File: caller.File, Package: "app",
+		Imports: []java.ImportDecl{{Target: "dep", Wildcard: true}},
+		Types:   []*java.TypeDecl{caller},
+	}
+	table, err := Build([]*java.CompilationUnit{
+		callerUnit,
+		{File: outer.File, Package: "dep", Types: []*java.TypeDecl{outer, inner}},
+	})
+	if err != nil {
+		t.Fatalf("Build: %v", err)
+	}
+	if got := table.ResolveTypeRefInType(java.NewTypeRef("Outer.Inner", false), callerUnit, caller.FQCN); got.Ref.FQCN != inner.FQCN {
+		t.Fatalf("qualified wildcard resolution = %+v", got)
+	}
+	if got := table.ResolveTypeRefInType(java.NewTypeRef("Inner", false), callerUnit, caller.FQCN); !got.Ref.Unresolved || len(got.Candidates) != 0 {
+		t.Fatalf("wildcard directly exposed nested type: %+v", got)
+	}
+
+	callerUnit.Imports = []java.ImportDecl{{Target: inner.FQCN}}
+	if got := table.ResolveTypeRefInType(java.NewTypeRef("Inner", false), callerUnit, caller.FQCN); got.Ref.FQCN != inner.FQCN {
+		t.Fatalf("explicit nested import = %+v", got)
+	}
+}
+
+func TestResolveTypeRefFindsInheritedMemberType(t *testing.T) {
+	parent := refType("Parent", "app.Parent", "Parent.java")
+	nested := refType("Nested", "app.Parent.Nested", "Parent.java")
+	nested.EnclosingFQCN = parent.FQCN
+	child := refType("Child", "app.Child", "Child.java")
+	child.SuperClass = java.NewTypeRef("Parent", false)
+	topLevel := refType("Nested", "app.Nested", "TopLevelNested.java")
+	childUnit := &java.CompilationUnit{File: child.File, Package: "app", Types: []*java.TypeDecl{child}}
+	table, err := Build([]*java.CompilationUnit{
+		childUnit,
+		{File: parent.File, Package: "app", Types: []*java.TypeDecl{parent, nested}},
+		{File: topLevel.File, Package: "app", Types: []*java.TypeDecl{topLevel}},
+	})
+	if err != nil {
+		t.Fatalf("Build: %v", err)
+	}
+	got := table.ResolveTypeRefInType(java.NewTypeRef("Nested", false), childUnit, child.FQCN)
+	if got.Ref.FQCN != nested.FQCN {
+		t.Fatalf("inherited member type = %+v, want %s", got, nested.FQCN)
+	}
+}
+
+func TestResolveTypeRefPreservesQualifiedExternalType(t *testing.T) {
+	table, err := Build(nil)
+	if err != nil {
+		t.Fatalf("Build: %v", err)
+	}
+	got := table.ResolveTypeRef(java.NewTypeRef("external.api.Service", false), nil)
+	if got.Ref.FQCN != "external.api.Service" || got.Ref.Unresolved {
+		t.Fatalf("qualified external type = %+v", got)
+	}
+}

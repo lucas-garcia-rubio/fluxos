@@ -31,6 +31,8 @@ func walkAndCollectCalls(node *sitter.Node, source []byte, filePath string, call
 		*calls = append(*calls, buildObjectCreationCall(source, node, filePath))
 	case "explicit_constructor_invocation":
 		*calls = append(*calls, buildExplicitConstructorCall(source, node, filePath))
+	case "method_reference":
+		*calls = append(*calls, buildMethodReferenceCall(source, node, filePath))
 	}
 	for i := 0; i < int(node.NamedChildCount()); i++ {
 		walkAndCollectCalls(node.NamedChild(uint(i)), source, filePath, calls)

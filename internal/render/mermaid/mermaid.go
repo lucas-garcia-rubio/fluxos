@@ -71,6 +71,12 @@ func sortedEdges(g *graph.Graph) []graph.Edge {
 		if a.Call.Line != b.Call.Line {
 			return a.Call.Line < b.Call.Line
 		}
+		if a.Call.StartByte != b.Call.StartByte {
+			return a.Call.StartByte < b.Call.StartByte
+		}
+		if a.Call.Kind != b.Call.Kind {
+			return a.Call.Kind < b.Call.Kind
+		}
 		if a.Call.Receiver != b.Call.Receiver {
 			return a.Call.Receiver < b.Call.Receiver
 		}

@@ -407,3 +407,46 @@ func TestWalkObjectCreationTraversesConstructorBody(t *testing.T) {
 		t.Fatalf("constructor edges = %+v", g.Edges)
 	}
 }
+
+func TestWalkMethodReferencePreservesKindAndTraversesBody(t *testing.T) {
+	entry := mkMethod("entry", java.CallSite{
+		Kind: java.CallMethodReference, Receiver: "Target", MethodName: "referenced",
+		ReferenceQualifier: java.ReferenceQualifierName,
+	})
+	caller := mkType("Caller", entry)
+	caller.File = "Caller.java"
+	leaf := mkMethod("leaf")
+	referenced := mkMethod("referenced", mkCall("leaf"))
+	target := mkType("Target", referenced, leaf)
+	target.File = "Target.java"
+	table := tableForTypes([]*java.TypeDecl{caller, target})
+
+	g := NewGraph()
+	Walk(g, caller, entry, table, resolve.NewSyntacticResolver(table))
+
+	referencedHandle := resolve.MethodHandle{TypeFQCN: "Target", Method: "referenced", Signature: "()"}
+	leafHandle := resolve.MethodHandle{TypeFQCN: "Target", Method: "leaf", Signature: "()"}
+	if !g.IsBlack(referencedHandle) || !g.IsBlack(leafHandle) {
+		t.Fatalf("referenced body was not traversed; nodes=%+v", g.Nodes)
+	}
+	if len(g.Edges) != 2 || g.Edges[0].Call.Kind != java.CallMethodReference {
+		t.Fatalf("method reference edges = %+v", g.Edges)
+	}
+}
+
+func TestWalkConstructorReferencePreservesKind(t *testing.T) {
+	targetType := java.NewTypeRef("Value", false)
+	entry := mkMethod("entry", java.CallSite{
+		Kind: java.CallConstructorReference, MethodName: "<init>", TargetType: &targetType,
+	})
+	caller := mkType("Caller", entry)
+	constructor := java.MethodDecl{Kind: java.MethodConstructor, Name: "<init>", Signature: "()", Modifier: []string{"public"}}
+	value := mkType("Value", constructor)
+	table := tableForTypes([]*java.TypeDecl{caller, value})
+
+	g := NewGraph()
+	Walk(g, caller, entry, table, resolve.NewSyntacticResolver(table))
+	if len(g.Edges) != 1 || g.Edges[0].Call.Kind != java.CallConstructorReference {
+		t.Fatalf("constructor reference edges = %+v", g.Edges)
+	}
+}

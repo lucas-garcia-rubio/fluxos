@@ -134,6 +134,39 @@ func TestRunTraceConstructorsFixture(t *testing.T) {
 	}
 }
 
+func TestRunTraceMethodReferencesFixture(t *testing.T) {
+	var out bytes.Buffer
+	if err := runTrace([]string{"app.Workflow.references", m3FixtureRoot("constructors-methodrefs")}, &out); err != nil {
+		t.Fatalf("runTrace method references: %v", err)
+	}
+	for _, label := range []string{
+		"refs.References.references()",
+		"refs.References.Service.run()",
+		"refs.References.own()",
+		"support.Validator.normalize(java.lang.String)",
+		"model.BaseValue.value()",
+		"model.DefaultValue.<init>()",
+		"refs.References.Nested.<init>()",
+		"refs.References.Nested.run()",
+	} {
+		if !strings.Contains(out.String(), label) {
+			t.Errorf("method reference trace missing %q:\n%s", label, out.String())
+		}
+	}
+}
+
+func TestRunTraceNestedTarget(t *testing.T) {
+	var out bytes.Buffer
+	if err := runTrace([]string{"refs.References.Nested.run", m3FixtureRoot("constructors-methodrefs")}, &out); err != nil {
+		t.Fatalf("runTrace nested target: %v", err)
+	}
+	for _, label := range []string{"refs.References.Nested.run()", "support.Validator.require(java.lang.String)"} {
+		if !strings.Contains(out.String(), label) {
+			t.Errorf("nested target trace missing %q:\n%s", label, out.String())
+		}
+	}
+}
+
 func TestRunTraceArgumentErrors(t *testing.T) {
 	tests := []struct {
 		name string

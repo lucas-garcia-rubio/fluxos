@@ -59,6 +59,20 @@ func TestRenderIsDeterministic(t *testing.T) {
 	}
 }
 
+func TestSortedEdgesUsesReferenceTieBreakers(t *testing.T) {
+	a := handle("A", "start")
+	b := handle("B", "run")
+	g := graph.NewGraph()
+	g.AddEdge(a, b, java.CallSite{File: "A.java", Line: 1, StartByte: 20, Kind: java.CallMethodReference}, false)
+	g.AddEdge(a, b, java.CallSite{File: "A.java", Line: 1, StartByte: 10, Kind: java.CallMethodReference}, false)
+	g.AddEdge(a, b, java.CallSite{File: "A.java", Line: 1, StartByte: 10, Kind: java.CallInvocation}, false)
+
+	edges := sortedEdges(g)
+	if edges[0].Call.Kind != java.CallInvocation || edges[1].Call.StartByte != 10 || edges[1].Call.Kind != java.CallMethodReference || edges[2].Call.StartByte != 20 {
+		t.Fatalf("edge order = %+v", edges)
+	}
+}
+
 func TestRenderCycleAndMultiedges(t *testing.T) {
 	a := handle("A", "a")
 	b := handle("B", "b")
