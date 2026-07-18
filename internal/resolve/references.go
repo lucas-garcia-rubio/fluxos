@@ -25,13 +25,14 @@ func (r *SyntacticResolver) resolveMethodReference(call java.CallSite, ctx Metho
 
 	if typ, found, note := r.lexicalReferenceReceiver(call.Receiver, call, ctx); found {
 		if typ == nil {
-			return Resolution{Note: note}
+			return unresolvedSelection(call.Receiver, call, note)
 		}
 		return r.resolveBoundMethodReference(typ, call, ctx)
 	}
 	typ, note := r.resolveType(java.NewTypeRef(call.Receiver, false), ctx)
 	if typ == nil {
-		return Resolution{Note: fmt.Sprintf("method reference receiver %q unresolved: %s", call.Receiver, note)}
+		return unresolvedSelection(call.Receiver, call,
+			fmt.Sprintf("method reference receiver %q unresolved: %s", call.Receiver, note))
 	}
 	return r.resolveTypeMethodReference(typ, call, ctx)
 }
@@ -95,7 +96,7 @@ func (r *SyntacticResolver) resolveSuperMethodReference(call java.CallSite, ctx 
 	}
 	superType, ok := r.Index.DirectSuperclass(ctx.EnclosingType.FQCN)
 	if !ok {
-		return Resolution{Note: fmt.Sprintf("type %s has no project superclass", ctx.EnclosingType.FQCN)}
+		return r.unresolvedSuperclass(call, ctx, "superclass is not indexed")
 	}
 	candidates := make([]index.MethodResolution, 0)
 	for _, candidate := range r.Index.EffectiveMethodCandidates(superType.FQCN, call.MethodName) {
@@ -119,7 +120,8 @@ func (r *SyntacticResolver) resolveConstructorReference(call java.CallSite, ctx 
 	}
 	typ, note := r.resolveType(*call.TargetType, ctx)
 	if typ == nil {
-		return Resolution{Note: fmt.Sprintf("constructor reference type %q unresolved: %s", call.TargetType.Raw, note)}
+		return unresolvedSelection(call.TargetType.Raw, call,
+			fmt.Sprintf("constructor reference type %q unresolved: %s", call.TargetType.Raw, note))
 	}
 	if !r.typeAccessible(typ, ctx) {
 		return Resolution{Note: fmt.Sprintf("constructor reference type %s is not accessible", typ.FQCN)}

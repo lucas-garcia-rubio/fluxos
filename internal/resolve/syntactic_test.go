@@ -161,11 +161,9 @@ func TestResolveSuperWithoutSuperclass(t *testing.T) {
 
 	res := r.Resolve(mkCall("super", "foo"), ctx)
 
-	if len(res.Targets) != 0 {
-		t.Errorf("expected 0 targets for type without superclass, got %d", len(res.Targets))
-	}
-	if res.Note == "" {
-		t.Error("expected Note explaining missing superclass")
+	assertTerminalKind(t, res, ResolutionUnresolved)
+	if !strings.HasPrefix(res.Targets[0].Handle.TypeFQCN, "java.lang.Object#unresolved#") {
+		t.Fatalf("super owner = %q, want java.lang.Object", res.Targets[0].Handle.TypeFQCN)
 	}
 }
 
@@ -870,8 +868,8 @@ func TestResolveObjectCreationRejectsQualifiedAndProtectedSuperclassConstructor(
 	target := java.NewTypeRef("Parent", false)
 
 	protected := r.Resolve(java.CallSite{Kind: java.CallObjectCreation, MethodName: "<init>", TargetType: &target}, ctx)
-	if len(protected.Targets) != 0 || protected.Note == "" {
-		t.Fatalf("protected superclass constructor resolved through new: %+v", protected)
+	if len(protected.Targets) != 1 || protected.Targets[0].Kind != ResolutionUnresolved || !strings.Contains(protected.Targets[0].Note, "not found") {
+		t.Fatalf("protected superclass constructor should be unresolved through new: %+v", protected)
 	}
 	qualified := r.Resolve(java.CallSite{Kind: java.CallObjectCreation, MethodName: "<init>", TargetType: &target, Receiver: "outer"}, ctx)
 	if len(qualified.Targets) != 0 || !strings.Contains(qualified.Note, "qualified object creation") {

@@ -193,10 +193,11 @@ filhos nomeados posicionais; `variable_declarator.name` contém o nome do parâm
 No modelo atual, `Param.Variadic` preserva essa informação e a signature provisória
 normaliza `T...` como `T[]`.
 
-As signatures de M3 são raw-erased e determinísticas: removem espaços e argumentos
-genéricos aninhados, mas ainda preservam o nome de tipo como escrito no source. Exemplos:
-`()`; `(String,int)`; `(java.util.List)`; `(String[])`. A canonicalização para FQCN
-depende do índice e dos imports e fica para os passos seguintes.
+Na extração, as signatures de M3 começam raw-erased e determinísticas: removem espaços
+e argumentos genéricos aninhados, mas preservam o nome de tipo como escrito no source.
+Exemplos: `()`; `(String,int)`; `(java.util.List)`; `(String[])`. Durante o build do
+índice, os tipos são canonicalizados para FQCN quando package/imports permitem resolução
+única; o token raw-erased permanece somente quando a referência não pode ser resolvida.
 
 ### Chamadas de método (M2 — preview)
 

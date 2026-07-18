@@ -1,0 +1,17 @@
+flowchart TD
+  m_1ff7864fa07e["app.Workflow.currentRun()"]
+  m_77e2f47d906c["app.Workflow.start()"]
+  m_41c6d2c8b3b3["contract.ContractTasks.interfaceRun()"]
+  m_35806ba1e913["explicit.ExplicitTasks.explicitRun()"]
+  m_002b98c29d89["explicit.ExplicitTasks.explicitRun(types.Helper)"]
+  m_097e5138bb45["inherited.BaseTasks.inheritedRun()"]
+  m_78151b196f40["types.Helper.work()"]
+  m_84d058b3965c["wildcard.WildcardTasks.wildcardRun()"]
+  m_77e2f47d906c --> m_1ff7864fa07e
+  m_77e2f47d906c --> m_41c6d2c8b3b3
+  m_77e2f47d906c --> m_35806ba1e913
+  m_77e2f47d906c --> m_002b98c29d89
+  m_77e2f47d906c --> m_097e5138bb45
+  m_77e2f47d906c --> m_78151b196f40
+  m_77e2f47d906c --> m_84d058b3965c
+  m_002b98c29d89 --> m_78151b196f40

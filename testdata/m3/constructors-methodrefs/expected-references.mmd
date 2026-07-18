@@ -1,0 +1,50 @@
+flowchart TD
+  m_812cbfe8c3a1["Function<BaseValue, String>.apply() [unresolved]"]
+  m_5c942b582f28["Function<String, String>.apply() [unresolved]"]
+  m_24d939780e06["IllegalArgumentException.<init>() [unresolved]"]
+  m_9b0fda292c70["Runnable.run() [unresolved]"]
+  m_f649eddf58ae["Runnable.run() [unresolved]"]
+  m_963aa09c3d49["Runnable.run() [unresolved]"]
+  m_859de30c2f97["String.isEmpty() [unresolved]"]
+  m_5556182d79cf["Supplier<DefaultValue>.get() [unresolved]"]
+  m_1ed1adf22d04["Supplier<Nested>.get() [unresolved]"]
+  m_b84c8c7a9a1b["Supplier<String>.get() [unresolved]"]
+  m_e8df649834e2["app.Workflow.references()"]
+  m_f9c86dc9202f["model.BaseValue.<init>(java.lang.String)"]
+  m_7381cdf893c0["model.BaseValue.value()"]
+  m_77b0ebe86b3f["model.DefaultValue.<init>()"]
+  m_bd677b62ab48["refs.References.<init>()"]
+  m_2292119d3129["refs.References.own()"]
+  m_6cdb9c52f7f1["refs.References.references()"]
+  m_bc924d7eafb8["refs.References.Nested.<init>()"]
+  m_10373ee5a41d["refs.References.Nested.run()"]
+  m_5c65cea9be33["refs.References.Service.run()"]
+  m_eb03041fcc0b["require(value).trim() [unresolved]"]
+  m_e3566a83e1a6["support.Validator.normalize(java.lang.String)"]
+  m_f121243d1d9b["support.Validator.require(java.lang.String)"]
+  m_e8df649834e2 --> m_bd677b62ab48
+  m_e8df649834e2 --> m_6cdb9c52f7f1
+  m_bd677b62ab48 --> m_f9c86dc9202f
+  m_2292119d3129 --> m_f121243d1d9b
+  m_6cdb9c52f7f1 --> m_812cbfe8c3a1
+  m_6cdb9c52f7f1 --> m_5c942b582f28
+  m_6cdb9c52f7f1 --> m_9b0fda292c70
+  m_6cdb9c52f7f1 --> m_f649eddf58ae
+  m_6cdb9c52f7f1 --> m_963aa09c3d49
+  m_6cdb9c52f7f1 --> m_5556182d79cf
+  m_6cdb9c52f7f1 --> m_1ed1adf22d04
+  m_6cdb9c52f7f1 --> m_b84c8c7a9a1b
+  m_6cdb9c52f7f1 --> m_7381cdf893c0
+  m_6cdb9c52f7f1 --> m_7381cdf893c0
+  m_6cdb9c52f7f1 --> m_77b0ebe86b3f
+  m_6cdb9c52f7f1 --> m_2292119d3129
+  m_6cdb9c52f7f1 --> m_bc924d7eafb8
+  m_6cdb9c52f7f1 --> m_10373ee5a41d
+  m_6cdb9c52f7f1 --> m_5c65cea9be33
+  m_6cdb9c52f7f1 --> m_e3566a83e1a6
+  m_10373ee5a41d --> m_f121243d1d9b
+  m_5c65cea9be33 --> m_f121243d1d9b
+  m_e3566a83e1a6 --> m_eb03041fcc0b
+  m_e3566a83e1a6 --> m_f121243d1d9b
+  m_f121243d1d9b --> m_24d939780e06
+  m_f121243d1d9b --> m_859de30c2f97

@@ -49,6 +49,20 @@ func TestDispatchZeroImplementationsWithDefaultDescendsToDefault(t *testing.T) {
 	}
 }
 
+func TestDispatchZeroImplementationsWithAmbiguousDefaultsPreservesOverloadTerminal(t *testing.T) {
+	iface := &java.TypeDecl{
+		Kind: java.TypeKindInterface, Name: "Defaulted", FQCN: "contract.Defaulted", File: "D.java",
+		Methods: []java.MethodDecl{
+			{Name: "run", Signature: "(java.lang.String)", Modifier: []string{"public", "default"}, Params: []java.Param{{Type: java.NewTypeRef("java.lang.String", false)}}},
+			{Name: "run", Signature: "(java.lang.Integer)", Modifier: []string{"public", "default"}, Params: []java.Param{{Type: java.NewTypeRef("java.lang.Integer", false)}}},
+		},
+	}
+	r := dispatchFixture(t, iface)
+	ctx := MethodContext{LocalVars: []java.LocalVarDecl{localVar("svc", "contract.Defaulted")}}
+	res := r.Resolve(java.CallSite{Receiver: "svc", MethodName: "run", Args: []string{"value()"}, ArgCount: 1, StartByte: 1}, ctx)
+	assertTerminalKind(t, res, ResolutionAmbiguousOverload)
+}
+
 func TestDispatchSingleImplementationDescendsToImpl(t *testing.T) {
 	iface := &java.TypeDecl{Kind: java.TypeKindInterface, Name: "Single", FQCN: "contract.Single", File: "S.java"}
 	impl := &java.TypeDecl{
@@ -77,6 +91,22 @@ func TestDispatchSingleImplementationWithoutMethodBecomesNoImplementation(t *tes
 	if len(res.Targets) != 1 || res.Targets[0].Kind != ResolutionNoImplementation {
 		t.Fatalf("expected NoImplementation when unique impl lacks method, got %+v", res.Targets)
 	}
+}
+
+func TestDispatchSingleImplementationWithIncompatibleOverloadBecomesUnresolved(t *testing.T) {
+	iface := &java.TypeDecl{Kind: java.TypeKindInterface, Name: "Single", FQCN: "contract.Single", File: "S.java"}
+	impl := &java.TypeDecl{
+		Kind: java.TypeKindClass, Name: "SingleImpl", FQCN: "contract.SingleImpl", File: "I.java",
+		Interfaces: []java.TypeRef{java.NewTypeRef("contract.Single", false)},
+		Methods: []java.MethodDecl{{
+			Name: "run", Signature: "(java.lang.String)",
+			Params: []java.Param{{Type: java.NewTypeRef("java.lang.String", false)}},
+		}},
+	}
+	r := dispatchFixture(t, iface, impl)
+	ctx := MethodContext{LocalVars: []java.LocalVarDecl{localVar("svc", "contract.Single")}}
+	res := r.Resolve(java.CallSite{Receiver: "svc", MethodName: "run", Args: []string{"1"}, ArgCount: 1, StartByte: 1}, ctx)
+	assertTerminalKind(t, res, ResolutionUnresolved)
 }
 
 func TestDispatchMultipleImplementationsTerminalWithSortedCandidates(t *testing.T) {

@@ -44,9 +44,9 @@ func (r *SyntacticResolver) staticBoundCall(typ *java.TypeDecl, call java.CallSi
 // method na própria interface; receivers com 1 impl descendem para o effective
 // method da impl; receivers com várias impls viram terminal AmbiguousImplementation.
 //
-// ctx não é usado hoje mas faz parte da assinatura para futuras extensões
-// (ex.: narrowing por initializer em M4).
-func (r *SyntacticResolver) dispatchPolymorphic(typ *java.TypeDecl, call java.CallSite, _ MethodContext) Resolution {
+// ctx permite que a selecao da unica implementation use tipos obvios dos
+// argumentos sem fazer narrowing pelo initializer do receiver (reservado a M4).
+func (r *SyntacticResolver) dispatchPolymorphic(typ *java.TypeDecl, call java.CallSite, ctx MethodContext) Resolution {
 	impls := r.Index.ImplementationsOf(typ.FQCN)
 
 	switch len(impls) {
@@ -61,8 +61,11 @@ func (r *SyntacticResolver) dispatchPolymorphic(typ *java.TypeDecl, call java.Ca
 				defaults = append(defaults, c)
 			}
 		}
-		selection := selectMethodCandidates(defaults, call, typ)
+		selection := r.selectMethodCandidates(defaults, call, typ, ctx)
 		if selection.Found && len(selection.Resolution.Targets) == 1 && selection.Resolution.Targets[0].Kind == ResolutionConcrete {
+			return selection.Resolution
+		}
+		if selection.Found {
 			return selection.Resolution
 		}
 		return Resolution{Targets: []ResolvedTarget{TerminalTarget(
@@ -73,15 +76,18 @@ func (r *SyntacticResolver) dispatchPolymorphic(typ *java.TypeDecl, call java.Ca
 	case 1:
 		impl := impls[0]
 		candidates := r.Index.EffectiveMethodCandidates(impl.FQCN, call.MethodName)
-		selection := selectMethodCandidates(candidates, call, impl)
+		selection := r.selectMethodCandidates(candidates, call, impl, ctx)
 		if !selection.Found {
+			if len(candidates) > 0 {
+				return unresolvedSelection(impl.FQCN, call,
+					fmt.Sprintf("no compatible overload %q on unique implementation %s of %s", call.MethodName, impl.FQCN, typ.FQCN))
+			}
 			return Resolution{Targets: []ResolvedTarget{TerminalTarget(
 				ResolutionNoImplementation, typ.FQCN, call.MethodName, "", call,
 				fmt.Sprintf("unique implementation %s of %s lacks method %q", impl.FQCN, typ.FQCN, call.MethodName), nil,
 			)}}
 		}
-		target := selection.Resolution.Targets[0]
-		if target.Kind != ResolutionConcrete || len(selection.Resolution.Targets) != 1 {
+		if len(selection.Resolution.Targets) != 1 || selection.Resolution.Targets[0].Kind != ResolutionConcrete {
 			// AmbiguousOverload ou outro terminal já producido por selectMethodCandidates.
 			return selection.Resolution
 		}
@@ -107,7 +113,7 @@ func (r *SyntacticResolver) resolveOnPolymorphicOrType(typ *java.TypeDecl, call 
 	if isPolymorphicReceiver(typ) && !r.staticBoundCall(typ, call) {
 		return r.dispatchPolymorphic(typ, call, ctx)
 	}
-	return r.resolveOnType(typ, call)
+	return r.resolveOnType(typ, call, ctx)
 }
 
 // unresolvedKindFromNote classifica a saída de resolveType. Hoje resolveType

@@ -78,97 +78,6 @@ func TestRunTraceAcceptsSignatureTarget(t *testing.T) {
 	}
 }
 
-func TestRunTraceInheritanceFixture(t *testing.T) {
-	var out bytes.Buffer
-	if err := runTrace([]string{"app.Workflow.start", m3FixtureRoot("inheritance")}, &out); err != nil {
-		t.Fatalf("runTrace inheritance: %v", err)
-	}
-	for _, label := range []string{
-		"base.BaseService.inheritedMethod()",
-		"base.GrandparentService.grandparentMethod()",
-		"contract.ChildContract.childDefault()",
-		"contract.RootContract.rootDefault()",
-	} {
-		if !strings.Contains(out.String(), label) {
-			t.Errorf("inheritance trace missing %q:\n%s", label, out.String())
-		}
-	}
-}
-
-func TestRunTraceImportsFixture(t *testing.T) {
-	var out bytes.Buffer
-	if err := runTrace([]string{"app.Workflow.start", m3FixtureRoot("imports")}, &out); err != nil {
-		t.Fatalf("runTrace imports: %v", err)
-	}
-	for _, label := range []string{
-		"explicit.ExplicitTasks.explicitRun()",
-		"explicit.ExplicitTasks.explicitRun(types.Helper)",
-		"wildcard.WildcardTasks.wildcardRun()",
-		"inherited.BaseTasks.inheritedRun()",
-		"contract.ContractTasks.interfaceRun()",
-		"app.Workflow.currentRun()",
-		"types.Helper.work()",
-	} {
-		if !strings.Contains(out.String(), label) {
-			t.Errorf("imports trace missing %q:\n%s", label, out.String())
-		}
-	}
-}
-
-func TestRunTraceConstructorsFixture(t *testing.T) {
-	var out bytes.Buffer
-	if err := runTrace([]string{"app.Workflow.run", m3FixtureRoot("constructors-methodrefs")}, &out); err != nil {
-		t.Fatalf("runTrace constructors: %v", err)
-	}
-	for _, label := range []string{
-		"model.DefaultValue.<init>()",
-		"model.OverloadedValue.<init>(java.lang.String)",
-		"model.OverloadedValue.<init>(java.lang.String,int)",
-		"model.DelegatingValue.<init>(java.lang.String)",
-		"model.DelegatingValue.<init>(java.lang.String,boolean)",
-		"model.ChildValue.<init>(java.lang.String)",
-		"model.BaseValue.<init>(java.lang.String)",
-		"model.Point.<init>(int,int)",
-	} {
-		if !strings.Contains(out.String(), label) {
-			t.Errorf("constructors trace missing %q:\n%s", label, out.String())
-		}
-	}
-}
-
-func TestRunTraceMethodReferencesFixture(t *testing.T) {
-	var out bytes.Buffer
-	if err := runTrace([]string{"app.Workflow.references", m3FixtureRoot("constructors-methodrefs")}, &out); err != nil {
-		t.Fatalf("runTrace method references: %v", err)
-	}
-	for _, label := range []string{
-		"refs.References.references()",
-		"refs.References.Service.run()",
-		"refs.References.own()",
-		"support.Validator.normalize(java.lang.String)",
-		"model.BaseValue.value()",
-		"model.DefaultValue.<init>()",
-		"refs.References.Nested.<init>()",
-		"refs.References.Nested.run()",
-	} {
-		if !strings.Contains(out.String(), label) {
-			t.Errorf("method reference trace missing %q:\n%s", label, out.String())
-		}
-	}
-}
-
-func TestRunTraceNestedTarget(t *testing.T) {
-	var out bytes.Buffer
-	if err := runTrace([]string{"refs.References.Nested.run", m3FixtureRoot("constructors-methodrefs")}, &out); err != nil {
-		t.Fatalf("runTrace nested target: %v", err)
-	}
-	for _, label := range []string{"refs.References.Nested.run()", "support.Validator.require(java.lang.String)"} {
-		if !strings.Contains(out.String(), label) {
-			t.Errorf("nested target trace missing %q:\n%s", label, out.String())
-		}
-	}
-}
-
 func TestRunTraceArgumentErrors(t *testing.T) {
 	tests := []struct {
 		name string
@@ -198,24 +107,6 @@ func TestRunTraceWriterError(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "write trace") {
 		t.Fatalf("runTrace writer error = %q, want context", err)
-	}
-}
-
-func TestRunTraceDispatchFixture(t *testing.T) {
-	var out bytes.Buffer
-	if err := runTrace([]string{"app.Workflow.start", m3FixtureRoot("dispatch")}, &out); err != nil {
-		t.Fatalf("runTrace dispatch: %v", err)
-	}
-	for _, label := range []string{
-		"contract.EmptyService.run() [no implementation]",
-		"contract.DefaultedService.run()",
-		"contract.SingleServiceImpl.run()",
-		"contract.MultiService.run() [ambiguous: 2 implementations]",
-		"contract.OverloadImpl.run() [ambiguous overload]",
-	} {
-		if !strings.Contains(out.String(), label) {
-			t.Errorf("dispatch trace missing %q:\n%s", label, out.String())
-		}
 	}
 }
 

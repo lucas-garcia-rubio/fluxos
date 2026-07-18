@@ -25,8 +25,9 @@ const (
 	// ResolutionConcrete é um método concreto alcançável por chamada direta.
 	// Implica Descend=true.
 	ResolutionConcrete ResolutionKind = iota
-	// ResolutionExternal é um handle cujo tipo não está registrado no projeto
-	// (biblioteca externa, reflexão). Não é terminal e não descend.
+	// ResolutionExternal é reservado a resolvers que conhecem um handle externo
+	// completo. O resolver sintatico sem classpath usa Unresolved em vez de
+	// inventar owner/signature de biblioteca. Não é terminal e não descend.
 	ResolutionExternal
 	// ResolutionUnresolved cobre receivers ou métodos que não foram encontrados
 	// no contexto atual. Vira terminal [unresolved] no grafo.

@@ -28,6 +28,10 @@ public class Workflow {
         defaulted.run();
         single.run();
         multi.run();
-        overloads.run("x");
+        overloads.run(value());
+    }
+
+    private String value() {
+        return "x";
     }
 }

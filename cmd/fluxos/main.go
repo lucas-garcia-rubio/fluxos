@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path/filepath"
 	"strings"
 
 	"github.com/lucas-garcia-rubio/fluxos/internal/extract/java"
@@ -117,7 +118,11 @@ func buildUnits(root string) ([]*java.CompilationUnit, error) {
 		if err != nil {
 			return nil, fmt.Errorf("parse %s: %w", file.Path, err)
 		}
-		unit, extractErr := java.ExtractUnit(file.Path, source, tree)
+		logicalFile, relErr := filepath.Rel(discoveredProject.Root, file.Path)
+		if relErr != nil {
+			logicalFile = file.Path
+		}
+		unit, extractErr := java.ExtractUnit(filepath.ToSlash(logicalFile), source, tree)
 		tree.Close()
 		if extractErr != nil {
 			return nil, fmt.Errorf("extract %s: %w", file.Path, extractErr)

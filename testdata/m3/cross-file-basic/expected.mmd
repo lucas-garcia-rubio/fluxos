@@ -1,0 +1,20 @@
+flowchart TD
+  m_fb9b83697855["app.Startup.check()"]
+  m_68915a901c1b["app.Workflow.prepare()"]
+  m_77e2f47d906c["app.Workflow.start()"]
+  m_b77d8469ea1e["repo.UserRepository.<init>()"]
+  m_6334db893a7c["repo.UserRepository.save(service.User)"]
+  m_634aaeaf9d04["service.User.<init>()"]
+  m_7a0429d8e398["service.UserService.create(repo.UserRepository)"]
+  m_074d94e53d36["support.Audit.log(service.User)"]
+  m_32dd22f12c28["support.Formatter.<init>()"]
+  m_d8baf40e6ec7["support.Formatter.format(service.User)"]
+  m_68915a901c1b --> m_fb9b83697855
+  m_77e2f47d906c --> m_68915a901c1b
+  m_77e2f47d906c --> m_b77d8469ea1e
+  m_77e2f47d906c --> m_7a0429d8e398
+  m_6334db893a7c --> m_074d94e53d36
+  m_6334db893a7c --> m_32dd22f12c28
+  m_6334db893a7c --> m_d8baf40e6ec7
+  m_7a0429d8e398 --> m_6334db893a7c
+  m_7a0429d8e398 --> m_634aaeaf9d04

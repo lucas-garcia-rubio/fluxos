@@ -151,3 +151,30 @@ func TestDiscoverReturnsNonNilEmptyFiles(t *testing.T) {
 		t.Fatalf("empty project = %+v", project)
 	}
 }
+
+func TestDiscoverSourceRootsFixture(t *testing.T) {
+	root := filepath.Join("..", "..", "testdata", "m3", "source-roots")
+	apiRoot := filepath.Join(root, "module-api", "src", "main", "java")
+	appRoot := filepath.Join(root, "module-app", "src", "main", "java")
+
+	project, err := Discover(root)
+	if err != nil {
+		t.Fatalf("Discover source-roots fixture: %v", err)
+	}
+	wantRoots := []SourceRoot{
+		{Path: apiRoot, Scope: ScopeMain},
+		{Path: appRoot, Scope: ScopeMain},
+	}
+	if !reflect.DeepEqual(project.SourceRoots, wantRoots) {
+		t.Fatalf("source roots = %+v, want %+v", project.SourceRoots, wantRoots)
+	}
+	wantFiles := []JavaFile{
+		{Path: filepath.Join(apiRoot, "api", "Duplicate.java"), SourceRoot: apiRoot, Scope: ScopeMain},
+		{Path: filepath.Join(apiRoot, "api", "Service.java"), SourceRoot: apiRoot, Scope: ScopeMain},
+		{Path: filepath.Join(appRoot, "app", "Duplicate.java"), SourceRoot: appRoot, Scope: ScopeMain},
+		{Path: filepath.Join(appRoot, "app", "Workflow.java"), SourceRoot: appRoot, Scope: ScopeMain},
+	}
+	if !reflect.DeepEqual(project.Files, wantFiles) {
+		t.Fatalf("files = %+v, want %+v", project.Files, wantFiles)
+	}
+}
