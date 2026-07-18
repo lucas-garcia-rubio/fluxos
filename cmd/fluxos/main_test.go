@@ -106,19 +106,19 @@ func TestRunTraceRejectsProjectPathBeforeTarget(t *testing.T) {
 	}
 }
 
-// Extra positionals are ignored by the M3 CLI. Passo 1 intentionally changes
-// this characterization to require a usage error before project discovery.
-func TestRunTraceCurrentlyIgnoresExtraPositionals(t *testing.T) {
+func TestRunTraceRejectsExtraPositionals(t *testing.T) {
 	root := traceFixtureRoot()
-	var baseline, withExtras bytes.Buffer
-	if err := runTrace([]string{"Workflow.start", root}, &baseline); err != nil {
-		t.Fatalf("baseline runTrace: %v", err)
+	var out bytes.Buffer
+	err := runTrace([]string{"Workflow.start", root, "extra"}, &out)
+	if err == nil || !strings.Contains(err.Error(), "at most one project path") {
+		t.Fatalf("runTrace with extra positionals error = %v", err)
 	}
-	if err := runTrace([]string{"Workflow.start", root, "ignored", "--also-ignored"}, &withExtras); err != nil {
-		t.Fatalf("runTrace with extra positionals: %v", err)
+	var usageErr *UsageError
+	if !errors.As(err, &usageErr) {
+		t.Fatalf("error = %T, want UsageError", err)
 	}
-	if !bytes.Equal(withExtras.Bytes(), baseline.Bytes()) {
-		t.Fatalf("extra positionals changed output:\ngot:\n%s\nwant:\n%s", withExtras.Bytes(), baseline.Bytes())
+	if out.Len() != 0 {
+		t.Fatalf("runTrace wrote payload before returning error: %q", out.String())
 	}
 }
 

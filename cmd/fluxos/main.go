@@ -19,37 +19,11 @@ import (
 )
 
 func main() {
-	if len(os.Args) < 2 {
-		usage()
-		os.Exit(2)
-	}
-
-	cmd := os.Args[1]
-	args := os.Args[2:]
-
-	switch cmd {
-	case "index":
-		if err := runIndex(args); err != nil {
-			fmt.Fprintf(os.Stderr, "fluxos index: %v\n", err)
-			os.Exit(1)
-		}
-	case "trace":
-		if err := runTrace(args, os.Stdout); err != nil {
-			fmt.Fprintf(os.Stderr, "fluxos trace: %v\n", err)
-			os.Exit(1)
-		}
-	default:
-		fmt.Fprintf(os.Stderr, "fluxos: unknown command %q\n", cmd)
-		usage()
-		os.Exit(2)
-	}
+	os.Exit(runCLI(os.Args[1:], IO{In: os.Stdin, Out: os.Stdout, ErrOut: os.Stderr}))
 }
 
-func runIndex(args []string) error {
-	if len(args) < 1 {
-		return fmt.Errorf("usage: fluxos index <path>")
-	}
-	units, _, err := buildIndex(args[0])
+func executeIndex(opts IndexOptions, streams IO) error {
+	units, _, err := buildIndex(opts.ProjectRoot)
 	if err != nil {
 		return err
 	}
@@ -58,29 +32,23 @@ func runIndex(args []string) error {
 	if err != nil {
 		return fmt.Errorf("marshal: %w", err)
 	}
-	fmt.Println(string(out))
+	if _, err := fmt.Fprintln(streams.Out, string(out)); err != nil {
+		return fmt.Errorf("write index: %w", err)
+	}
 	return nil
 }
 
 func runTrace(args []string, out io.Writer) error {
-	if len(args) < 1 {
-		return fmt.Errorf("usage: fluxos trace <[FQCN.]TypeName.method[(signature)]> [project-path]")
-	}
-	spec, err := ParseTargetSpec(args[0])
-	if err != nil {
-		return err
-	}
-	projectRoot := "."
-	if len(args) >= 2 {
-		projectRoot = args[1]
-	}
+	return runTraceCommand(args, IO{Out: out})
+}
 
-	_, table, err := buildIndex(projectRoot)
+func executeTrace(opts TraceOptions, streams IO) error {
+	_, table, err := buildIndex(opts.ProjectRoot)
 	if err != nil {
 		return err
 	}
 
-	targetClass, targetMethod, err := ResolveTarget(table, spec)
+	targetClass, targetMethod, err := ResolveTarget(table, opts.Target)
 	if err != nil {
 		return err
 	}
@@ -89,7 +57,7 @@ func runTrace(args []string, out io.Writer) error {
 	g := graph.NewGraph()
 	graph.Walk(g, targetClass, *targetMethod, table, resolver)
 
-	if _, err := fmt.Fprint(out, mermaid.Render(g)); err != nil {
+	if _, err := fmt.Fprint(streams.Out, mermaid.Render(g)); err != nil {
 		return fmt.Errorf("write trace: %w", err)
 	}
 	return nil
@@ -156,9 +124,4 @@ func walk(node *tree_sitter.Node, depth int, currentFieldName string) {
 			walk(child, depth+1, childFieldName)
 		}
 	}
-}
-
-func usage() {
-	fmt.Fprintln(os.Stderr, "usage: fluxos <command>")
-	fmt.Fprintln(os.Stderr, "commands: index, trace")
 }

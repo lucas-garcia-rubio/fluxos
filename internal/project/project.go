@@ -1,5 +1,14 @@
 package project
 
+// ScopeMode selects which source scopes a command should include. It is
+// separate from Scope, which classifies source roots after discovery.
+type ScopeMode string
+
+const (
+	ScopeModeMain ScopeMode = "main"
+	ScopeModeAll  ScopeMode = "all"
+)
+
 type Scope int
 
 const (
