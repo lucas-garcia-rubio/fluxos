@@ -15,6 +15,8 @@ type Table struct {
 	TypesByEnclosing  map[string][]*java.TypeDecl
 	MethodsByType     map[string]map[java.MethodKey]*java.MethodDecl
 
+	implementations ImplementationTable
+
 	unitsByType map[string]*java.CompilationUnit
 }
 
@@ -26,6 +28,7 @@ func Build(units []*java.CompilationUnit) (*Table, error) {
 		TypesByPackage:    make(map[string][]*java.TypeDecl),
 		TypesByEnclosing:  make(map[string][]*java.TypeDecl),
 		MethodsByType:     make(map[string]map[java.MethodKey]*java.MethodDecl),
+		implementations:   make(ImplementationTable),
 		unitsByType:       make(map[string]*java.CompilationUnit),
 	}
 
@@ -87,6 +90,7 @@ func Build(units []*java.CompilationUnit) (*Table, error) {
 	for _, unit := range orderedUnits {
 		table.canonicalizeUnit(unit)
 	}
+	table.implementations = table.buildImplementationTable()
 	for _, unit := range orderedUnits {
 		for _, typ := range unit.Types {
 			synthesizeImplicitConstructor(typ)

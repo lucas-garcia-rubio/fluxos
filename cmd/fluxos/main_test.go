@@ -9,6 +9,8 @@ import (
 	"reflect"
 	"strings"
 	"testing"
+
+	"github.com/lucas-garcia-rubio/fluxos/internal/extract/java"
 )
 
 var errWrite = errors.New("write failed")
@@ -197,6 +199,51 @@ func TestRunTraceWriterError(t *testing.T) {
 	if !strings.Contains(err.Error(), "write trace") {
 		t.Fatalf("runTrace writer error = %q, want context", err)
 	}
+}
+
+func TestBuildIndexPolymorphismFixture(t *testing.T) {
+	_, table, err := buildIndex(m3FixtureRoot("polymorphism"))
+	if err != nil {
+		t.Fatalf("buildIndex: %v", err)
+	}
+
+	cases := []struct {
+		fqcn string
+		want []string
+	}{
+		{"noimpl.NoService", nil},
+		{"single.SingleService", []string{"single.SingleServiceImpl"}},
+		{"multi.MultiService", []string{"multi.FirstService", "multi.SecondService"}},
+		{"transitive.ChildContract", []string{"transitive.ViaChild"}},
+		{"transitive.RootContract", []string{"transitive.ViaChild"}},
+		{"base.AbstractBase", []string{"base.ConcreteBase", "base.ConcreteChild"}},
+		{"base.AbstractMiddle", []string{"base.ConcreteBase", "base.ConcreteChild"}},
+		{"kinds.KindContract", []string{"kinds.DataRecord", "kinds.ModeEnum"}},
+		{"nested.NestedTypes.Contract", []string{"nested.NestedTypes.Impl", "nested.NestedTypes.InnerImpl"}},
+		{"nested.NestedTypes.Base", []string{"nested.NestedTypes.Impl"}},
+	}
+	for _, tt := range cases {
+		t.Run(tt.fqcn, func(t *testing.T) {
+			got := fqcnList(table.ImplementationsOf(tt.fqcn))
+			if len(tt.want) == 0 {
+				if len(got) != 0 {
+					t.Fatalf("ImplementationsOf(%q) = %v, want empty", tt.fqcn, got)
+				}
+				return
+			}
+			if !reflect.DeepEqual(got, tt.want) {
+				t.Fatalf("ImplementationsOf(%q) = %v, want %v", tt.fqcn, got, tt.want)
+			}
+		})
+	}
+}
+
+func fqcnList(types []*java.TypeDecl) []string {
+	out := make([]string, len(types))
+	for i, typ := range types {
+		out[i] = typ.FQCN
+	}
+	return out
 }
 
 func TestBuildUnitsPreservesMetadataAndFlattenCompatibility(t *testing.T) {
