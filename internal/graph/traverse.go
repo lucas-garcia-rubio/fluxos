@@ -15,8 +15,11 @@ import (
 //  2. Se handle atual é black → já processado; retorna.
 //  3. Marca gray.
 //  4. Para cada CallSite em method.Calls, pergunta Resolver → Resolution.
-//     Para cada target em Resolution.Targets, adiciona aresta e recursa
-//     (só se o target existe no projeto; external targets ficam como aresta sem recursão).
+//     Para cada target em Resolution.Targets:
+//     - adiciona aresta (handle → target.Handle);
+//     - se target.Kind == Concrete, recursa em target se type+method existirem no índice;
+//     - se target.Kind == External, marca Node como NodeExternal (não recursa);
+//     - qualquer outro Kind é terminal: marca Node como NodeTerminal* com Note/Candidates.
 //  5. Marca black.
 //
 // method.Calls já vem populado do Passo 2 (extractCalls). Walk não re-extrai.
@@ -53,20 +56,48 @@ func Walk(
 		}
 		resolution := resolver.Resolve(call, ctx)
 		for _, target := range resolution.Targets {
-			cycle := g.IsGray(target)
-			g.AddEdge(handle, target, call, cycle)
-			// Recursão só se target existe no projeto. External target
-			// (biblioteca, reflexão) fica como aresta terminal.
-			targetType, typeExists := table.TypeByFQCN(target.TypeFQCN)
-			targetMethod, methodExists := table.Method(target.TypeFQCN, java.MethodKey{
-				Name:      target.Method,
-				Signature: target.Signature,
-			})
-			if typeExists && methodExists {
-				Walk(g, targetType, *targetMethod, table, resolver)
+			cycle := g.IsGray(target.Handle)
+			g.AddEdge(handle, target.Handle, call, cycle)
+			switch target.Kind {
+			case resolve.ResolutionConcrete:
+				if cycle {
+					continue
+				}
+				targetType, typeExists := table.TypeByFQCN(target.Handle.TypeFQCN)
+				targetMethod, methodExists := table.Method(target.Handle.TypeFQCN, java.MethodKey{
+					Name:      target.Handle.Method,
+					Signature: target.Handle.Signature,
+				})
+				if typeExists && methodExists {
+					Walk(g, targetType, *targetMethod, table, resolver)
+				}
+			case resolve.ResolutionExternal:
+				g.MarkExternal(target.Handle)
+			default:
+				g.MarkTerminal(target.Handle, toNodeKind(target.Kind), target.Note, target.Candidates)
 			}
 		}
 	}
 
 	g.MarkBlack(handle)
+}
+
+// toNodeKind mapeia ResolutionKind para NodeKind. Concrete e External não são
+// terminais (NodeMethod e NodeExternal respectivamente); os cinco kinds
+// restantes são 1-para-1 com NodeTerminal*.
+func toNodeKind(kind resolve.ResolutionKind) NodeKind {
+	switch kind {
+	case resolve.ResolutionUnresolved:
+		return NodeTerminalUnresolved
+	case resolve.ResolutionNoImplementation:
+		return NodeTerminalNoImplementation
+	case resolve.ResolutionAmbiguousType:
+		return NodeTerminalAmbiguousType
+	case resolve.ResolutionAmbiguousOverload:
+		return NodeTerminalAmbiguousOverload
+	case resolve.ResolutionAmbiguousImplementation:
+		return NodeTerminalAmbiguousImplementation
+	default:
+		return NodeMethod
+	}
 }

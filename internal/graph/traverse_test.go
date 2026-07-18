@@ -55,7 +55,11 @@ func mkHandle(fqcn, method string) resolve.MethodHandle {
 }
 
 func resolution(targets ...resolve.MethodHandle) resolve.Resolution {
-	return resolve.Resolution{Targets: targets}
+	resolved := make([]resolve.ResolvedTarget, len(targets))
+	for i, h := range targets {
+		resolved[i] = resolve.ConcreteTarget(h)
+	}
+	return resolve.Resolution{Targets: resolved}
 }
 
 func tableForTypes(types []*java.TypeDecl) *index.Table {

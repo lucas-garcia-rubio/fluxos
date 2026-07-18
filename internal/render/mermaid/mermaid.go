@@ -19,8 +19,8 @@ func Render(g *graph.Graph) string {
 		return out.String()
 	}
 
-	for _, handle := range sortedHandles(g) {
-		fmt.Fprintf(&out, "  %s[\"%s\"]\n", nodeID(handle), nodeLabel(handle))
+	for _, node := range sortedNodes(g) {
+		fmt.Fprintf(&out, "  %s[\"%s\"]\n", nodeID(node.Handle), nodeLabel(node))
 	}
 	for _, edge := range sortedEdges(g) {
 		if edge.Cycle {
@@ -36,23 +36,63 @@ func nodeID(handle resolve.MethodHandle) string {
 	return fmt.Sprintf("m_%x", sum[:6])
 }
 
-func nodeLabel(handle resolve.MethodHandle) string {
-	return escapeLabel(handle.TypeFQCN + "." + handle.Method + handle.Signature)
+// nodeLabel derives the label from the node kind. Concrete and external nodes
+// share the legacy "FQCN.method(signature)" format; terminal nodes append a
+// deterministic suffix. Candidates on AmbiguousImplementation nodes surface as
+// the count so two terminals of the same name with different fan-out stay
+// visually distinct.
+func nodeLabel(node *graph.Node) string {
+	base := labelBase(node.Handle)
+	switch node.Kind {
+	case graph.NodeTerminalUnresolved:
+		return base + " [unresolved]"
+	case graph.NodeTerminalNoImplementation:
+		return base + " [no implementation]"
+	case graph.NodeTerminalAmbiguousType:
+		return base + " [ambiguous type]"
+	case graph.NodeTerminalAmbiguousOverload:
+		return base + " [ambiguous overload]"
+	case graph.NodeTerminalAmbiguousImplementation:
+		return fmt.Sprintf("%s [ambiguous: %d implementations]", base, len(node.Candidates))
+	default:
+		return base
+	}
+}
+
+// labelBase trims the "#<kind>#<hash>" suffix that TerminalHandle adds to
+// TypeFQCN so the rendered label shows the original receiver. IDs still hash
+// the full TypeFQCN, so two terminals with the same receiver/method stay
+// distinct in the diagram even though their label prefixes match. Terminal
+// handles carry an empty signature (the overload was not resolved); we render
+// "()" so the label reads as a call site.
+func labelBase(handle resolve.MethodHandle) string {
+	fqcn := handle.TypeFQCN
+	if i := strings.IndexByte(fqcn, '#'); i >= 0 {
+		fqcn = fqcn[:i]
+	}
+	if fqcn == "" {
+		fqcn = "<unknown>"
+	}
+	signature := handle.Signature
+	if signature == "" {
+		signature = "()"
+	}
+	return escapeLabel(fqcn + "." + handle.Method + signature)
 }
 
 func escapeLabel(label string) string {
 	return strings.ReplaceAll(label, `"`, "#quot;")
 }
 
-func sortedHandles(g *graph.Graph) []resolve.MethodHandle {
-	handles := make([]resolve.MethodHandle, 0, len(g.Nodes))
-	for handle := range g.Nodes {
-		handles = append(handles, handle)
+func sortedNodes(g *graph.Graph) []*graph.Node {
+	nodes := make([]*graph.Node, 0, len(g.Nodes))
+	for _, node := range g.Nodes {
+		nodes = append(nodes, node)
 	}
-	sort.Slice(handles, func(i, j int) bool {
-		return compareHandles(handles[i], handles[j]) < 0
+	sort.Slice(nodes, func(i, j int) bool {
+		return compareHandles(nodes[i].Handle, nodes[j].Handle) < 0
 	})
-	return handles
+	return nodes
 }
 
 func sortedEdges(g *graph.Graph) []graph.Edge {

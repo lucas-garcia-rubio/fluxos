@@ -21,10 +21,30 @@ const (
 	StateBlack        // 2 — done
 )
 
-// Node representa um método no grafo. State controla o DFS.
+// NodeKind classifica Nodes para o renderer. NodeMethod é o default; NodeExternal
+// cobre handles externos (não descendem, não são terminais); os cinco
+// NodeTerminal* carregam Note/Candidates e são renderizados com sufixo de label.
+type NodeKind int
+
+const (
+	NodeMethod NodeKind = iota
+	NodeExternal
+	NodeTerminalUnresolved
+	NodeTerminalNoImplementation
+	NodeTerminalAmbiguousType
+	NodeTerminalAmbiguousOverload
+	NodeTerminalAmbiguousImplementation
+)
+
+// Node representa um método no grafo. State controla o DFS. Kind/Note/Candidates
+// são populados por MarkTerminal e MarkExternal; Nodes concretos permanecem
+// com Kind=NodeMethod (zero value).
 type Node struct {
-	Handle resolve.MethodHandle
-	State  int
+	Handle     resolve.MethodHandle
+	State      int
+	Kind       NodeKind
+	Note       string
+	Candidates []string
 }
 
 // Edge é uma aresta dirigida no grafo de chamadas.
@@ -98,4 +118,31 @@ func (g *Graph) AddEdge(from, to resolve.MethodHandle, call java.CallSite, cycle
 	g.GetOrCreate(from)
 	g.GetOrCreate(to)
 	g.Edges = append(g.Edges, Edge{From: from, To: to, Call: call, Cycle: cycle})
+}
+
+// MarkTerminal classifica handle como terminal de kind. Cria o Node se ainda
+// não existia, copia candidates defensivamente e é idempotente: chamar duas
+// vezes com os mesmos argumentos não acumula estado. Kind deve ser um dos
+// NodeTerminal* (NodeMethod/NodeExternal seriam no-op aqui, mas a API confia
+// que callers usem MarkExternal para o caso externo).
+func (g *Graph) MarkTerminal(handle resolve.MethodHandle, kind NodeKind, note string, candidates []string) {
+	n := g.GetOrCreate(handle)
+	n.Kind = kind
+	n.Note = note
+	if len(candidates) > 0 {
+		defensive := make([]string, len(candidates))
+		copy(defensive, candidates)
+		n.Candidates = defensive
+	} else {
+		n.Candidates = nil
+	}
+}
+
+// MarkExternal classifica handle como NodeExternal (não terminal, não
+// descendente). Não sobrescreve Nodes já marcados como terminal.
+func (g *Graph) MarkExternal(handle resolve.MethodHandle) {
+	n := g.GetOrCreate(handle)
+	if n.Kind == NodeMethod {
+		n.Kind = NodeExternal
+	}
 }

@@ -42,6 +42,18 @@ func ref(raw string) java.TypeRef {
 	return java.NewTypeRef(raw, false)
 }
 
+// assertTerminalKind fails the test if res does not contain exactly one target
+// of the expected kind.
+func assertTerminalKind(t *testing.T, res Resolution, kind ResolutionKind) {
+	t.Helper()
+	if len(res.Targets) != 1 {
+		t.Fatalf("expected 1 target of kind %v, got %d targets (note: %q)", kind, len(res.Targets), res.Note)
+	}
+	if res.Targets[0].Kind != kind {
+		t.Fatalf("expected Kind=%v, got %v (note: %q, target note: %q)", kind, res.Targets[0].Kind, res.Note, res.Targets[0].Note)
+	}
+}
+
 // localVar cria uma LocalVarDecl visível em qualquer posição (escopo cobre todo
 // o método e declaração precede qualquer call). Útil em testes onde não vale a
 // pena construir byte ranges reais.
@@ -97,7 +109,7 @@ func TestResolveThisMethodExists(t *testing.T) {
 		t.Fatalf("expected 1 target, got %d (note: %q)", len(res.Targets), res.Note)
 	}
 	want := MethodHandle{TypeFQCN: "User", Method: "foo", Signature: "()"}
-	if res.Targets[0] != want {
+	if res.Targets[0].Handle != want {
 		t.Errorf("target mismatch: got %+v, want %+v", res.Targets[0], want)
 	}
 }
@@ -110,12 +122,7 @@ func TestResolveThisMethodMissing(t *testing.T) {
 
 	res := r.Resolve(mkCall("this", "foo"), ctx)
 
-	if len(res.Targets) != 0 {
-		t.Errorf("expected 0 targets, got %d", len(res.Targets))
-	}
-	if res.Note == "" {
-		t.Error("expected non-empty Note explaining missing method")
-	}
+	assertTerminalKind(t, res, ResolutionUnresolved)
 }
 
 // Teste 3: foo() (unqualified) — mesmo caminho que this.foo().
@@ -130,7 +137,7 @@ func TestResolveUnqualifiedMethodExists(t *testing.T) {
 		t.Fatalf("expected 1 target, got %d (note: %q)", len(res.Targets), res.Note)
 	}
 	want := MethodHandle{TypeFQCN: "User", Method: "foo", Signature: "()"}
-	if res.Targets[0] != want {
+	if res.Targets[0].Handle != want {
 		t.Errorf("target mismatch: got %+v, want %+v", res.Targets[0], want)
 	}
 }
@@ -143,12 +150,7 @@ func TestResolveUnknownIdentifier(t *testing.T) {
 
 	res := r.Resolve(mkCall("userService", "create"), ctx)
 
-	if len(res.Targets) != 0 {
-		t.Errorf("expected 0 targets for identifier receiver, got %d", len(res.Targets))
-	}
-	if res.Note == "" {
-		t.Error("expected Note explaining receiver not handled")
-	}
+	assertTerminalKind(t, res, ResolutionUnresolved)
 }
 
 // Teste 5: super.foo() sem superclass continua unresolved.
@@ -175,12 +177,7 @@ func TestResolveComplexReceiverNotHandled(t *testing.T) {
 
 	res := r.Resolve(mkCall("System.out", "println"), ctx)
 
-	if len(res.Targets) != 0 {
-		t.Errorf("expected 0 targets for complex receiver, got %d", len(res.Targets))
-	}
-	if res.Note == "" {
-		t.Error("expected Note explaining complex receiver not handled")
-	}
+	assertTerminalKind(t, res, ResolutionUnresolved)
 }
 
 // Teste 7: enclosing type nil — proteção contra contexto malformado.
@@ -207,7 +204,7 @@ func TestResolveFieldMethod(t *testing.T) {
 	res := r.Resolve(mkCall("helper", "log"), MethodContext{EnclosingType: enclosing})
 
 	want := MethodHandle{TypeFQCN: "Helper", Method: "log", Signature: "()"}
-	if len(res.Targets) != 1 || res.Targets[0] != want {
+	if len(res.Targets) != 1 || res.Targets[0].Handle != want {
 		t.Fatalf("got targets %+v (note: %q), want [%+v]", res.Targets, res.Note, want)
 	}
 }
@@ -219,9 +216,7 @@ func TestResolveFieldWithExternalType(t *testing.T) {
 
 	res := r.Resolve(mkCall("client", "send"), MethodContext{EnclosingType: enclosing})
 
-	if len(res.Targets) != 0 || res.Note == "" {
-		t.Fatalf("expected unresolved field type, got %+v", res)
-	}
+	assertTerminalKind(t, res, ResolutionUnresolved)
 }
 
 func TestResolveLocalVarMethod(t *testing.T) {
@@ -232,7 +227,7 @@ func TestResolveLocalVarMethod(t *testing.T) {
 	res := r.Resolve(mkCall("helper", "log"), ctx)
 
 	want := MethodHandle{TypeFQCN: "Helper", Method: "log", Signature: "()"}
-	if len(res.Targets) != 1 || res.Targets[0] != want {
+	if len(res.Targets) != 1 || res.Targets[0].Handle != want {
 		t.Fatalf("got targets %+v (note: %q), want [%+v]", res.Targets, res.Note, want)
 	}
 }
@@ -251,7 +246,7 @@ func TestResolveLocalVarTakesPrecedenceOverField(t *testing.T) {
 	res := r.Resolve(mkCall("helper", "run"), ctx)
 
 	want := MethodHandle{TypeFQCN: "LocalHelper", Method: "run", Signature: "()"}
-	if len(res.Targets) != 1 || res.Targets[0] != want {
+	if len(res.Targets) != 1 || res.Targets[0].Handle != want {
 		t.Fatalf("got targets %+v (note: %q), want local target %+v", res.Targets, res.Note, want)
 	}
 }
@@ -263,9 +258,7 @@ func TestResolveLocalVarMethodMissing(t *testing.T) {
 
 	res := r.Resolve(mkCall("helper", "log"), ctx)
 
-	if len(res.Targets) != 0 || res.Note == "" {
-		t.Fatalf("expected unresolved missing method, got %+v", res)
-	}
+	assertTerminalKind(t, res, ResolutionUnresolved)
 }
 
 func TestResolveSuperMethod(t *testing.T) {
@@ -281,7 +274,7 @@ func TestResolveSuperMethod(t *testing.T) {
 	res := r.Resolve(mkCall("super", "touch"), ctx)
 
 	want := MethodHandle{TypeFQCN: "Base", Method: "touch", Signature: "()"}
-	if len(res.Targets) != 1 || res.Targets[0] != want {
+	if len(res.Targets) != 1 || res.Targets[0].Handle != want {
 		t.Fatalf("got targets %+v (note: %q), want [%+v]", res.Targets, res.Note, want)
 	}
 }
@@ -308,7 +301,7 @@ func TestResolveSuperclassInOtherFile(t *testing.T) {
 	res := r.Resolve(mkCall("super", "touch"), ctx)
 
 	want := MethodHandle{TypeFQCN: "Base", Method: "touch", Signature: "()"}
-	if len(res.Targets) != 1 || res.Targets[0] != want {
+	if len(res.Targets) != 1 || res.Targets[0].Handle != want {
 		t.Fatalf("cross-file superclass target = %+v (note: %q), want %+v", res.Targets, res.Note, want)
 	}
 }
@@ -325,9 +318,7 @@ func TestResolveSuperMethodMissing(t *testing.T) {
 
 	res := r.Resolve(mkCall("super", "touch"), ctx)
 
-	if len(res.Targets) != 0 || res.Note == "" {
-		t.Fatalf("expected missing superclass method to remain unresolved, got %+v", res)
-	}
+	assertTerminalKind(t, res, ResolutionUnresolved)
 }
 
 func TestResolveStaticMethodInSameFile(t *testing.T) {
@@ -342,7 +333,7 @@ func TestResolveStaticMethodInSameFile(t *testing.T) {
 	res := r.Resolve(mkCall("Utils", "log"), ctx)
 
 	want := MethodHandle{TypeFQCN: "Utils", Method: "log", Signature: "()"}
-	if len(res.Targets) != 1 || res.Targets[0] != want {
+	if len(res.Targets) != 1 || res.Targets[0].Handle != want {
 		t.Fatalf("got targets %+v (note: %q), want [%+v]", res.Targets, res.Note, want)
 	}
 }
@@ -358,7 +349,7 @@ func TestResolveStaticTypeInSamePackageOtherFile(t *testing.T) {
 	res := r.Resolve(mkCall("Utils", "log"), ctx)
 
 	want := MethodHandle{TypeFQCN: "Utils", Method: "log", Signature: "()"}
-	if len(res.Targets) != 1 || res.Targets[0] != want {
+	if len(res.Targets) != 1 || res.Targets[0].Handle != want {
 		t.Fatalf("got targets %+v (note: %q), want [%+v]", res.Targets, res.Note, want)
 	}
 }
@@ -378,7 +369,7 @@ func TestResolveLocalVarTakesPrecedenceOverType(t *testing.T) {
 	res := r.Resolve(mkCall("helper", "run"), ctx)
 
 	want := MethodHandle{TypeFQCN: "LocalHelper", Method: "run", Signature: "()"}
-	if len(res.Targets) != 1 || res.Targets[0] != want {
+	if len(res.Targets) != 1 || res.Targets[0].Handle != want {
 		t.Fatalf("got targets %+v (note: %q), want local target %+v", res.Targets, res.Note, want)
 	}
 }
@@ -398,7 +389,7 @@ func TestResolveFieldTakesPrecedenceOverType(t *testing.T) {
 	res := r.Resolve(mkCall("helper", "run"), ctx)
 
 	want := MethodHandle{TypeFQCN: "FieldHelper", Method: "run", Signature: "()"}
-	if len(res.Targets) != 1 || res.Targets[0] != want {
+	if len(res.Targets) != 1 || res.Targets[0].Handle != want {
 		t.Fatalf("got targets %+v (note: %q), want field target %+v", res.Targets, res.Note, want)
 	}
 }
@@ -413,7 +404,7 @@ func TestResolveQualifiedStaticReceiver(t *testing.T) {
 	res := r.Resolve(mkCall("com.example.Utils", "log"), MethodContext{File: file})
 
 	want := MethodHandle{TypeFQCN: "com.example.Utils", Method: "log", Signature: "()"}
-	if len(res.Targets) != 1 || res.Targets[0] != want {
+	if len(res.Targets) != 1 || res.Targets[0].Handle != want {
 		t.Fatalf("got targets %+v (note: %q), want [%+v]", res.Targets, res.Note, want)
 	}
 }
@@ -428,7 +419,7 @@ func TestResolveOverloadByArity(t *testing.T) {
 	res := r.Resolve(java.CallSite{MethodName: "run", ArgCount: 1}, MethodContext{EnclosingType: typ})
 
 	want := MethodHandle{TypeFQCN: "Service", Method: "run", Signature: "(java.lang.String)"}
-	if len(res.Targets) != 1 || res.Targets[0] != want {
+	if len(res.Targets) != 1 || res.Targets[0].Handle != want {
 		t.Fatalf("targets = %+v (note: %q), want [%+v]", res.Targets, res.Note, want)
 	}
 }
@@ -442,11 +433,9 @@ func TestResolveAmbiguousOverload(t *testing.T) {
 
 	res := r.Resolve(java.CallSite{MethodName: "run", ArgCount: 1}, MethodContext{EnclosingType: typ})
 
-	if len(res.Targets) != 0 || !strings.Contains(res.Note, "ambiguous overload") {
-		t.Fatalf("expected overload ambiguity, got %+v", res)
-	}
-	if !strings.Contains(res.Note, "(int), (java.lang.String)") {
-		t.Fatalf("ambiguity note is not deterministically sorted: %q", res.Note)
+	assertTerminalKind(t, res, ResolutionAmbiguousOverload)
+	if !strings.Contains(res.Targets[0].Note, "(int), (java.lang.String)") {
+		t.Fatalf("ambiguity note is not deterministically sorted: %q", res.Targets[0].Note)
 	}
 }
 
@@ -475,9 +464,7 @@ func TestResolveDoesNotChooseFirstDuplicateSimpleName(t *testing.T) {
 
 	res := r.Resolve(mkCall("helper", "run"), MethodContext{LocalVars: []java.LocalVarDecl{localVar("helper", "Helper")}})
 
-	if len(res.Targets) != 0 || res.Note == "" {
-		t.Fatalf("duplicate simple name must remain unresolved: %+v", res)
-	}
+	assertTerminalKind(t, res, ResolutionUnresolved)
 }
 
 func TestResolveReportsWildcardTypeAmbiguityDeterministically(t *testing.T) {
@@ -506,8 +493,9 @@ func TestResolveReportsWildcardTypeAmbiguityDeterministically(t *testing.T) {
 	}
 
 	res := NewSyntacticResolver(table).Resolve(mkCall("helper", "run"), MethodContext{EnclosingType: caller, File: caller.File})
-	if len(res.Targets) != 0 || !strings.Contains(res.Note, "candidates: left.Helper, right.Helper") {
-		t.Fatalf("expected deterministic type ambiguity, got %+v", res)
+	assertTerminalKind(t, res, ResolutionAmbiguousType)
+	if !strings.Contains(res.Targets[0].Note, "candidates: left.Helper, right.Helper") {
+		t.Fatalf("expected deterministic candidates order, got note %q", res.Targets[0].Note)
 	}
 }
 
@@ -532,12 +520,12 @@ func TestResolveInheritedMethodAndFieldCrossFile(t *testing.T) {
 
 	method := r.Resolve(mkCall("", "inherited"), ctx)
 	wantMethod := MethodHandle{TypeFQCN: "base.Parent", Method: "inherited", Signature: "()"}
-	if len(method.Targets) != 1 || method.Targets[0] != wantMethod {
+	if len(method.Targets) != 1 || method.Targets[0].Handle != wantMethod {
 		t.Fatalf("inherited method = %+v (note: %q), want %+v", method.Targets, method.Note, wantMethod)
 	}
 	field := r.Resolve(mkCall("helper", "work"), ctx)
 	wantField := MethodHandle{TypeFQCN: "support.Helper", Method: "work", Signature: "()"}
-	if len(field.Targets) != 1 || field.Targets[0] != wantField {
+	if len(field.Targets) != 1 || field.Targets[0].Handle != wantField {
 		t.Fatalf("inherited field = %+v (note: %q), want %+v", field.Targets, field.Note, wantField)
 	}
 }
@@ -572,7 +560,7 @@ func TestResolveExplicitAndWildcardStaticImports(t *testing.T) {
 		{name: "wildcardRun", want: MethodHandle{TypeFQCN: "tasks.Wildcard", Method: "wildcardRun", Signature: "()"}},
 	} {
 		res := r.Resolve(mkCall("", test.name), ctx)
-		if len(res.Targets) != 1 || res.Targets[0] != test.want {
+		if len(res.Targets) != 1 || res.Targets[0].Handle != test.want {
 			t.Fatalf("%s targets = %+v (note: %q), want %+v", test.name, res.Targets, res.Note, test.want)
 		}
 	}
@@ -597,11 +585,11 @@ func TestResolveStaticImportsDeduplicateAndRejectPrivate(t *testing.T) {
 	)
 	ctx := MethodContext{EnclosingType: caller, File: caller.File}
 
-	if res := r.Resolve(mkCall("", "run"), ctx); len(res.Targets) != 1 || res.Targets[0].TypeFQCN != "tasks.Utils" {
+	if res := r.Resolve(mkCall("", "run"), ctx); len(res.Targets) != 1 || res.Targets[0].Handle.TypeFQCN != "tasks.Utils" {
 		t.Fatalf("duplicate static import = %+v (note: %q)", res.Targets, res.Note)
 	}
-	if res := r.Resolve(mkCall("", "hidden"), ctx); len(res.Targets) != 0 {
-		t.Fatalf("private static import resolved: %+v", res.Targets)
+	if res := r.Resolve(mkCall("", "hidden"), ctx); len(res.Targets) != 1 || res.Targets[0].Kind != ResolutionUnresolved {
+		t.Fatalf("private static import should fall through to unresolved terminal: %+v", res.Targets)
 	}
 }
 
@@ -616,8 +604,8 @@ func TestResolveStaticImportRejectsInaccessibleOwnerType(t *testing.T) {
 	)
 
 	res := r.Resolve(mkCall("", "run"), MethodContext{EnclosingType: caller, File: caller.File})
-	if len(res.Targets) != 0 {
-		t.Fatalf("static import through inaccessible owner resolved: %+v", res.Targets)
+	if len(res.Targets) != 1 || res.Targets[0].Kind != ResolutionUnresolved {
+		t.Fatalf("static import through inaccessible owner should be unresolved terminal: %+v", res.Targets)
 	}
 }
 
@@ -647,12 +635,12 @@ func TestResolveStaticImportPrecedenceUsesApplicableArity(t *testing.T) {
 
 	zero := r.Resolve(java.CallSite{MethodName: "run", ArgCount: 0}, ctx)
 	wantImported := MethodHandle{TypeFQCN: "tasks.Explicit", Method: "run", Signature: "()"}
-	if len(zero.Targets) != 1 || zero.Targets[0] != wantImported {
+	if len(zero.Targets) != 1 || zero.Targets[0].Handle != wantImported {
 		t.Fatalf("zero-arity precedence = %+v (note: %q), want %+v", zero.Targets, zero.Note, wantImported)
 	}
 	one := r.Resolve(java.CallSite{MethodName: "run", ArgCount: 1}, ctx)
 	wantCurrent := MethodHandle{TypeFQCN: "app.Caller", Method: "run", Signature: "(int)"}
-	if len(one.Targets) != 1 || one.Targets[0] != wantCurrent {
+	if len(one.Targets) != 1 || one.Targets[0].Handle != wantCurrent {
 		t.Fatalf("current precedence = %+v (note: %q), want %+v", one.Targets, one.Note, wantCurrent)
 	}
 }
@@ -677,11 +665,11 @@ func TestResolveStaticImportCollisionDoesNotFanOut(t *testing.T) {
 	)
 
 	res := r.Resolve(mkCall("", "run"), MethodContext{EnclosingType: caller, File: caller.File})
-	if len(res.Targets) != 0 {
-		t.Fatalf("static collision fanned out: %+v", res.Targets)
+	if len(res.Targets) != 1 || res.Targets[0].Kind != ResolutionAmbiguousOverload {
+		t.Fatalf("static collision should produce AmbiguousOverload terminal: %+v", res.Targets)
 	}
-	if !strings.Contains(res.Note, "ambiguous explicit static import") || !strings.Contains(res.Note, "left.Tasks.run()") || !strings.Contains(res.Note, "right.Tasks.run()") {
-		t.Fatalf("static collision note = %q", res.Note)
+	if !strings.Contains(res.Targets[0].Note, "left.Tasks.run()") || !strings.Contains(res.Targets[0].Note, "right.Tasks.run()") {
+		t.Fatalf("static collision terminal note lost candidate descriptions: %q", res.Targets[0].Note)
 	}
 }
 
@@ -699,13 +687,13 @@ func TestResolveThisDoesNotUseStaticImportAndTypeReceiverRequiresStatic(t *testi
 	)
 	ctx := MethodContext{EnclosingType: caller, File: caller.File}
 
-	if res := r.Resolve(mkCall("this", "staticRun"), ctx); len(res.Targets) != 0 {
-		t.Fatalf("this used static import: %+v", res.Targets)
+	if res := r.Resolve(mkCall("this", "staticRun"), ctx); len(res.Targets) != 1 || res.Targets[0].Kind != ResolutionUnresolved {
+		t.Fatalf("this.staticRun should be unresolved terminal (Caller has no staticRun): %+v", res.Targets)
 	}
-	if res := r.Resolve(mkCall("Utils", "instance"), ctx); len(res.Targets) != 0 {
-		t.Fatalf("type receiver selected instance method: %+v", res.Targets)
+	if res := r.Resolve(mkCall("Utils", "instance"), ctx); len(res.Targets) != 1 || res.Targets[0].Kind != ResolutionUnresolved {
+		t.Fatalf("type receiver instance method should be unresolved terminal: %+v", res.Targets)
 	}
-	if res := r.Resolve(mkCall("Utils", "staticRun"), ctx); len(res.Targets) != 1 || res.Targets[0].TypeFQCN != "tasks.Utils" {
+	if res := r.Resolve(mkCall("Utils", "staticRun"), ctx); len(res.Targets) != 1 || res.Targets[0].Handle.TypeFQCN != "tasks.Utils" {
 		t.Fatalf("type receiver static method = %+v (note: %q)", res.Targets, res.Note)
 	}
 }
@@ -724,10 +712,10 @@ func TestResolveInterfaceStaticMethodRequiresTypeReceiver(t *testing.T) {
 	)
 	ctx := MethodContext{EnclosingType: caller, File: caller.File}
 
-	if res := r.Resolve(mkCall("tasks", "create"), ctx); len(res.Targets) != 0 {
-		t.Fatalf("interface static method resolved through instance: %+v", res.Targets)
+	if res := r.Resolve(mkCall("tasks", "create"), ctx); len(res.Targets) != 1 || res.Targets[0].Kind != ResolutionUnresolved {
+		t.Fatalf("interface static method through instance should be unresolved terminal: %+v", res.Targets)
 	}
-	if res := r.Resolve(mkCall("Tasks", "create"), ctx); len(res.Targets) != 1 || res.Targets[0].TypeFQCN != "contract.Tasks" {
+	if res := r.Resolve(mkCall("Tasks", "create"), ctx); len(res.Targets) != 1 || res.Targets[0].Handle.TypeFQCN != "contract.Tasks" {
 		t.Fatalf("interface static type receiver = %+v (note: %q)", res.Targets, res.Note)
 	}
 }
@@ -749,7 +737,7 @@ func TestResolveImportedInheritedStaticMethodUsesDeclaringOwner(t *testing.T) {
 
 	res := r.Resolve(mkCall("", "run"), MethodContext{EnclosingType: caller, File: caller.File})
 	want := MethodHandle{TypeFQCN: "tasks.Parent", Method: "run", Signature: "()"}
-	if len(res.Targets) != 1 || res.Targets[0] != want {
+	if len(res.Targets) != 1 || res.Targets[0].Handle != want {
 		t.Fatalf("inherited static import = %+v (note: %q), want %+v", res.Targets, res.Note, want)
 	}
 }
@@ -772,7 +760,7 @@ func TestResolveObjectCreationByImportAndArity(t *testing.T) {
 
 	res := r.Resolve(call, MethodContext{EnclosingType: caller, File: caller.File})
 	want := MethodHandle{TypeFQCN: "model.Value", Method: "<init>", Signature: "(java.lang.String)"}
-	if len(res.Targets) != 1 || res.Targets[0] != want {
+	if len(res.Targets) != 1 || res.Targets[0].Handle != want {
 		t.Fatalf("object creation = %+v (note: %q), want %+v", res.Targets, res.Note, want)
 	}
 }
@@ -799,17 +787,17 @@ func TestResolveThisAndSuperConstructorsUseDirectOwners(t *testing.T) {
 	thisCall := java.CallSite{Kind: java.CallThisConstructor, MethodName: "<init>", ArgCount: 1}
 	thisResult := r.Resolve(thisCall, ctx)
 	wantThis := MethodHandle{TypeFQCN: "app.Child", Method: "<init>", Signature: "(java.lang.String)"}
-	if len(thisResult.Targets) != 1 || thisResult.Targets[0] != wantThis {
+	if len(thisResult.Targets) != 1 || thisResult.Targets[0].Handle != wantThis {
 		t.Fatalf("this constructor = %+v (note: %q), want %+v", thisResult.Targets, thisResult.Note, wantThis)
 	}
 
 	superCall := java.CallSite{Kind: java.CallSuperConstructor, MethodName: "<init>", ArgCount: 1}
 	superResult := r.Resolve(superCall, ctx)
 	wantSuper := MethodHandle{TypeFQCN: "model.Parent", Method: "<init>", Signature: "(int)"}
-	if len(superResult.Targets) != 1 || superResult.Targets[0] != wantSuper {
+	if len(superResult.Targets) != 1 || superResult.Targets[0].Handle != wantSuper {
 		t.Fatalf("super constructor = %+v (note: %q), want %+v", superResult.Targets, superResult.Note, wantSuper)
 	}
-	if superResult.Targets[0].TypeFQCN == grandparent.FQCN {
+	if superResult.Targets[0].Handle.TypeFQCN == grandparent.FQCN {
 		t.Fatal("super constructor incorrectly used grandparent")
 	}
 }
@@ -859,8 +847,11 @@ func TestResolveConstructorSameArityIsAmbiguous(t *testing.T) {
 	target := java.NewTypeRef("Value", false)
 
 	res := r.Resolve(java.CallSite{Kind: java.CallObjectCreation, MethodName: "<init>", TargetType: &target, ArgCount: 1}, MethodContext{EnclosingType: caller, File: caller.File})
-	if len(res.Targets) != 0 || !strings.Contains(res.Note, "ambiguous constructor") || !strings.Contains(res.Note, "(int), (java.lang.String)") {
-		t.Fatalf("constructor ambiguity = %+v", res)
+	if len(res.Targets) != 1 || res.Targets[0].Kind != ResolutionAmbiguousOverload {
+		t.Fatalf("constructor ambiguity should be AmbiguousOverload terminal: %+v", res.Targets)
+	}
+	if !strings.Contains(res.Targets[0].Note, "(int), (java.lang.String)") {
+		t.Fatalf("constructor ambiguity note lost descriptions: %q", res.Targets[0].Note)
 	}
 }
 
@@ -902,7 +893,7 @@ func TestResolveLocalVarInScope(t *testing.T) {
 	res := r.Resolve(java.CallSite{Receiver: "helper", MethodName: "run", StartByte: 50}, ctx)
 
 	want := MethodHandle{TypeFQCN: "Helper", Method: "run", Signature: "()"}
-	if len(res.Targets) != 1 || res.Targets[0] != want {
+	if len(res.Targets) != 1 || res.Targets[0].Handle != want {
 		t.Fatalf("got %+v (note: %q), want %+v", res.Targets, res.Note, want)
 	}
 }
@@ -918,8 +909,8 @@ func TestResolveLocalVarDeclaredAfterCallRejected(t *testing.T) {
 
 	res := r.Resolve(java.CallSite{Receiver: "helper", MethodName: "run", StartByte: 5}, ctx)
 
-	if len(res.Targets) != 0 {
-		t.Fatalf("local var declarada após a call não deveria resolver: %+v", res)
+	if len(res.Targets) != 1 || res.Targets[0].Kind != ResolutionUnresolved {
+		t.Fatalf("local var declarada após a call não deveria resolver: %+v", res.Targets)
 	}
 }
 
@@ -934,8 +925,8 @@ func TestResolveLocalVarOutOfScopeRejected(t *testing.T) {
 
 	res := r.Resolve(java.CallSite{Receiver: "helper", MethodName: "run", StartByte: 200}, ctx)
 
-	if len(res.Targets) != 0 {
-		t.Fatalf("local var fora do escopo não deveria resolver: %+v", res)
+	if len(res.Targets) != 1 || res.Targets[0].Kind != ResolutionUnresolved {
+		t.Fatalf("local var fora do escopo não deveria resolver: %+v", res.Targets)
 	}
 }
 
@@ -953,7 +944,7 @@ func TestResolveLocalVarShadowedByInnerBlock(t *testing.T) {
 	res := r.Resolve(java.CallSite{Receiver: "helper", MethodName: "run", StartByte: 60}, ctx)
 
 	want := MethodHandle{TypeFQCN: "InnerHelper", Method: "run", Signature: "()"}
-	if len(res.Targets) != 1 || res.Targets[0] != want {
+	if len(res.Targets) != 1 || res.Targets[0].Handle != want {
 		t.Fatalf("got %+v (note: %q), want inner shadow %+v", res.Targets, res.Note, want)
 	}
 }
@@ -972,7 +963,7 @@ func TestResolveParamShadowsField(t *testing.T) {
 	res := r.Resolve(mkCall("helper", "run"), ctx)
 
 	want := MethodHandle{TypeFQCN: "ParamType", Method: "run", Signature: "()"}
-	if len(res.Targets) != 1 || res.Targets[0] != want {
+	if len(res.Targets) != 1 || res.Targets[0].Handle != want {
 		t.Fatalf("got %+v (note: %q), want param target %+v", res.Targets, res.Note, want)
 	}
 }
@@ -989,7 +980,7 @@ func TestResolveLocalVarShadowsParam(t *testing.T) {
 	res := r.Resolve(mkCall("helper", "run"), ctx)
 
 	want := MethodHandle{TypeFQCN: "LocalType", Method: "run", Signature: "()"}
-	if len(res.Targets) != 1 || res.Targets[0] != want {
+	if len(res.Targets) != 1 || res.Targets[0].Handle != want {
 		t.Fatalf("got %+v (note: %q), want local target %+v", res.Targets, res.Note, want)
 	}
 }
@@ -1004,7 +995,7 @@ func TestResolveFieldWhenNoLocalNoParam(t *testing.T) {
 	res := r.Resolve(mkCall("helper", "run"), ctx)
 
 	want := MethodHandle{TypeFQCN: "FieldType", Method: "run", Signature: "()"}
-	if len(res.Targets) != 1 || res.Targets[0] != want {
+	if len(res.Targets) != 1 || res.Targets[0].Handle != want {
 		t.Fatalf("got %+v (note: %q), want field target %+v", res.Targets, res.Note, want)
 	}
 }
@@ -1022,14 +1013,17 @@ func TestResolveBoundMethodReferenceUsesLexicalReceiverWithoutArity(t *testing.T
 
 	call := java.CallSite{Kind: java.CallMethodReference, Receiver: "service", MethodName: "run", ReferenceQualifier: java.ReferenceQualifierName, StartByte: 1}
 	res := r.Resolve(call, ctx)
-	if len(res.Targets) != 0 || !strings.Contains(res.Note, "ambiguous method reference") || !strings.Contains(res.Note, "run()") || !strings.Contains(res.Note, "run(java.lang.String)") {
-		t.Fatalf("bound overload reference = %+v", res)
+	if len(res.Targets) != 1 || res.Targets[0].Kind != ResolutionAmbiguousOverload {
+		t.Fatalf("bound overload reference should be AmbiguousOverload: %+v", res.Targets)
+	}
+	if !strings.Contains(res.Targets[0].Note, "run()") || !strings.Contains(res.Targets[0].Note, "run(java.lang.String)") {
+		t.Fatalf("bound overload reference note lost overloads: %q", res.Targets[0].Note)
 	}
 
 	call.MethodName = "staticOnly"
 	res = r.Resolve(call, ctx)
-	if len(res.Targets) != 0 || !strings.Contains(res.Note, "not found") {
-		t.Fatalf("bound reference resolved static method: %+v", res)
+	if len(res.Targets) != 1 || res.Targets[0].Kind != ResolutionUnresolved {
+		t.Fatalf("bound reference to static method should be unresolved terminal: %+v", res.Targets)
 	}
 }
 
@@ -1044,15 +1038,15 @@ func TestResolveTypeMethodReferenceCombinesStaticAndUnboundCandidates(t *testing
 	ctx := MethodContext{EnclosingType: caller}
 
 	call := java.CallSite{Kind: java.CallMethodReference, Receiver: "Service", MethodName: "map", ReferenceQualifier: java.ReferenceQualifierName}
-	if res := r.Resolve(call, ctx); len(res.Targets) != 0 || !strings.Contains(res.Note, "ambiguous method reference") {
-		t.Fatalf("static/unbound ambiguity = %+v", res)
+	if res := r.Resolve(call, ctx); len(res.Targets) != 1 || res.Targets[0].Kind != ResolutionAmbiguousOverload {
+		t.Fatalf("static/unbound ambiguity should be AmbiguousOverload: %+v", res.Targets)
 	}
 	call.MethodName = "normalize"
-	if res := r.Resolve(call, ctx); len(res.Targets) != 1 || res.Targets[0] != (MethodHandle{TypeFQCN: "Service", Method: "normalize", Signature: "()"}) {
+	if res := r.Resolve(call, ctx); len(res.Targets) != 1 || res.Targets[0].Handle != (MethodHandle{TypeFQCN: "Service", Method: "normalize", Signature: "()"}) {
 		t.Fatalf("static method reference = %+v", res)
 	}
 	call.MethodName = "value"
-	if res := r.Resolve(call, ctx); len(res.Targets) != 1 || res.Targets[0] != (MethodHandle{TypeFQCN: "Service", Method: "value", Signature: "()"}) {
+	if res := r.Resolve(call, ctx); len(res.Targets) != 1 || res.Targets[0].Handle != (MethodHandle{TypeFQCN: "Service", Method: "value", Signature: "()"}) {
 		t.Fatalf("unbound method reference = %+v", res)
 	}
 }
@@ -1068,7 +1062,7 @@ func TestResolveSuperMethodReferencePreservesDeclaringOwner(t *testing.T) {
 
 	res := r.Resolve(call, MethodContext{EnclosingType: child})
 	want := MethodHandle{TypeFQCN: "Grandparent", Method: "run", Signature: "()"}
-	if len(res.Targets) != 1 || res.Targets[0] != want {
+	if len(res.Targets) != 1 || res.Targets[0].Handle != want {
 		t.Fatalf("super method reference = %+v, want %+v", res, want)
 	}
 }
@@ -1086,20 +1080,23 @@ func TestResolveConstructorReferenceDoesNotUseArgCount(t *testing.T) {
 
 	target := ref("Value")
 	res := r.Resolve(java.CallSite{Kind: java.CallConstructorReference, MethodName: "<init>", TargetType: &target}, ctx)
-	if len(res.Targets) != 0 || !strings.Contains(res.Note, "ambiguous constructor reference") || !strings.Contains(res.Note, "Value.<init>()") || !strings.Contains(res.Note, "Value.<init>(java.lang.String)") {
-		t.Fatalf("constructor reference overload = %+v", res)
+	if len(res.Targets) != 1 || res.Targets[0].Kind != ResolutionAmbiguousOverload {
+		t.Fatalf("constructor reference overload should be AmbiguousOverload: %+v", res.Targets)
+	}
+	if !strings.Contains(res.Targets[0].Note, "Value.<init>()") || !strings.Contains(res.Targets[0].Note, "Value.<init>(java.lang.String)") {
+		t.Fatalf("constructor reference note lost overloads: %q", res.Targets[0].Note)
 	}
 
 	target = ref("Unique")
 	res = r.Resolve(java.CallSite{Kind: java.CallConstructorReference, MethodName: "<init>", TargetType: &target}, ctx)
 	want := MethodHandle{TypeFQCN: "Unique", Method: "<init>", Signature: "(java.lang.String)"}
-	if len(res.Targets) != 1 || res.Targets[0] != want {
+	if len(res.Targets) != 1 || res.Targets[0].Handle != want {
 		t.Fatalf("unique constructor reference = %+v, want %+v", res, want)
 	}
 
 	target = ref("Outer.Inner")
 	res = r.Resolve(java.CallSite{Kind: java.CallConstructorReference, MethodName: "<init>", TargetType: &target}, ctx)
-	if len(res.Targets) != 1 || res.Targets[0].TypeFQCN != "Outer.Inner" {
+	if len(res.Targets) != 1 || res.Targets[0].Handle.TypeFQCN != "Outer.Inner" {
 		t.Fatalf("same-nest private constructor reference = %+v", res)
 	}
 }
@@ -1122,14 +1119,14 @@ func TestResolveProtectedMethodReferenceChecksQualifierType(t *testing.T) {
 		{Kind: java.CallMethodReference, Receiver: "Parent", MethodName: "work", ReferenceQualifier: java.ReferenceQualifierName},
 		{Kind: java.CallMethodReference, Receiver: "parent", MethodName: "work", ReferenceQualifier: java.ReferenceQualifierName},
 	} {
-		if res := r.Resolve(call, ctx); len(res.Targets) != 0 {
-			t.Fatalf("protected reference through parent qualifier resolved: %+v", res)
+		if res := r.Resolve(call, ctx); len(res.Targets) != 1 || res.Targets[0].Kind != ResolutionUnresolved {
+			t.Fatalf("protected reference through parent qualifier should be unresolved terminal: %+v", res.Targets)
 		}
 	}
 	call := java.CallSite{Kind: java.CallMethodReference, Receiver: "Child", MethodName: "work", ReferenceQualifier: java.ReferenceQualifierName}
 	res := r.Resolve(call, ctx)
 	want := MethodHandle{TypeFQCN: "model.Parent", Method: "work", Signature: "()"}
-	if len(res.Targets) != 1 || res.Targets[0] != want {
+	if len(res.Targets) != 1 || res.Targets[0].Handle != want {
 		t.Fatalf("protected reference through child qualifier = %+v, want %+v", res, want)
 	}
 }

@@ -144,23 +144,23 @@ func (r *SyntacticResolver) resolveUnqualified(call java.CallSite, ctx MethodCon
 	if ctx.EnclosingType != nil {
 		owner = ctx.EnclosingType.FQCN
 	}
-	return Resolution{Note: fmt.Sprintf("method %q with arity %d not found on %s or static imports", call.MethodName, call.ArgCount, owner)}
+	return Resolution{Targets: []ResolvedTarget{TerminalTarget(
+		ResolutionUnresolved, owner, call.MethodName, "", call,
+		fmt.Sprintf("method %q with arity %d not found on %s or static imports", call.MethodName, call.ArgCount, owner), nil,
+	)}}
 }
 
 func selectStaticImportCandidates(candidates []index.MethodResolution, call java.CallSite, kind string) candidateSelection {
 	selection := selectMethodCandidates(candidates, call, nil)
-	if selection.Found && len(selection.Resolution.Targets) == 0 {
-		selection.Resolution.Note = strings.Replace(selection.Resolution.Note, "ambiguous overload", "ambiguous "+kind+" static import", 1)
-	}
+	// selectMethodCandidates agora produz terminal AmbiguousOverload em vez de
+	// Note-only; nada a ajustar aqui. O parâmetro kind é mantido pela
+	// assinatura para futura distinção em M4 (metadata de prompt).
+	_ = kind
 	return selection
 }
 
 func selectConstructorCandidates(candidates []index.MethodResolution, call java.CallSite, owner *java.TypeDecl) candidateSelection {
-	selection := selectMethodCandidates(candidates, call, owner)
-	if selection.Found && len(selection.Resolution.Targets) == 0 {
-		selection.Resolution.Note = strings.Replace(selection.Resolution.Note, "ambiguous overload", "ambiguous constructor", 1)
-	}
-	return selection
+	return selectMethodCandidates(candidates, call, owner)
 }
 
 func (r *SyntacticResolver) resolveSuper(call java.CallSite, ctx MethodContext) Resolution {
@@ -185,17 +185,23 @@ func (r *SyntacticResolver) resolveIdentifier(receiver string, call java.CallSit
 	if local, ok := findLocalVarAt(ctx.LocalVars, receiver, call.StartByte); ok {
 		t, note := r.resolveType(local.Type, ctx)
 		if t == nil {
-			return Resolution{Note: fmt.Sprintf("local var type %q unresolved: %s", local.Type.Raw, note)}
+			return Resolution{Targets: []ResolvedTarget{TerminalTarget(
+				unresolvedKindFromNote(note), local.Type.Raw, call.MethodName, "", call,
+				fmt.Sprintf("local var type %q unresolved: %s", local.Type.Raw, note), nil,
+			)}}
 		}
-		return r.resolveOnType(t, call)
+		return r.resolveOnPolymorphicOrType(t, call, ctx)
 	}
 
 	if param := findParam(ctx.Params, receiver); param != nil {
 		t, note := r.resolveType(param.Type, ctx)
 		if t == nil {
-			return Resolution{Note: fmt.Sprintf("param type %q unresolved: %s", param.Type.Raw, note)}
+			return Resolution{Targets: []ResolvedTarget{TerminalTarget(
+				unresolvedKindFromNote(note), param.Type.Raw, call.MethodName, "", call,
+				fmt.Sprintf("param type %q unresolved: %s", param.Type.Raw, note), nil,
+			)}}
 		}
-		return r.resolveOnType(t, call)
+		return r.resolveOnPolymorphicOrType(t, call, ctx)
 	}
 
 	if ctx.EnclosingType != nil {
@@ -205,15 +211,21 @@ func (r *SyntacticResolver) resolveIdentifier(receiver string, call java.CallSit
 			fieldCtx.File = field.DeclaringType.File
 			t, note := r.resolveType(field.Field.Type, fieldCtx)
 			if t == nil {
-				return Resolution{Note: fmt.Sprintf("field type %q unresolved: %s", field.Field.Type.Raw, note)}
+				return Resolution{Targets: []ResolvedTarget{TerminalTarget(
+					unresolvedKindFromNote(note), field.Field.Type.Raw, call.MethodName, "", call,
+					fmt.Sprintf("field type %q unresolved: %s", field.Field.Type.Raw, note), nil,
+				)}}
 			}
-			return r.resolveOnType(t, call)
+			return r.resolveOnPolymorphicOrType(t, call, ctx)
 		}
 	}
 
 	t, note := r.resolveType(java.NewTypeRef(receiver, false), ctx)
 	if t == nil {
-		return Resolution{Note: fmt.Sprintf("receiver %q is not a local var, field, or resolvable type: %s", receiver, note)}
+		return Resolution{Targets: []ResolvedTarget{TerminalTarget(
+			unresolvedKindFromNote(note), receiver, call.MethodName, "", call,
+			fmt.Sprintf("receiver %q is not a local var, field, or resolvable type: %s", receiver, note), nil,
+		)}}
 	}
 	return r.resolveStaticOnType(t, call, ctx)
 }
@@ -297,9 +309,10 @@ func (r *SyntacticResolver) resolveOnType(t *java.TypeDecl, call java.CallSite) 
 	if selection := selectMethodCandidates(candidates, call, t); selection.Found {
 		return selection.Resolution
 	}
-	return Resolution{
-		Note: fmt.Sprintf("method %q with arity %d not found on %s", call.MethodName, call.ArgCount, t.FQCN),
-	}
+	return Resolution{Targets: []ResolvedTarget{TerminalTarget(
+		ResolutionUnresolved, t.FQCN, call.MethodName, "", call,
+		fmt.Sprintf("method %q with arity %d not found on %s", call.MethodName, call.ArgCount, t.FQCN), nil,
+	)}}
 }
 
 func (r *SyntacticResolver) resolveStaticOnType(t *java.TypeDecl, call java.CallSite, ctx MethodContext) Resolution {
@@ -317,7 +330,10 @@ func (r *SyntacticResolver) resolveStaticOnType(t *java.TypeDecl, call java.Call
 	if selection := selectMethodCandidates(candidates, call, t); selection.Found {
 		return selection.Resolution
 	}
-	return Resolution{Note: fmt.Sprintf("static method %q with arity %d not found on %s", call.MethodName, call.ArgCount, t.FQCN)}
+	return Resolution{Targets: []ResolvedTarget{TerminalTarget(
+		ResolutionUnresolved, t.FQCN, call.MethodName, "", call,
+		fmt.Sprintf("static method %q with arity %d not found on %s", call.MethodName, call.ArgCount, t.FQCN), nil,
+	)}}
 }
 
 type candidateSelection struct {
@@ -337,11 +353,12 @@ func selectMethodCandidates(candidates []index.MethodResolution, call java.CallS
 	}
 	if len(applicable) == 1 {
 		candidate := applicable[0]
-		return candidateSelection{Found: true, Resolution: Resolution{Targets: []MethodHandle{{
+		handle := MethodHandle{
 			TypeFQCN:  candidate.DeclaringType.FQCN,
 			Method:    candidate.Method.Name,
 			Signature: candidate.Method.Signature,
-		}}}}
+		}
+		return candidateSelection{Found: true, Resolution: Resolution{Targets: []ResolvedTarget{ConcreteTarget(handle)}}}
 	}
 
 	descriptions := make([]string, len(applicable))
@@ -363,9 +380,12 @@ func selectMethodCandidates(candidates []index.MethodResolution, call java.CallS
 	if receiver != nil {
 		subject = receiver.FQCN
 	}
+	note := fmt.Sprintf("ambiguous overload %q on %s: %s", call.MethodName, subject, strings.Join(descriptions, ", "))
 	return candidateSelection{
-		Found:      true,
-		Resolution: Resolution{Note: fmt.Sprintf("ambiguous overload %q on %s: %s", call.MethodName, subject, strings.Join(descriptions, ", "))},
+		Found: true,
+		Resolution: Resolution{Targets: []ResolvedTarget{TerminalTarget(
+			ResolutionAmbiguousOverload, subject, call.MethodName, "", call, note, nil,
+		)}},
 	}
 }
 

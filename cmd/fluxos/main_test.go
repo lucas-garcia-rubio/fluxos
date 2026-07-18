@@ -201,6 +201,24 @@ func TestRunTraceWriterError(t *testing.T) {
 	}
 }
 
+func TestRunTraceDispatchFixture(t *testing.T) {
+	var out bytes.Buffer
+	if err := runTrace([]string{"app.Workflow.start", m3FixtureRoot("dispatch")}, &out); err != nil {
+		t.Fatalf("runTrace dispatch: %v", err)
+	}
+	for _, label := range []string{
+		"contract.EmptyService.run() [no implementation]",
+		"contract.DefaultedService.run()",
+		"contract.SingleServiceImpl.run()",
+		"contract.MultiService.run() [ambiguous: 2 implementations]",
+		"contract.OverloadImpl.run() [ambiguous overload]",
+	} {
+		if !strings.Contains(out.String(), label) {
+			t.Errorf("dispatch trace missing %q:\n%s", label, out.String())
+		}
+	}
+}
+
 func TestBuildIndexPolymorphismFixture(t *testing.T) {
 	_, table, err := buildIndex(m3FixtureRoot("polymorphism"))
 	if err != nil {

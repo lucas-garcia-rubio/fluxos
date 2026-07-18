@@ -218,18 +218,26 @@ func selectReferenceCandidates(candidates []index.MethodResolution, call java.Ca
 		return left.Method.Signature < right.Method.Signature
 	})
 	if len(applicable) == 0 {
-		return Resolution{Note: fmt.Sprintf("%s %q not found on %s", kind, call.MethodName, owner)}
+		return Resolution{Targets: []ResolvedTarget{TerminalTarget(
+			ResolutionUnresolved, owner, call.MethodName, "", call,
+			fmt.Sprintf("%s %q not found on %s", kind, call.MethodName, owner), nil,
+		)}}
 	}
 	if len(applicable) == 1 {
 		candidate := applicable[0]
-		return Resolution{Targets: []MethodHandle{{
-			TypeFQCN: candidate.DeclaringType.FQCN,
-			Method:   candidate.Method.Name, Signature: candidate.Method.Signature,
-		}}}
+		handle := MethodHandle{
+			TypeFQCN:  candidate.DeclaringType.FQCN,
+			Method:    candidate.Method.Name,
+			Signature: candidate.Method.Signature,
+		}
+		return Resolution{Targets: []ResolvedTarget{ConcreteTarget(handle)}}
 	}
 	descriptions := make([]string, len(applicable))
 	for i, candidate := range applicable {
 		descriptions[i] = candidate.DeclaringType.FQCN + "." + candidate.Method.Name + candidate.Method.Signature
 	}
-	return Resolution{Note: fmt.Sprintf("ambiguous %s %q on %s: %s", kind, call.MethodName, owner, strings.Join(descriptions, ", "))}
+	return Resolution{Targets: []ResolvedTarget{TerminalTarget(
+		ResolutionAmbiguousOverload, owner, call.MethodName, "", call,
+		fmt.Sprintf("ambiguous %s %q on %s: %s", kind, call.MethodName, owner, strings.Join(descriptions, ", ")), nil,
+	)}}
 }

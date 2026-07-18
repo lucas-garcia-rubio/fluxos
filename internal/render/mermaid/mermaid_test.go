@@ -19,6 +19,11 @@ func handle(typeFQCN, method string, signature ...string) resolve.MethodHandle {
 	return resolve.MethodHandle{TypeFQCN: typeFQCN, Method: method, Signature: sig}
 }
 
+// methodNode wraps a handle as a Node with Kind=NodeMethod for legacy label tests.
+func methodNode(h resolve.MethodHandle) *graph.Node {
+	return &graph.Node{Handle: h}
+}
+
 func TestRenderEmptyGraph(t *testing.T) {
 	if got, want := Render(graph.NewGraph()), "flowchart TD\n"; got != want {
 		t.Fatalf("Render(empty):\n%q\nwant:\n%q", got, want)
@@ -115,7 +120,7 @@ func TestNodeIDEscapingAndStability(t *testing.T) {
 	if id == nodeID(handle(h.TypeFQCN, "other")) {
 		t.Fatal("different handles produced the same node ID")
 	}
-	if got, want := nodeLabel(h), `com.example.#quot;Worker#quot;.run()`; got != want {
+	if got, want := nodeLabel(methodNode(h)), `com.example.#quot;Worker#quot;.run()`; got != want {
 		t.Fatalf("escaped label: got %q, want %q", got, want)
 	}
 }
@@ -148,7 +153,7 @@ func TestNodeIDAndLabelIncludeSignature(t *testing.T) {
 	if nodeID(withoutArgs) == nodeID(withString) {
 		t.Fatal("overloads produced the same node ID")
 	}
-	if got, want := nodeLabel(withString), "Service.run(String)"; got != want {
+	if got, want := nodeLabel(methodNode(withString)), "Service.run(String)"; got != want {
 		t.Fatalf("node label = %q, want %q", got, want)
 	}
 }
@@ -163,5 +168,94 @@ func TestRenderSortsOverloads(t *testing.T) {
 	got := Render(g)
 	if strings.Index(got, "Service.run()") > strings.Index(got, "Service.run(String)") {
 		t.Fatalf("overloads are not sorted by signature:\n%s", got)
+	}
+}
+
+func terminalNode(receiver, method string, kind graph.NodeKind, candidates []string, call java.CallSite) *graph.Node {
+	handle := resolve.TerminalHandle(receiver, method, "", terminalEquivalentKind(kind), call)
+	return &graph.Node{Handle: handle, Kind: kind, Candidates: candidates}
+}
+
+func terminalEquivalentKind(kind graph.NodeKind) resolve.ResolutionKind {
+	switch kind {
+	case graph.NodeTerminalUnresolved:
+		return resolve.ResolutionUnresolved
+	case graph.NodeTerminalNoImplementation:
+		return resolve.ResolutionNoImplementation
+	case graph.NodeTerminalAmbiguousType:
+		return resolve.ResolutionAmbiguousType
+	case graph.NodeTerminalAmbiguousOverload:
+		return resolve.ResolutionAmbiguousOverload
+	case graph.NodeTerminalAmbiguousImplementation:
+		return resolve.ResolutionAmbiguousImplementation
+	default:
+		return resolve.ResolutionConcrete
+	}
+}
+
+func TestRenderTerminalLabelsByKind(t *testing.T) {
+	cases := []struct {
+		name       string
+		kind       graph.NodeKind
+		candidates []string
+		want       string
+	}{
+		{name: "Unresolved", kind: graph.NodeTerminalUnresolved, want: "contract.Empty.run() [unresolved]"},
+		{name: "NoImplementation", kind: graph.NodeTerminalNoImplementation, want: "contract.Empty.run() [no implementation]"},
+		{name: "AmbiguousType", kind: graph.NodeTerminalAmbiguousType, want: "contract.Empty.run() [ambiguous type]"},
+		{name: "AmbiguousOverload", kind: graph.NodeTerminalAmbiguousOverload, want: "contract.Empty.run() [ambiguous overload]"},
+		{name: "AmbiguousImplementation", kind: graph.NodeTerminalAmbiguousImplementation, candidates: []string{"a.A", "b.B"}, want: "contract.Empty.run() [ambiguous: 2 implementations]"},
+	}
+	for _, tt := range cases {
+		t.Run(tt.name, func(t *testing.T) {
+			node := terminalNode("contract.Empty", "run", tt.kind, tt.candidates, java.CallSite{File: "X.java", Line: 10, StartByte: 100})
+			if got := nodeLabel(node); got != tt.want {
+				t.Fatalf("nodeLabel = %q, want %q", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestRenderTerminalLabelTruncatesHashSuffix(t *testing.T) {
+	// Two call sites producing the same receiver/method/kind must render the
+	// same label prefix even though their node IDs differ.
+	call1 := java.CallSite{File: "X.java", Line: 10, StartByte: 100}
+	call2 := java.CallSite{File: "X.java", Line: 20, StartByte: 200}
+	n1 := terminalNode("contract.Svc", "run", graph.NodeTerminalNoImplementation, nil, call1)
+	n2 := terminalNode("contract.Svc", "run", graph.NodeTerminalNoImplementation, nil, call2)
+	if nodeID(n1.Handle) == nodeID(n2.Handle) {
+		t.Fatal("call sites should produce distinct node IDs")
+	}
+	if nodeLabel(n1) != nodeLabel(n2) {
+		t.Fatalf("labels should match after hash truncation: %q vs %q", nodeLabel(n1), nodeLabel(n2))
+	}
+}
+
+func TestRenderTerminalIDsAreStable(t *testing.T) {
+	call := java.CallSite{File: "X.java", Line: 10, StartByte: 100}
+	n := terminalNode("contract.Svc", "run", graph.NodeTerminalAmbiguousImplementation, []string{"a.A", "b.B"}, call)
+	id := nodeID(n.Handle)
+	if !regexp.MustCompile(`^m_[0-9a-f]{12}$`).MatchString(id) {
+		t.Fatalf("terminal node ID format invalid: %q", id)
+	}
+	// Same call site + same receiver/method/kind must be stable.
+	if id != nodeID(terminalNode("contract.Svc", "run", graph.NodeTerminalAmbiguousImplementation, []string{"a.A", "b.B"}, call).Handle) {
+		t.Fatal("terminal node ID changed for identical inputs")
+	}
+}
+
+func TestRenderTerminalAndConcreteNodesCoexist(t *testing.T) {
+	g := graph.NewGraph()
+	concrete := handle("contract.Impl", "run")
+	terminal := terminalNode("contract.Svc", "run", graph.NodeTerminalNoImplementation, nil, java.CallSite{File: "X.java", Line: 10})
+	g.GetOrCreate(concrete)
+	g.MarkTerminal(terminal.Handle, graph.NodeTerminalNoImplementation, "no concrete implementations", nil)
+
+	got := Render(g)
+	if !strings.Contains(got, "contract.Impl.run()") {
+		t.Fatalf("concrete node missing: %s", got)
+	}
+	if !strings.Contains(got, "contract.Svc.run() [no implementation]") {
+		t.Fatalf("terminal label missing suffix: %s", got)
 	}
 }

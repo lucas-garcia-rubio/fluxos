@@ -17,17 +17,66 @@ type MethodHandle struct {
 	Signature string
 }
 
+// ResolutionKind classifica cada saída do resolver. Os sete valores cobrem os
+// caminhos previstos pela política M3 de dispatch polimórfico (Passo 13).
+type ResolutionKind int
+
+const (
+	// ResolutionConcrete é um método concreto alcançável por chamada direta.
+	// Implica Descend=true.
+	ResolutionConcrete ResolutionKind = iota
+	// ResolutionExternal é um handle cujo tipo não está registrado no projeto
+	// (biblioteca externa, reflexão). Não é terminal e não descend.
+	ResolutionExternal
+	// ResolutionUnresolved cobre receivers ou métodos que não foram encontrados
+	// no contexto atual. Vira terminal [unresolved] no grafo.
+	ResolutionUnresolved
+	// ResolutionNoImplementation cobre receivers interface/abstract sem
+	// implementations conhecidas e sem default method aplicável. Terminal
+	// [no implementation].
+	ResolutionNoImplementation
+	// ResolutionAmbiguousType cobre receivers cujo simple-name lookup produz
+	// múltiplos FQCNs candidatos. Terminal [ambiguous type].
+	ResolutionAmbiguousType
+	// ResolutionAmbiguousOverload cobre overload que não reduz a um candidato
+	// por arity/signature. Terminal [ambiguous overload].
+	ResolutionAmbiguousOverload
+	// ResolutionAmbiguousImplementation cobre receivers interface/abstract com
+	// duas ou mais implementations; M3 não faz fan-out. Terminal [ambiguous: N
+	// implementations] com a lista ordenada em Candidates.
+	ResolutionAmbiguousImplementation
+)
+
+// ResolvedTarget é uma saída individual do resolver. O campo Descend diz se o
+// graph.Walk deve recursar no target; Kind classifica o target para o grafo e
+// para o renderer; Note é informativo e nunca é parseado pelo renderer;
+// Candidates é preenchido apenas em AmbiguousImplementation com os FQCNs das
+// implementations ordenados.
+type ResolvedTarget struct {
+	Handle     MethodHandle
+	Descend    bool
+	Kind       ResolutionKind
+	Note       string
+	Candidates []string
+}
+
+// ConcreteTarget wraps a MethodHandle as a concrete, descending ResolvedTarget.
+// Usado pelos callers que produzem um único alvo concreto.
+func ConcreteTarget(handle MethodHandle) ResolvedTarget {
+	return ResolvedTarget{Handle: handle, Kind: ResolutionConcrete, Descend: true}
+}
+
 // Resolution é o resultado de resolver um CallSite.
 // Targets pode ter:
-//   - 0 elementos: unresolved. Note explica por quê.
-//   - 1 elemento: concreto.
-//   - N elementos: polimórfico (interface com múltiplas impls — M3).
+//   - 0 elementos: nenhum terminal criado; Note descreve o motivo (casos de
+//     "unsupported feature" que não viram terminal).
+//   - 1 elemento: concreto, terminal ou external.
+//   - N elementos: futuro (M4 com --all-impls); hoje o resolver produz N>1 só
+//     em caminhos excepcionais e o Walk respeita cada target individualmente.
 //
-// Note é string livre com dica humana. Exemplos: "external lib",
-// "reflection", "interface sem impl", "complex receiver",
-// "método não encontrado".
+// Note continua existindo para os casos em que nenhum target é produzido.
 type Resolution struct {
-	Targets []MethodHandle
+	Targets []ResolvedTarget
 	Note    string
 }
 

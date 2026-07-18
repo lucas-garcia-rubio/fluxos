@@ -163,3 +163,73 @@ func TestAddEdgeMultigraph(t *testing.T) {
 		t.Errorf("second edge Line: got %d, want 20", g.Edges[1].Call.Line)
 	}
 }
+
+func TestMarkTerminalSetsKindNoteAndCandidates(t *testing.T) {
+	g := NewGraph()
+	h := resolve.MethodHandle{TypeFQCN: "contract.Svc#noimpl#abc", Method: "run", Signature: "()"}
+	g.MarkTerminal(h, NodeTerminalNoImplementation, "no impls", []string{"a.A", "b.B"})
+
+	node, ok := g.Nodes[h]
+	if !ok {
+		t.Fatal("MarkTerminal did not create node")
+	}
+	if node.Kind != NodeTerminalNoImplementation {
+		t.Errorf("kind = %v, want NodeTerminalNoImplementation", node.Kind)
+	}
+	if node.Note != "no impls" {
+		t.Errorf("note = %q", node.Note)
+	}
+	if len(node.Candidates) != 2 || node.Candidates[0] != "a.A" || node.Candidates[1] != "b.B" {
+		t.Errorf("candidates = %+v", node.Candidates)
+	}
+}
+
+func TestMarkTerminalIsIdempotent(t *testing.T) {
+	g := NewGraph()
+	h := resolve.MethodHandle{TypeFQCN: "contract.Svc#noimpl#abc", Method: "run", Signature: "()"}
+	g.MarkTerminal(h, NodeTerminalNoImplementation, "first", []string{"a.A"})
+	g.MarkTerminal(h, NodeTerminalNoImplementation, "second", []string{"b.B"})
+
+	node := g.Nodes[h]
+	if node.Note != "second" {
+		t.Errorf("note should be overwritten = %q", node.Note)
+	}
+	if len(node.Candidates) != 1 || node.Candidates[0] != "b.B" {
+		t.Errorf("candidates should be overwritten = %+v", node.Candidates)
+	}
+	if len(g.Nodes) != 1 {
+		t.Errorf("expected 1 node, got %d", len(g.Nodes))
+	}
+}
+
+func TestMarkTerminalCopiesCandidatesDefensively(t *testing.T) {
+	g := NewGraph()
+	h := resolve.MethodHandle{TypeFQCN: "contract.Svc#ambimpl#abc", Method: "run", Signature: "()"}
+	original := []string{"a.A", "b.B"}
+	g.MarkTerminal(h, NodeTerminalAmbiguousImplementation, "ambiguous", original)
+
+	original[0] = "MUTATED"
+	node := g.Nodes[h]
+	if node.Candidates[0] == "MUTATED" {
+		t.Fatal("MarkTerminal should copy candidates defensively")
+	}
+}
+
+func TestMarkExternalDoesNotOverrideTerminal(t *testing.T) {
+	g := NewGraph()
+	h := resolve.MethodHandle{TypeFQCN: "ext.Lib", Method: "run", Signature: "()"}
+	g.MarkTerminal(h, NodeTerminalUnresolved, "unresolved", nil)
+	g.MarkExternal(h)
+	if g.Nodes[h].Kind != NodeTerminalUnresolved {
+		t.Fatal("MarkExternal should not override terminal kind")
+	}
+}
+
+func TestMarkExternalMarksMethodNode(t *testing.T) {
+	g := NewGraph()
+	h := resolve.MethodHandle{TypeFQCN: "ext.Lib", Method: "run", Signature: "()"}
+	g.MarkExternal(h)
+	if g.Nodes[h].Kind != NodeExternal {
+		t.Fatalf("kind = %v, want NodeExternal", g.Nodes[h].Kind)
+	}
+}
