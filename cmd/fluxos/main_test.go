@@ -78,6 +78,50 @@ func TestRunTraceAcceptsSignatureTarget(t *testing.T) {
 	}
 }
 
+func TestRunTraceDefaultsProjectRootToWorkingDirectory(t *testing.T) {
+	root := traceFixtureRoot()
+	want, err := os.ReadFile(filepath.Join(root, "expected.mmd"))
+	if err != nil {
+		t.Fatalf("read golden: %v", err)
+	}
+	t.Chdir(root)
+
+	var out bytes.Buffer
+	if err := runTrace([]string{"Workflow.start"}, &out); err != nil {
+		t.Fatalf("runTrace without project root: %v", err)
+	}
+	if !bytes.Equal(out.Bytes(), want) {
+		t.Fatalf("default project root output mismatch:\ngot:\n%s\nwant:\n%s", out.Bytes(), want)
+	}
+}
+
+func TestRunTraceRejectsProjectPathBeforeTarget(t *testing.T) {
+	var out bytes.Buffer
+	err := runTrace([]string{traceFixtureRoot(), "Workflow.start"}, &out)
+	if err == nil {
+		t.Fatal("runTrace accepted project path before target")
+	}
+	if out.Len() != 0 {
+		t.Fatalf("runTrace wrote payload before returning error: %q", out.String())
+	}
+}
+
+// Extra positionals are ignored by the M3 CLI. Passo 1 intentionally changes
+// this characterization to require a usage error before project discovery.
+func TestRunTraceCurrentlyIgnoresExtraPositionals(t *testing.T) {
+	root := traceFixtureRoot()
+	var baseline, withExtras bytes.Buffer
+	if err := runTrace([]string{"Workflow.start", root}, &baseline); err != nil {
+		t.Fatalf("baseline runTrace: %v", err)
+	}
+	if err := runTrace([]string{"Workflow.start", root, "ignored", "--also-ignored"}, &withExtras); err != nil {
+		t.Fatalf("runTrace with extra positionals: %v", err)
+	}
+	if !bytes.Equal(withExtras.Bytes(), baseline.Bytes()) {
+		t.Fatalf("extra positionals changed output:\ngot:\n%s\nwant:\n%s", withExtras.Bytes(), baseline.Bytes())
+	}
+}
+
 func TestRunTraceArgumentErrors(t *testing.T) {
 	tests := []struct {
 		name string
@@ -95,6 +139,35 @@ func TestRunTraceArgumentErrors(t *testing.T) {
 			err := runTrace(tt.args, io.Discard)
 			if err == nil || !strings.Contains(err.Error(), tt.want) {
 				t.Fatalf("runTrace(%v) error = %v, want containing %q", tt.args, err, tt.want)
+			}
+		})
+	}
+}
+
+func TestRunTraceErrorsDoNotWritePayload(t *testing.T) {
+	tests := []struct {
+		name string
+		args []string
+		want string
+	}{
+		{name: "missing target", want: "usage"},
+		{name: "invalid target", args: []string{"Workflow"}, want: "expected TypeName.method or FQCN.method"},
+		{name: "missing target class", args: []string{"Missing.start", traceFixtureRoot()}, want: `class "Missing" not found`},
+		{name: "invalid project root", args: []string{"Workflow.start", filepath.Join(t.TempDir(), "missing")}},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var out bytes.Buffer
+			err := runTrace(tt.args, &out)
+			if err == nil {
+				t.Fatalf("runTrace(%v) succeeded", tt.args)
+			}
+			if tt.want != "" && !strings.Contains(err.Error(), tt.want) {
+				t.Fatalf("runTrace(%v) error = %q, want containing %q", tt.args, err, tt.want)
+			}
+			if out.Len() != 0 {
+				t.Fatalf("runTrace(%v) wrote payload before returning error: %q", tt.args, out.String())
 			}
 		})
 	}
