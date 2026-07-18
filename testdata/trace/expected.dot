@@ -1,0 +1,18 @@
+digraph fluxos {
+  "m_f178eb338fce" [label="com.foo.Audit.record()", kind="method"];
+  "m_d476e84e6bdb" [label="com.foo.BaseWorkflow.initialize()", kind="method"];
+  "m_eabd356c3532" [label="com.foo.Helper.<init>()", kind="method"];
+  "m_6e6e7d2457b4" [label="com.foo.Helper.work()", kind="method"];
+  "m_e12e5f041264" [label="com.foo.Workflow.finish()", kind="method"];
+  "m_6c09a7835283" [label="com.foo.Workflow.prepare()", kind="method"];
+  "m_45ad6583a724" [label="com.foo.Workflow.start()", kind="method"];
+  "m_6e6e7d2457b4" -> "m_f178eb338fce";
+  "m_e12e5f041264" -> "m_6c09a7835283" [color="red", style="dashed"];
+  "m_6c09a7835283" -> "m_e12e5f041264";
+  "m_45ad6583a724" -> "m_f178eb338fce";
+  "m_45ad6583a724" -> "m_d476e84e6bdb";
+  "m_45ad6583a724" -> "m_eabd356c3532";
+  "m_45ad6583a724" -> "m_6e6e7d2457b4";
+  "m_45ad6583a724" -> "m_6e6e7d2457b4";
+  "m_45ad6583a724" -> "m_6c09a7835283";
+}

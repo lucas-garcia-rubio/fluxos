@@ -286,10 +286,10 @@ func parseLimit(name, value string) (int, error) {
 
 func validateTraceSupport(opts TraceOptions) error {
 	switch {
-	case opts.Format != FormatMermaid:
+	case opts.Format == FormatJSON:
 		return unsupportedOption("--format=" + string(opts.Format))
-	case opts.Direction != "TD":
-		return unsupportedOption("--direction=" + opts.Direction)
+	case opts.Format != FormatMermaid && opts.Format != FormatDOT:
+		return unsupportedOption("--format=" + string(opts.Format))
 	case opts.Scope != project.ScopeModeMain:
 		return unsupportedOption("--scope=" + string(opts.Scope))
 	case opts.PickImpls != "":

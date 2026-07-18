@@ -37,7 +37,7 @@ func TestRunCLIClassifiesUsageErrors(t *testing.T) {
 		{name: "missing trace target", args: []string{"trace"}, want: "fluxos trace: usage:"},
 		{name: "invalid target", args: []string{"trace", "Workflow"}, want: "fluxos trace: invalid target"},
 		{name: "extra positional", args: []string{"trace", "Workflow.start", traceFixtureRoot(), "extra"}, want: "at most one project path"},
-		{name: "reserved feature", args: []string{"trace", "--format=dot", "Workflow.start", "/missing"}, want: "not implemented yet"},
+		{name: "reserved feature", args: []string{"trace", "--format=json", "Workflow.start", "/missing"}, want: "not implemented yet"},
 		{name: "missing index root", args: []string{"index"}, want: "fluxos index: usage:"},
 	}
 	for _, tt := range tests {
@@ -130,12 +130,17 @@ func TestRunCLIIndexUsesInjectedOutput(t *testing.T) {
 }
 
 func TestRunCLIWriterErrorIsRuntimeFailure(t *testing.T) {
-	var errOut bytes.Buffer
-	code := runCLI([]string{"trace", "Workflow.start", traceFixtureRoot()}, IO{Out: failingWriter{}, ErrOut: &errOut})
-	if code != 1 {
-		t.Fatalf("exit = %d, want 1", code)
-	}
-	if !strings.Contains(errOut.String(), "write trace: write failed") {
-		t.Fatalf("stderr = %q, want writer error", errOut.String())
+	for _, args := range [][]string{
+		{"trace", "Workflow.start", traceFixtureRoot()},
+		{"trace", "--format=dot", "Workflow.start", traceFixtureRoot()},
+	} {
+		var errOut bytes.Buffer
+		code := runCLI(args, IO{Out: failingWriter{}, ErrOut: &errOut})
+		if code != 1 {
+			t.Fatalf("runCLI(%v) exit = %d, want 1", args, code)
+		}
+		if !strings.Contains(errOut.String(), "write trace: write failed") {
+			t.Fatalf("runCLI(%v) stderr = %q, want writer error", args, errOut.String())
+		}
 	}
 }

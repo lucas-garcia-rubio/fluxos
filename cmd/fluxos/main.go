@@ -14,6 +14,7 @@ import (
 	"github.com/lucas-garcia-rubio/fluxos/internal/parse"
 	"github.com/lucas-garcia-rubio/fluxos/internal/project"
 	"github.com/lucas-garcia-rubio/fluxos/internal/render"
+	"github.com/lucas-garcia-rubio/fluxos/internal/render/dot"
 	"github.com/lucas-garcia-rubio/fluxos/internal/render/mermaid"
 	"github.com/lucas-garcia-rubio/fluxos/internal/resolve"
 	tree_sitter "github.com/tree-sitter/go-tree-sitter"
@@ -48,10 +49,21 @@ func executeTrace(opts TraceOptions, streams IO) error {
 	if err != nil {
 		return err
 	}
-	if _, err := fmt.Fprint(streams.Out, mermaid.RenderSnapshot(snapshot)); err != nil {
+	if err := renderTrace(streams.Out, snapshot, opts); err != nil {
 		return fmt.Errorf("write trace: %w", err)
 	}
 	return nil
+}
+
+func renderTrace(out io.Writer, snapshot render.Snapshot, opts TraceOptions) error {
+	switch opts.Format {
+	case FormatMermaid:
+		return mermaid.Render(out, snapshot, mermaid.Direction(opts.Direction))
+	case FormatDOT:
+		return dot.Render(out, snapshot)
+	default:
+		return fmt.Errorf("unsupported trace format %q", opts.Format)
+	}
 }
 
 func buildTraceSnapshot(opts TraceOptions) (render.Snapshot, error) {

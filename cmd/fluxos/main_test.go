@@ -46,6 +46,41 @@ func TestRunTraceMermaidGolden(t *testing.T) {
 	}
 }
 
+func TestRunTraceDOTGolden(t *testing.T) {
+	root := traceFixtureRoot()
+	var out bytes.Buffer
+	if err := runTrace([]string{"--format=dot", "Workflow.start", root}, &out); err != nil {
+		t.Fatalf("runTrace DOT: %v", err)
+	}
+	want, err := os.ReadFile(filepath.Join(root, "expected.dot"))
+	if err != nil {
+		t.Fatalf("read DOT golden: %v", err)
+	}
+	if !bytes.Equal(out.Bytes(), want) {
+		t.Fatalf("DOT output mismatch:\ngot:\n%s\nwant:\n%s", out.Bytes(), want)
+	}
+}
+
+func TestRunTraceMermaidDirectionChangesOnlyHeader(t *testing.T) {
+	root := traceFixtureRoot()
+	wantTD, err := os.ReadFile(filepath.Join(root, "expected.mmd"))
+	if err != nil {
+		t.Fatalf("read Mermaid golden: %v", err)
+	}
+	for _, direction := range []string{"LR", "BT", "RL"} {
+		t.Run(direction, func(t *testing.T) {
+			var out bytes.Buffer
+			if err := runTrace([]string{"--direction=" + direction, "Workflow.start", root}, &out); err != nil {
+				t.Fatalf("runTrace direction %s: %v", direction, err)
+			}
+			want := strings.Replace(string(wantTD), "flowchart TD\n", "flowchart "+direction+"\n", 1)
+			if out.String() != want {
+				t.Fatalf("direction %s changed Mermaid body:\ngot:\n%s\nwant:\n%s", direction, out.String(), want)
+			}
+		})
+	}
+}
+
 func TestRunTraceAcceptsFQCNTarget(t *testing.T) {
 	root := traceFixtureRoot()
 	var out bytes.Buffer
@@ -174,12 +209,17 @@ func TestRunTraceErrorsDoNotWritePayload(t *testing.T) {
 }
 
 func TestRunTraceWriterError(t *testing.T) {
-	err := runTrace([]string{"Workflow.start", traceFixtureRoot()}, failingWriter{})
-	if !errors.Is(err, errWrite) {
-		t.Fatalf("runTrace writer error = %v, want wrapped %v", err, errWrite)
-	}
-	if !strings.Contains(err.Error(), "write trace") {
-		t.Fatalf("runTrace writer error = %q, want context", err)
+	for _, args := range [][]string{
+		{"Workflow.start", traceFixtureRoot()},
+		{"--format=dot", "Workflow.start", traceFixtureRoot()},
+	} {
+		err := runTrace(args, failingWriter{})
+		if !errors.Is(err, errWrite) {
+			t.Fatalf("runTrace(%v) writer error = %v, want wrapped %v", args, err, errWrite)
+		}
+		if !strings.Contains(err.Error(), "write trace") {
+			t.Fatalf("runTrace(%v) writer error = %q, want context", args, err)
+		}
 	}
 }
 

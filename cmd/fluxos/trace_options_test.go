@@ -199,8 +199,7 @@ func TestValidateTraceSupportAcceptsCompatibilityValues(t *testing.T) {
 
 func TestValidateTraceSupportRejectsReservedFeatures(t *testing.T) {
 	tests := [][]string{
-		{"--format=dot", "app.Workflow.start"},
-		{"--direction=LR", "app.Workflow.start"},
+		{"--format=json", "app.Workflow.start"},
 		{"--scope=all", "app.Workflow.start"},
 		{"--pick-impls=x.Y", "app.Workflow.start"},
 		{"--all-impls", "app.Workflow.start"},
@@ -220,6 +219,24 @@ func TestValidateTraceSupportRejectsReservedFeatures(t *testing.T) {
 			t.Fatalf("validateTraceSupport(%v) error = %v", args, err)
 		}
 		requireUsageError(t, err)
+	}
+}
+
+func TestValidateTraceSupportAcceptsDOTAndDirections(t *testing.T) {
+	tests := [][]string{
+		{"--format=dot", "app.Workflow.start"},
+		{"--direction=LR", "app.Workflow.start"},
+		{"--direction=BT", "app.Workflow.start"},
+		{"--direction=RL", "app.Workflow.start"},
+	}
+	for _, args := range tests {
+		opts, err := parseTraceOptions(args)
+		if err != nil {
+			t.Fatalf("parseTraceOptions(%v): %v", args, err)
+		}
+		if err := validateTraceSupport(opts); err != nil {
+			t.Fatalf("validateTraceSupport(%v): %v", args, err)
+		}
 	}
 }
 
