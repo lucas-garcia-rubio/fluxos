@@ -183,6 +183,23 @@ func TestRunTraceWriterError(t *testing.T) {
 	}
 }
 
+func TestBuildTraceSnapshotPreservesInheritedDeclaringTarget(t *testing.T) {
+	opts, err := parseTraceOptions([]string{
+		"app.ChildService.inheritedMethod",
+		m3FixtureRoot("inheritance"),
+	})
+	if err != nil {
+		t.Fatalf("parseTraceOptions: %v", err)
+	}
+	snapshot, err := buildTraceSnapshot(opts)
+	if err != nil {
+		t.Fatalf("buildTraceSnapshot: %v", err)
+	}
+	if snapshot.Target.TypeFQCN != "base.BaseService" || snapshot.Target.Method != "inheritedMethod" || snapshot.Target.Signature != "()" {
+		t.Fatalf("snapshot target = %+v, want base.BaseService.inheritedMethod()", snapshot.Target)
+	}
+}
+
 func TestBuildIndexPolymorphismFixture(t *testing.T) {
 	_, table, err := buildIndex(m3FixtureRoot("polymorphism"))
 	if err != nil {

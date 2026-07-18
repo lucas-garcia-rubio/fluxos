@@ -13,6 +13,7 @@ import (
 	"github.com/lucas-garcia-rubio/fluxos/internal/index"
 	"github.com/lucas-garcia-rubio/fluxos/internal/parse"
 	"github.com/lucas-garcia-rubio/fluxos/internal/project"
+	"github.com/lucas-garcia-rubio/fluxos/internal/render"
 	"github.com/lucas-garcia-rubio/fluxos/internal/render/mermaid"
 	"github.com/lucas-garcia-rubio/fluxos/internal/resolve"
 	tree_sitter "github.com/tree-sitter/go-tree-sitter"
@@ -43,24 +44,37 @@ func runTrace(args []string, out io.Writer) error {
 }
 
 func executeTrace(opts TraceOptions, streams IO) error {
-	_, table, err := buildIndex(opts.ProjectRoot)
+	snapshot, err := buildTraceSnapshot(opts)
 	if err != nil {
 		return err
+	}
+	if _, err := fmt.Fprint(streams.Out, mermaid.RenderSnapshot(snapshot)); err != nil {
+		return fmt.Errorf("write trace: %w", err)
+	}
+	return nil
+}
+
+func buildTraceSnapshot(opts TraceOptions) (render.Snapshot, error) {
+	_, table, err := buildIndex(opts.ProjectRoot)
+	if err != nil {
+		return render.Snapshot{}, err
 	}
 
 	targetClass, targetMethod, err := ResolveTarget(table, opts.Target)
 	if err != nil {
-		return err
+		return render.Snapshot{}, err
 	}
 
 	resolver := resolve.NewSyntacticResolver(table)
 	g := graph.NewGraph()
 	graph.Walk(g, targetClass, *targetMethod, table, resolver)
 
-	if _, err := fmt.Fprint(streams.Out, mermaid.Render(g)); err != nil {
-		return fmt.Errorf("write trace: %w", err)
+	targetHandle := resolve.MethodHandle{
+		TypeFQCN:  targetClass.FQCN,
+		Method:    targetMethod.Name,
+		Signature: targetMethod.Signature,
 	}
-	return nil
+	return render.NewSnapshot(g, targetHandle), nil
 }
 
 func buildIndex(root string) ([]*java.CompilationUnit, *index.Table, error) {
