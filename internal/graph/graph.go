@@ -1,5 +1,5 @@
 // Package graph define o multigrafo direcionado usado pra representar o
-// grafo de chamadas. Mantém Nodes (mapa de MethodHandle → *Node) e Edges
+// grafo de chamadas. Mantém Nodes (mapa de ExecutionKey → *Node) e Edges
 // (lista de arestas, cada uma com From, To, e a CallSite que a gerou).
 //
 // State em Node é usado pelo DFS com cycle detection (Passo 5):
@@ -40,7 +40,7 @@ const (
 // são populados por MarkTerminal e MarkExternal; Nodes concretos permanecem
 // com Kind=NodeMethod (zero value).
 type Node struct {
-	Handle     resolve.MethodHandle
+	Key        resolve.ExecutionKey
 	State      int
 	Kind       NodeKind
 	Note       string
@@ -51,17 +51,18 @@ type Node struct {
 // Call é a CallSite que gerou esta aresta — útil pra reportar ao usuário
 // qual chamada (com file:line) produziu cada conexão.
 type Edge struct {
-	From  resolve.MethodHandle
-	To    resolve.MethodHandle
-	Call  java.CallSite
-	Cycle bool
+	From         resolve.ExecutionKey
+	To           resolve.ExecutionKey
+	Call         java.CallSite
+	DispatchSite *resolve.DispatchSite
+	Cycle        bool
 }
 
 // Graph é o multigrafo direcionado de chamadas.
-// Nodes é mapa chaveado por MethodHandle (struct de strings é comparable).
+// Nodes é mapa chaveado por ExecutionKey (struct de strings é comparable).
 // Edges permite múltiplas arestas entre o mesmo par (multi-chamadas de A pra B).
 type Graph struct {
-	Nodes map[resolve.MethodHandle]*Node
+	Nodes map[resolve.ExecutionKey]*Node
 	Edges []Edge
 }
 
@@ -69,44 +70,44 @@ type Graph struct {
 // atribuir direto panic). Edges slice zero é nil mas pode ser usada com append.
 func NewGraph() *Graph {
 	return &Graph{
-		Nodes: map[resolve.MethodHandle]*Node{},
+		Nodes: map[resolve.ExecutionKey]*Node{},
 	}
 }
 
-// GetOrCreate devolve o Node para handle. Cria com StateWhite se não existe.
+// GetOrCreate devolve o Node para key. Cria com StateWhite se não existe.
 // Sempre devolve Node não-nil.
-func (g *Graph) GetOrCreate(handle resolve.MethodHandle) *Node {
-	if n, ok := g.Nodes[handle]; ok {
+func (g *Graph) GetOrCreate(key resolve.ExecutionKey) *Node {
+	if n, ok := g.Nodes[key]; ok {
 		return n
 	}
-	n := &Node{Handle: handle, State: StateWhite}
-	g.Nodes[handle] = n
+	n := &Node{Key: key, State: StateWhite}
+	g.Nodes[key] = n
 	return n
 }
 
-// MarkGray marca handle como visiting (StateGray). Cria Node se faltava.
+// MarkGray marca key como visiting (StateGray). Cria Node se faltava.
 // Útil no início do Walk de um método.
-func (g *Graph) MarkGray(handle resolve.MethodHandle) {
-	g.GetOrCreate(handle).State = StateGray
+func (g *Graph) MarkGray(key resolve.ExecutionKey) {
+	g.GetOrCreate(key).State = StateGray
 }
 
-// MarkBlack marca handle como done (StateBlack). Cria Node se faltava.
+// MarkBlack marca key como done (StateBlack). Cria Node se faltava.
 // Útil no fim do Walk, quando todos os descendentes foram processados.
-func (g *Graph) MarkBlack(handle resolve.MethodHandle) {
-	g.GetOrCreate(handle).State = StateBlack
+func (g *Graph) MarkBlack(key resolve.ExecutionKey) {
+	g.GetOrCreate(key).State = StateBlack
 }
 
-// IsGray devolve true se handle existe e está em StateGray.
+// IsGray devolve true se key existe e está em StateGray.
 // Usado pra detectar ciclo (back-edge).
-func (g *Graph) IsGray(handle resolve.MethodHandle) bool {
-	n, ok := g.Nodes[handle]
+func (g *Graph) IsGray(key resolve.ExecutionKey) bool {
+	n, ok := g.Nodes[key]
 	return ok && n.State == StateGray
 }
 
-// IsBlack devolve true se handle existe e está em StateBlack.
+// IsBlack devolve true se key existe e está em StateBlack.
 // Usado pra pular métodos já processados (não recurse).
-func (g *Graph) IsBlack(handle resolve.MethodHandle) bool {
-	n, ok := g.Nodes[handle]
+func (g *Graph) IsBlack(key resolve.ExecutionKey) bool {
+	n, ok := g.Nodes[key]
 	return ok && n.State == StateBlack
 }
 
@@ -114,19 +115,25 @@ func (g *Graph) IsBlack(handle resolve.MethodHandle) bool {
 // e informa se ela fecha um ciclo na travessia DFS.
 // Garante que ambos os Nodes existem no grafo (cria com StateWhite se faltarem).
 // Permite múltiplas arestas entre o mesmo par (A → B com 2 chamadas vira 2 Edges).
-func (g *Graph) AddEdge(from, to resolve.MethodHandle, call java.CallSite, cycle bool) {
+func (g *Graph) AddEdge(from, to resolve.ExecutionKey, call java.CallSite, dispatchSite *resolve.DispatchSite, cycle bool) {
 	g.GetOrCreate(from)
 	g.GetOrCreate(to)
-	g.Edges = append(g.Edges, Edge{From: from, To: to, Call: call, Cycle: cycle})
+	g.Edges = append(g.Edges, Edge{
+		From:         from,
+		To:           to,
+		Call:         cloneCallSite(call),
+		DispatchSite: resolve.CloneDispatchSite(dispatchSite),
+		Cycle:        cycle,
+	})
 }
 
-// MarkTerminal classifica handle como terminal de kind. Cria o Node se ainda
+// MarkTerminal classifica key como terminal de kind. Cria o Node se ainda
 // não existia, copia candidates defensivamente e é idempotente: chamar duas
 // vezes com os mesmos argumentos não acumula estado. Kind deve ser um dos
 // NodeTerminal* (NodeMethod/NodeExternal seriam no-op aqui, mas a API confia
 // que callers usem MarkExternal para o caso externo).
-func (g *Graph) MarkTerminal(handle resolve.MethodHandle, kind NodeKind, note string, candidates []string) {
-	n := g.GetOrCreate(handle)
+func (g *Graph) MarkTerminal(key resolve.ExecutionKey, kind NodeKind, note string, candidates []string) {
+	n := g.GetOrCreate(key)
 	n.Kind = kind
 	n.Note = note
 	if len(candidates) > 0 {
@@ -138,11 +145,21 @@ func (g *Graph) MarkTerminal(handle resolve.MethodHandle, kind NodeKind, note st
 	}
 }
 
-// MarkExternal classifica handle como NodeExternal (não terminal, não
+// MarkExternal classifica key como NodeExternal (não terminal, não
 // descendente). Não sobrescreve Nodes já marcados como terminal.
-func (g *Graph) MarkExternal(handle resolve.MethodHandle) {
-	n := g.GetOrCreate(handle)
+func (g *Graph) MarkExternal(key resolve.ExecutionKey) {
+	n := g.GetOrCreate(key)
 	if n.Kind == NodeMethod {
 		n.Kind = NodeExternal
 	}
+}
+
+func cloneCallSite(call java.CallSite) java.CallSite {
+	clone := call
+	clone.Args = append([]string(nil), call.Args...)
+	if call.TargetType != nil {
+		targetType := *call.TargetType
+		clone.TargetType = &targetType
+	}
+	return clone
 }

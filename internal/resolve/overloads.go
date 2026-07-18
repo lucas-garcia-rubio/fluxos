@@ -63,7 +63,11 @@ func (r *SyntacticResolver) selectMethodCandidates(candidates []index.MethodReso
 			Method:    candidate.Method.Name,
 			Signature: candidate.Method.Signature,
 		}
-		return candidateSelection{Found: true, Resolution: Resolution{Targets: []ResolvedTarget{ConcreteTarget(handle)}}}
+		return candidateSelection{
+			Found:      true,
+			Candidate:  &candidate,
+			Resolution: Resolution{Targets: []ResolvedTarget{ConcreteTarget(ExecutionKey{Method: handle, RuntimeTypeFQCN: candidate.DeclaringType.FQCN})}},
+		}
 	}
 
 	descriptions := make([]string, len(applicable))

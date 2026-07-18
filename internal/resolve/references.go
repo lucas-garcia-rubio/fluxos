@@ -69,7 +69,15 @@ func (r *SyntacticResolver) resolveBoundMethodReference(typ *java.TypeDecl, call
 		}
 		candidates = append(candidates, candidate)
 	}
-	return selectReferenceCandidates(candidates, call, typ.FQCN, "method reference")
+	runtime := typ.FQCN
+	if call.Receiver == "this" {
+		runtime = contextRuntimeOr(ctx, typ.FQCN)
+	}
+	selection := r.selectReferenceCandidate(candidates, call, typ.FQCN, "method reference")
+	if runtimeType, ok := r.Index.TypeByFQCN(runtime); ok && isPolymorphicReceiver(runtimeType) {
+		return r.dispatchPolymorphicSelection(runtimeType, call, ctx, candidates, selection)
+	}
+	return r.bindSelection(selection, runtime, call)
 }
 
 func (r *SyntacticResolver) resolveTypeMethodReference(typ *java.TypeDecl, call java.CallSite, ctx MethodContext) Resolution {
@@ -87,7 +95,7 @@ func (r *SyntacticResolver) resolveTypeMethodReference(typ *java.TypeDecl, call 
 			candidates = append(candidates, candidate)
 		}
 	}
-	return selectReferenceCandidates(candidates, call, typ.FQCN, "method reference")
+	return r.selectReferenceCandidates(candidates, call, typ.FQCN, "method reference", typ.FQCN, true)
 }
 
 func (r *SyntacticResolver) resolveSuperMethodReference(call java.CallSite, ctx MethodContext) Resolution {
@@ -105,7 +113,7 @@ func (r *SyntacticResolver) resolveSuperMethodReference(call java.CallSite, ctx 
 		}
 		candidates = append(candidates, candidate)
 	}
-	return selectReferenceCandidates(candidates, call, superType.FQCN, "super method reference")
+	return r.selectReferenceCandidates(candidates, call, superType.FQCN, "super method reference", contextRuntimeOr(ctx, superType.FQCN), false)
 }
 
 func (r *SyntacticResolver) resolveConstructorReference(call java.CallSite, ctx MethodContext) Resolution {
@@ -139,7 +147,7 @@ func (r *SyntacticResolver) resolveConstructorReference(call java.CallSite, ctx 
 		return Resolution{Note: fmt.Sprintf("non-static inner constructor reference %s is unsupported", typ.FQCN)}
 	}
 	candidates := r.accessibleConstructors(typ, ctx, false)
-	return selectReferenceCandidates(candidates, call, typ.FQCN, "constructor reference")
+	return r.selectReferenceCandidates(candidates, call, typ.FQCN, "constructor reference", typ.FQCN, false)
 }
 
 func (r *SyntacticResolver) isStaticMemberType(typ *java.TypeDecl) bool {
@@ -191,7 +199,21 @@ func (r *SyntacticResolver) methodReferenceAccessible(candidate index.MethodReso
 	return false
 }
 
-func selectReferenceCandidates(candidates []index.MethodResolution, call java.CallSite, owner, kind string) Resolution {
+func (r *SyntacticResolver) selectReferenceCandidates(candidates []index.MethodResolution, call java.CallSite, owner, kind, runtime string, rebind bool) Resolution {
+	selection := r.selectReferenceCandidate(candidates, call, owner, kind)
+	if selection.Candidate == nil {
+		return selection.Resolution
+	}
+	if rebind {
+		return r.bindSelection(selection, runtime, call)
+	}
+	if java.HasModifier(selection.Candidate.Method.Modifier, "static") {
+		return selection.withDeclaringRuntime()
+	}
+	return selection.withRuntime(runtime)
+}
+
+func (r *SyntacticResolver) selectReferenceCandidate(candidates []index.MethodResolution, call java.CallSite, owner, kind string) candidateSelection {
 	type candidateKey struct {
 		owner string
 		key   java.MethodKey
@@ -220,10 +242,10 @@ func selectReferenceCandidates(candidates []index.MethodResolution, call java.Ca
 		return left.Method.Signature < right.Method.Signature
 	})
 	if len(applicable) == 0 {
-		return Resolution{Targets: []ResolvedTarget{TerminalTarget(
+		return candidateSelection{Found: true, Resolution: Resolution{Targets: []ResolvedTarget{TerminalTarget(
 			ResolutionUnresolved, owner, call.MethodName, "", call,
 			fmt.Sprintf("%s %q not found on %s", kind, call.MethodName, owner), nil,
-		)}}
+		)}}}
 	}
 	if len(applicable) == 1 {
 		candidate := applicable[0]
@@ -232,14 +254,18 @@ func selectReferenceCandidates(candidates []index.MethodResolution, call java.Ca
 			Method:    candidate.Method.Name,
 			Signature: candidate.Method.Signature,
 		}
-		return Resolution{Targets: []ResolvedTarget{ConcreteTarget(handle)}}
+		return candidateSelection{
+			Found:      true,
+			Candidate:  &candidate,
+			Resolution: Resolution{Targets: []ResolvedTarget{ConcreteTarget(ExecutionKey{Method: handle, RuntimeTypeFQCN: candidate.DeclaringType.FQCN})}},
+		}
 	}
 	descriptions := make([]string, len(applicable))
 	for i, candidate := range applicable {
 		descriptions[i] = candidate.DeclaringType.FQCN + "." + candidate.Method.Name + candidate.Method.Signature
 	}
-	return Resolution{Targets: []ResolvedTarget{TerminalTarget(
+	return candidateSelection{Found: true, Resolution: Resolution{Targets: []ResolvedTarget{TerminalTarget(
 		ResolutionAmbiguousOverload, owner, call.MethodName, "", call,
 		fmt.Sprintf("ambiguous %s %q on %s: %s", kind, call.MethodName, owner, strings.Join(descriptions, ", ")), nil,
-	)}}
+	)}}}
 }

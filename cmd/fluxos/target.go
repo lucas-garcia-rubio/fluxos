@@ -6,6 +6,7 @@ import (
 
 	"github.com/lucas-garcia-rubio/fluxos/internal/extract/java"
 	"github.com/lucas-garcia-rubio/fluxos/internal/index"
+	"github.com/lucas-garcia-rubio/fluxos/internal/resolve"
 )
 
 // TargetSpec é a forma parseada de um spec de target CLI, antes de resolver
@@ -96,19 +97,45 @@ func validateSignature(signature, originalSpec string) error {
 	return nil
 }
 
-// ResolveTarget aplica ParseTargetSpec e resolve contra o índice. Retorna
-// (TypeDecl, MethodDecl) prontos para o walker. Erros são determinísticos:
-// classe homônima lista FQCNs; overload sem signature lista signatures.
-func ResolveTarget(table *index.Table, spec TargetSpec) (*java.TypeDecl, *java.MethodDecl, error) {
-	typ, err := resolveTargetType(table, spec.TypeName)
+// RootTarget preserves both the type requested by the CLI and the declaration
+// that owns the selected method body.
+type RootTarget struct {
+	RequestedType *java.TypeDecl
+	DeclaringType *java.TypeDecl
+	Method        *java.MethodDecl
+	Execution     resolve.ExecutionKey
+}
+
+// ResolveTarget resolves a parsed CLI target against the index. Errors are
+// deterministic: homonymous classes list FQCNs and overloads list signatures.
+func ResolveTarget(table *index.Table, spec TargetSpec) (RootTarget, error) {
+	requestedType, err := resolveTargetType(table, spec.TypeName)
 	if err != nil {
-		return nil, nil, err
+		return RootTarget{}, err
 	}
-	declaringType, method, err := resolveTargetMethod(table, typ, spec)
+	declaringType, method, err := resolveTargetMethod(table, requestedType, spec)
 	if err != nil {
-		return nil, nil, err
+		return RootTarget{}, err
 	}
-	return declaringType, method, nil
+
+	runtimeType := requestedType.FQCN
+	if java.HasModifier(method.Modifier, "static") {
+		runtimeType = declaringType.FQCN
+	}
+	execution := resolve.ExecutionKey{
+		Method: resolve.MethodHandle{
+			TypeFQCN:  declaringType.FQCN,
+			Method:    method.Name,
+			Signature: method.Signature,
+		},
+		RuntimeTypeFQCN: runtimeType,
+	}
+	return RootTarget{
+		RequestedType: requestedType,
+		DeclaringType: declaringType,
+		Method:        method,
+		Execution:     execution,
+	}, nil
 }
 
 func resolveTargetType(table *index.Table, typeName string) (*java.TypeDecl, error) {

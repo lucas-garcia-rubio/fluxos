@@ -51,15 +51,15 @@ func TerminalHandle(receiverFQCN, methodName, signature string, kind ResolutionK
 }
 
 // TerminalTarget constrói um ResolvedTarget terminal com handle sintético.
-// candidates é copiado defensivamente pelo Graph.MarkTerminal; aqui basta
-// passar o slice original. note deve ser informativo, não parseado pelo
-// renderer.
-func TerminalTarget(kind ResolutionKind, receiverFQCN, methodName, signature string, call java.CallSite, note string, candidates []string) ResolvedTarget {
+// Implementation candidates now live on Resolution.DispatchSite; the final
+// argument remains only to keep terminal construction call sites uniform.
+func TerminalTarget(kind ResolutionKind, receiverFQCN, methodName, signature string, call java.CallSite, note string, _ []string) ResolvedTarget {
 	return ResolvedTarget{
-		Handle:     TerminalHandle(receiverFQCN, methodName, signature, kind, call),
-		Descend:    false,
-		Kind:       kind,
-		Note:       note,
-		Candidates: candidates,
+		Key: ExecutionKey{
+			Method:          TerminalHandle(receiverFQCN, methodName, signature, kind, call),
+			RuntimeTypeFQCN: receiverFQCN,
+		},
+		Kind: kind,
+		Note: note,
 	}
 }

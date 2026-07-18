@@ -29,6 +29,10 @@ func m3FixtureRoot(name string) string {
 	return filepath.Join("..", "..", "testdata", "m3", name)
 }
 
+func m4FixtureRoot(name string) string {
+	return filepath.Join("..", "..", "testdata", "m4", name)
+}
+
 func TestRunTraceMermaidGolden(t *testing.T) {
 	root := traceFixtureRoot()
 	var out bytes.Buffer
@@ -235,8 +239,8 @@ func TestBuildTraceSnapshotPreservesInheritedDeclaringTarget(t *testing.T) {
 	if err != nil {
 		t.Fatalf("buildTraceSnapshot: %v", err)
 	}
-	if snapshot.Target.TypeFQCN != "base.BaseService" || snapshot.Target.Method != "inheritedMethod" || snapshot.Target.Signature != "()" {
-		t.Fatalf("snapshot target = %+v, want base.BaseService.inheritedMethod()", snapshot.Target)
+	if snapshot.Target.Method.TypeFQCN != "base.BaseService" || snapshot.Target.Method.Method != "inheritedMethod" || snapshot.Target.Method.Signature != "()" || snapshot.Target.RuntimeTypeFQCN != "app.ChildService" {
+		t.Fatalf("snapshot target = %+v, want base.BaseService.inheritedMethod() under app.ChildService runtime", snapshot.Target)
 	}
 }
 

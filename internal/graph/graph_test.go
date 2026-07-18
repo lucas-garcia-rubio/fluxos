@@ -7,6 +7,13 @@ import (
 	"github.com/lucas-garcia-rubio/fluxos/internal/resolve"
 )
 
+func graphTestKey(typeFQCN, method, signature string) resolve.ExecutionKey {
+	return resolve.ExecutionKey{
+		Method:          resolve.MethodHandle{TypeFQCN: typeFQCN, Method: method, Signature: signature},
+		RuntimeTypeFQCN: typeFQCN,
+	}
+}
+
 func TestNewGraphEmpty(t *testing.T) {
 	g := NewGraph()
 	if len(g.Nodes) != 0 {
@@ -19,7 +26,7 @@ func TestNewGraphEmpty(t *testing.T) {
 
 func TestGetOrCreate(t *testing.T) {
 	g := NewGraph()
-	h := resolve.MethodHandle{TypeFQCN: "com.foo.User", Method: "getName", Signature: "()"}
+	h := graphTestKey("com.foo.User", "getName", "()")
 
 	n1 := g.GetOrCreate(h)
 	if n1 == nil {
@@ -42,9 +49,24 @@ func TestGetOrCreate(t *testing.T) {
 	}
 }
 
+func TestGetOrCreateDistinguishesRuntimeContexts(t *testing.T) {
+	handle := resolve.MethodHandle{TypeFQCN: "base.Base", Method: "run", Signature: "()"}
+	first := resolve.ExecutionKey{Method: handle, RuntimeTypeFQCN: "app.First"}
+	second := resolve.ExecutionKey{Method: handle, RuntimeTypeFQCN: "app.Second"}
+	g := NewGraph()
+
+	if g.GetOrCreate(first) == g.GetOrCreate(second) || len(g.Nodes) != 2 {
+		t.Fatalf("runtime contexts collapsed: %+v", g.Nodes)
+	}
+	g.MarkGray(first)
+	if !g.IsGray(first) || g.IsGray(second) {
+		t.Fatalf("DFS state was shared across runtime contexts: %+v", g.Nodes)
+	}
+}
+
 func TestIsGrayBlackOnMissingHandle(t *testing.T) {
 	g := NewGraph()
-	h := resolve.MethodHandle{TypeFQCN: "com.foo.User", Method: "getName", Signature: "()"}
+	h := graphTestKey("com.foo.User", "getName", "()")
 
 	if g.IsGray(h) {
 		t.Error("IsGray should be false for non-existent handle")
@@ -56,7 +78,7 @@ func TestIsGrayBlackOnMissingHandle(t *testing.T) {
 
 func TestMarkGrayAndIsGray(t *testing.T) {
 	g := NewGraph()
-	h := resolve.MethodHandle{TypeFQCN: "com.foo.User", Method: "getName", Signature: "()"}
+	h := graphTestKey("com.foo.User", "getName", "()")
 
 	g.MarkGray(h)
 
@@ -70,7 +92,7 @@ func TestMarkGrayAndIsGray(t *testing.T) {
 
 func TestMarkBlackAndIsBlack(t *testing.T) {
 	g := NewGraph()
-	h := resolve.MethodHandle{TypeFQCN: "com.foo.User", Method: "getName", Signature: "()"}
+	h := graphTestKey("com.foo.User", "getName", "()")
 
 	g.MarkBlack(h)
 
@@ -84,7 +106,7 @@ func TestMarkBlackAndIsBlack(t *testing.T) {
 
 func TestMarkBlackOverridesGray(t *testing.T) {
 	g := NewGraph()
-	h := resolve.MethodHandle{TypeFQCN: "com.foo.User", Method: "getName", Signature: "()"}
+	h := graphTestKey("com.foo.User", "getName", "()")
 
 	g.MarkGray(h)
 	g.MarkBlack(h)
@@ -99,11 +121,11 @@ func TestMarkBlackOverridesGray(t *testing.T) {
 
 func TestAddEdgeCreatesNodes(t *testing.T) {
 	g := NewGraph()
-	from := resolve.MethodHandle{TypeFQCN: "com.foo.User", Method: "getName", Signature: "()"}
-	to := resolve.MethodHandle{TypeFQCN: "com.foo.Main", Method: "run", Signature: "()"}
+	from := graphTestKey("com.foo.User", "getName", "()")
+	to := graphTestKey("com.foo.Main", "run", "()")
 	call := java.CallSite{MethodName: "run", Receiver: "user"}
 
-	g.AddEdge(from, to, call, true)
+	g.AddEdge(from, to, call, nil, true)
 
 	if len(g.Nodes) != 2 {
 		t.Errorf("expected 2 nodes after AddEdge, got %d", len(g.Nodes))
@@ -143,11 +165,11 @@ func TestAddEdgeMultigraph(t *testing.T) {
 	// Graph é multigrafo: múltiplas arestas entre o mesmo par (A → B com 2
 	// chamadas distintas vira 2 Edges).
 	g := NewGraph()
-	from := resolve.MethodHandle{TypeFQCN: "com.foo.User", Method: "run", Signature: "()"}
-	to := resolve.MethodHandle{TypeFQCN: "com.foo.Main", Method: "execute", Signature: "()"}
+	from := graphTestKey("com.foo.User", "run", "()")
+	to := graphTestKey("com.foo.Main", "execute", "()")
 
-	g.AddEdge(from, to, java.CallSite{MethodName: "execute", Line: 10}, false)
-	g.AddEdge(from, to, java.CallSite{MethodName: "execute", Line: 20}, false)
+	g.AddEdge(from, to, java.CallSite{MethodName: "execute", Line: 10}, nil, false)
+	g.AddEdge(from, to, java.CallSite{MethodName: "execute", Line: 20}, nil, false)
 
 	if len(g.Nodes) != 2 {
 		t.Errorf("expected 2 nodes, got %d", len(g.Nodes))
@@ -164,9 +186,33 @@ func TestAddEdgeMultigraph(t *testing.T) {
 	}
 }
 
+func TestAddEdgeCopiesCallAndDispatchSite(t *testing.T) {
+	from := graphTestKey("Caller", "run", "()")
+	to := graphTestKey("Target", "work", "()")
+	targetType := java.NewTypeRef("Target", false)
+	call := java.CallSite{Args: []string{"original"}, TargetType: &targetType}
+	site := resolve.NewDispatchSite(from, "Contract", "work", "()", call, []resolve.ImplementationCandidate{{
+		ImplementationFQCN: "Impl", Target: to.Method, Kind: resolve.ResolutionConcrete,
+	}})
+	g := NewGraph()
+	g.AddEdge(from, to, call, site, false)
+
+	call.Args[0] = "changed"
+	call.TargetType.Raw = "Changed"
+	site.Call.Args[0] = "site-changed"
+	site.Candidates[0].ImplementationFQCN = "ChangedImpl"
+	edge := g.Edges[0]
+	if edge.Call.Args[0] != "original" || edge.Call.TargetType.Raw != "Target" {
+		t.Fatalf("edge call aliases input: %+v", edge.Call)
+	}
+	if edge.DispatchSite == site || edge.DispatchSite.Call.Args[0] != "original" || edge.DispatchSite.Candidates[0].ImplementationFQCN != "Impl" {
+		t.Fatalf("edge dispatch site aliases input: %+v", edge.DispatchSite)
+	}
+}
+
 func TestMarkTerminalSetsKindNoteAndCandidates(t *testing.T) {
 	g := NewGraph()
-	h := resolve.MethodHandle{TypeFQCN: "contract.Svc#noimpl#abc", Method: "run", Signature: "()"}
+	h := graphTestKey("contract.Svc#noimpl#abc", "run", "()")
 	g.MarkTerminal(h, NodeTerminalNoImplementation, "no impls", []string{"a.A", "b.B"})
 
 	node, ok := g.Nodes[h]
@@ -186,7 +232,7 @@ func TestMarkTerminalSetsKindNoteAndCandidates(t *testing.T) {
 
 func TestMarkTerminalIsIdempotent(t *testing.T) {
 	g := NewGraph()
-	h := resolve.MethodHandle{TypeFQCN: "contract.Svc#noimpl#abc", Method: "run", Signature: "()"}
+	h := graphTestKey("contract.Svc#noimpl#abc", "run", "()")
 	g.MarkTerminal(h, NodeTerminalNoImplementation, "first", []string{"a.A"})
 	g.MarkTerminal(h, NodeTerminalNoImplementation, "second", []string{"b.B"})
 
@@ -204,7 +250,7 @@ func TestMarkTerminalIsIdempotent(t *testing.T) {
 
 func TestMarkTerminalCopiesCandidatesDefensively(t *testing.T) {
 	g := NewGraph()
-	h := resolve.MethodHandle{TypeFQCN: "contract.Svc#ambimpl#abc", Method: "run", Signature: "()"}
+	h := graphTestKey("contract.Svc#ambimpl#abc", "run", "()")
 	original := []string{"a.A", "b.B"}
 	g.MarkTerminal(h, NodeTerminalAmbiguousImplementation, "ambiguous", original)
 
@@ -217,7 +263,7 @@ func TestMarkTerminalCopiesCandidatesDefensively(t *testing.T) {
 
 func TestMarkExternalDoesNotOverrideTerminal(t *testing.T) {
 	g := NewGraph()
-	h := resolve.MethodHandle{TypeFQCN: "ext.Lib", Method: "run", Signature: "()"}
+	h := graphTestKey("ext.Lib", "run", "()")
 	g.MarkTerminal(h, NodeTerminalUnresolved, "unresolved", nil)
 	g.MarkExternal(h)
 	if g.Nodes[h].Kind != NodeTerminalUnresolved {
@@ -227,7 +273,7 @@ func TestMarkExternalDoesNotOverrideTerminal(t *testing.T) {
 
 func TestMarkExternalMarksMethodNode(t *testing.T) {
 	g := NewGraph()
-	h := resolve.MethodHandle{TypeFQCN: "ext.Lib", Method: "run", Signature: "()"}
+	h := graphTestKey("ext.Lib", "run", "()")
 	g.MarkExternal(h)
 	if g.Nodes[h].Kind != NodeExternal {
 		t.Fatalf("kind = %v, want NodeExternal", g.Nodes[h].Kind)

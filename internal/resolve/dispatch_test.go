@@ -27,8 +27,8 @@ func TestDispatchZeroImplementationsBecomesNoImplementationTerminal(t *testing.T
 	if len(res.Targets) != 1 || res.Targets[0].Kind != ResolutionNoImplementation {
 		t.Fatalf("expected NoImplementation terminal, got %+v", res.Targets)
 	}
-	if !strings.Contains(res.Targets[0].Handle.TypeFQCN, "#noimpl#") {
-		t.Fatalf("expected noimpl token in handle, got %q", res.Targets[0].Handle.TypeFQCN)
+	if !strings.Contains(res.Targets[0].Key.Method.TypeFQCN, "#noimpl#") {
+		t.Fatalf("expected noimpl token in handle, got %q", res.Targets[0].Key.Method.TypeFQCN)
 	}
 }
 
@@ -44,8 +44,8 @@ func TestDispatchZeroImplementationsWithDefaultDescendsToDefault(t *testing.T) {
 	if len(res.Targets) != 1 || res.Targets[0].Kind != ResolutionConcrete {
 		t.Fatalf("expected Concrete target on default method, got %+v", res.Targets)
 	}
-	if !res.Targets[0].Descend {
-		t.Fatal("default method target should descend")
+	if res.Targets[0].Key.RuntimeTypeFQCN != "contract.Defaulted" {
+		t.Fatalf("default runtime = %q", res.Targets[0].Key.RuntimeTypeFQCN)
 	}
 }
 
@@ -75,8 +75,8 @@ func TestDispatchSingleImplementationDescendsToImpl(t *testing.T) {
 	if len(res.Targets) != 1 || res.Targets[0].Kind != ResolutionConcrete {
 		t.Fatalf("expected Concrete target on unique impl, got %+v", res.Targets)
 	}
-	if res.Targets[0].Handle.TypeFQCN != "contract.SingleImpl" {
-		t.Fatalf("expected impl owner, got %q", res.Targets[0].Handle.TypeFQCN)
+	if res.Targets[0].Key.Method.TypeFQCN != "contract.SingleImpl" {
+		t.Fatalf("expected impl owner, got %q", res.Targets[0].Key.Method.TypeFQCN)
 	}
 }
 
@@ -109,6 +109,29 @@ func TestDispatchSingleImplementationWithIncompatibleOverloadBecomesUnresolved(t
 	assertTerminalKind(t, res, ResolutionUnresolved)
 }
 
+func TestDispatchSingleImplementationPreservesLexicalOverloadAmbiguity(t *testing.T) {
+	iface := &java.TypeDecl{
+		Kind: java.TypeKindInterface, Name: "Single", FQCN: "contract.Single", File: "S.java",
+		Methods: []java.MethodDecl{
+			overloadMethod("run", false, "java.lang.String"),
+			overloadMethod("run", false, "java.lang.Integer"),
+		},
+	}
+	impl := mkType("contract.SingleImpl",
+		overloadMethod("run", false, "java.lang.String"),
+		overloadMethod("run", false, "java.lang.Integer"),
+	)
+	impl.Interfaces = []java.TypeRef{ref("contract.Single")}
+	r := dispatchFixture(t, iface, impl)
+	ctx := MethodContext{LocalVars: []java.LocalVarDecl{localVar("svc", "contract.Single")}}
+
+	result := r.Resolve(java.CallSite{Receiver: "svc", MethodName: "run", Args: []string{"value()"}, ArgCount: 1, StartByte: 1}, ctx)
+	assertTerminalKind(t, result, ResolutionAmbiguousOverload)
+	if got := result.Targets[0].Key.Method.TypeFQCN; !strings.HasPrefix(got, iface.FQCN+"#ambover#") {
+		t.Fatalf("ambiguous overload owner = %q, want lexical owner %q", got, iface.FQCN)
+	}
+}
+
 func TestDispatchMultipleImplementationsTerminalWithSortedCandidates(t *testing.T) {
 	iface := &java.TypeDecl{Kind: java.TypeKindInterface, Name: "Multi", FQCN: "contract.Multi", File: "M.java"}
 	second := &java.TypeDecl{
@@ -125,12 +148,12 @@ func TestDispatchMultipleImplementationsTerminalWithSortedCandidates(t *testing.
 		t.Fatalf("expected AmbiguousImplementation, got %+v", res.Targets)
 	}
 	wantCandidates := []string{"contract.FirstImpl", "contract.SecondImpl"}
-	if len(res.Targets[0].Candidates) != 2 {
-		t.Fatalf("candidates = %+v", res.Targets[0].Candidates)
+	if res.DispatchSite == nil || len(res.DispatchSite.Candidates) != 2 {
+		t.Fatalf("dispatch site = %+v", res.DispatchSite)
 	}
 	for i, c := range wantCandidates {
-		if res.Targets[0].Candidates[i] != c {
-			t.Fatalf("candidates[%d] = %q, want %q (full: %+v)", i, res.Targets[0].Candidates[i], c, res.Targets[0].Candidates)
+		if res.DispatchSite.Candidates[i].ImplementationFQCN != c {
+			t.Fatalf("candidates[%d] = %q, want %q (full: %+v)", i, res.DispatchSite.Candidates[i].ImplementationFQCN, c, res.DispatchSite.Candidates)
 		}
 	}
 }
@@ -145,8 +168,8 @@ func TestDispatchSkipsConcreteReceiver(t *testing.T) {
 	if len(res.Targets) != 1 || res.Targets[0].Kind != ResolutionConcrete {
 		t.Fatalf("concrete receiver should not enter dispatch, got %+v", res.Targets)
 	}
-	if res.Targets[0].Handle.TypeFQCN != "svc.Concrete" {
-		t.Fatalf("expected concrete owner, got %q", res.Targets[0].Handle.TypeFQCN)
+	if res.Targets[0].Key.Method.TypeFQCN != "svc.Concrete" {
+		t.Fatalf("expected concrete owner, got %q", res.Targets[0].Key.Method.TypeFQCN)
 	}
 }
 
@@ -183,7 +206,7 @@ func TestDispatchAbstractClassWithSingleImplDescends(t *testing.T) {
 	if len(res.Targets) != 1 || res.Targets[0].Kind != ResolutionConcrete {
 		t.Fatalf("expected Concrete target on abstract with single impl, got %+v", res.Targets)
 	}
-	if res.Targets[0].Handle.TypeFQCN != "base.Concrete" {
-		t.Fatalf("expected impl owner, got %q", res.Targets[0].Handle.TypeFQCN)
+	if res.Targets[0].Key.Method.TypeFQCN != "base.Concrete" {
+		t.Fatalf("expected impl owner, got %q", res.Targets[0].Key.Method.TypeFQCN)
 	}
 }

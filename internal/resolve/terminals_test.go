@@ -72,19 +72,13 @@ func TestTerminalTargetCopiesFields(t *testing.T) {
 	call := java.CallSite{File: "App.java", Line: 10}
 	target := TerminalTarget(ResolutionAmbiguousImplementation, "contract.Svc", "run", "()", call,
 		"note", []string{"a.A", "b.B"})
-	if target.Descend {
-		t.Fatal("terminal target should not descend")
-	}
 	if target.Kind != ResolutionAmbiguousImplementation {
 		t.Fatalf("kind = %v, want AmbiguousImplementation", target.Kind)
 	}
 	if target.Note != "note" {
 		t.Fatalf("note = %q", target.Note)
 	}
-	if len(target.Candidates) != 2 || target.Candidates[0] != "a.A" {
-		t.Fatalf("candidates = %+v", target.Candidates)
-	}
-	if target.Handle.Method != "run" {
-		t.Fatalf("handle method lost: %+v", target.Handle)
+	if target.Key.Method.Method != "run" {
+		t.Fatalf("handle method lost: %+v", target.Key.Method)
 	}
 }

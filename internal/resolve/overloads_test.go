@@ -105,7 +105,7 @@ func TestSelectOverloadByLiteralAndObjectType(t *testing.T) {
 	}
 	for _, tt := range cases {
 		selection := r.selectMethodCandidates(r.methodCandidatesOnType(owner, tt.call.MethodName), tt.call, owner, MethodContext{EnclosingType: owner})
-		if !selection.Found || len(selection.Resolution.Targets) != 1 || selection.Resolution.Targets[0].Handle.Signature != tt.want {
+		if !selection.Found || len(selection.Resolution.Targets) != 1 || selection.Resolution.Targets[0].Key.Method.Signature != tt.want {
 			t.Fatalf("select %s(%v) = %+v, want %s", tt.call.MethodName, tt.call.Args, selection, tt.want)
 		}
 	}
@@ -121,7 +121,7 @@ func TestSelectOverloadByProjectSubtype(t *testing.T) {
 	owner = r.Index.TypesByFQCN["Service"]
 	call := java.CallSite{MethodName: "run", Args: []string{"new Impl()"}, ArgCount: 1}
 	selection := r.selectMethodCandidates(r.methodCandidatesOnType(owner, "run"), call, owner, MethodContext{EnclosingType: owner})
-	if len(selection.Resolution.Targets) != 1 || selection.Resolution.Targets[0].Handle.Signature != "(Contract)" {
+	if len(selection.Resolution.Targets) != 1 || selection.Resolution.Targets[0].Key.Method.Signature != "(Contract)" {
 		t.Fatalf("subtype selection = %+v", selection)
 	}
 }
@@ -146,7 +146,7 @@ func TestSelectOverloadNullRejectsPrimitive(t *testing.T) {
 	owner = r.Index.TypesByFQCN["Service"]
 	call := java.CallSite{MethodName: "run", Args: []string{"null"}, ArgCount: 1}
 	selection := r.selectMethodCandidates(r.methodCandidatesOnType(owner, "run"), call, owner, MethodContext{EnclosingType: owner})
-	if len(selection.Resolution.Targets) != 1 || selection.Resolution.Targets[0].Handle.Signature != "(Request)" {
+	if len(selection.Resolution.Targets) != 1 || selection.Resolution.Targets[0].Key.Method.Signature != "(Request)" {
 		t.Fatalf("null selection = %+v", selection)
 	}
 }
@@ -190,7 +190,7 @@ func TestSelectOverloadVarargsUsesElementType(t *testing.T) {
 	owner = r.Index.TypesByFQCN["Service"]
 	call := java.CallSite{MethodName: "run", Args: []string{`"a"`, `"b"`}, ArgCount: 2}
 	selection := r.selectMethodCandidates(r.methodCandidatesOnType(owner, "run"), call, owner, MethodContext{EnclosingType: owner})
-	if len(selection.Resolution.Targets) != 1 || selection.Resolution.Targets[0].Handle.Signature != "(java.lang.String[])" {
+	if len(selection.Resolution.Targets) != 1 || selection.Resolution.Targets[0].Key.Method.Signature != "(java.lang.String[])" {
 		t.Fatalf("varargs selection = %+v", selection)
 	}
 }
@@ -207,7 +207,7 @@ func TestSelectConstructorOverloadByArgumentType(t *testing.T) {
 	target := java.NewTypeRef("Value", false)
 	call := java.CallSite{Kind: java.CallObjectCreation, MethodName: "<init>", TargetType: &target, Args: []string{`"value"`}, ArgCount: 1}
 	result := r.Resolve(call, MethodContext{EnclosingType: caller, File: caller.File})
-	if len(result.Targets) != 1 || result.Targets[0].Kind != ResolutionConcrete || result.Targets[0].Handle.Signature != "(java.lang.String)" {
+	if len(result.Targets) != 1 || result.Targets[0].Kind != ResolutionConcrete || result.Targets[0].Key.Method.Signature != "(java.lang.String)" {
 		t.Fatalf("constructor overload = %+v", result)
 	}
 }
@@ -238,8 +238,8 @@ func TestExternalSuperclassCallsBecomeUnresolvedTerminals(t *testing.T) {
 	for _, call := range calls {
 		result := r.Resolve(call, ctx)
 		assertTerminalKind(t, result, ResolutionUnresolved)
-		if !strings.HasPrefix(result.Targets[0].Handle.TypeFQCN, "java.util.AbstractList#unresolved#") {
-			t.Fatalf("external super owner = %q", result.Targets[0].Handle.TypeFQCN)
+		if !strings.HasPrefix(result.Targets[0].Key.Method.TypeFQCN, "java.util.AbstractList#unresolved#") {
+			t.Fatalf("external super owner = %q", result.Targets[0].Key.Method.TypeFQCN)
 		}
 	}
 }

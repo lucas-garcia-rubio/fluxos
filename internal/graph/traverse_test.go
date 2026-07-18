@@ -50,16 +50,23 @@ func mkCall(methodName string) java.CallSite {
 	return java.CallSite{MethodName: methodName}
 }
 
-func mkHandle(fqcn, method string) resolve.MethodHandle {
-	return resolve.MethodHandle{TypeFQCN: fqcn, Method: method, Signature: "()"}
+func mkHandle(fqcn, method string) resolve.ExecutionKey {
+	return graphTestKey(fqcn, method, "()")
 }
 
-func resolution(targets ...resolve.MethodHandle) resolve.Resolution {
+func resolution(targets ...resolve.ExecutionKey) resolve.Resolution {
 	resolved := make([]resolve.ResolvedTarget, len(targets))
 	for i, h := range targets {
 		resolved[i] = resolve.ConcreteTarget(h)
 	}
 	return resolve.Resolution{Targets: resolved}
+}
+
+func walkTest(g *Graph, enclosingType *java.TypeDecl, method java.MethodDecl, table *index.Table, resolver resolve.Resolver) {
+	Walk(g, resolve.ExecutionKey{
+		Method:          resolve.MethodHandle{TypeFQCN: enclosingType.FQCN, Method: method.Name, Signature: method.Signature},
+		RuntimeTypeFQCN: enclosingType.FQCN,
+	}, table, resolver)
 }
 
 func tableForTypes(types []*java.TypeDecl) *index.Table {
@@ -99,7 +106,7 @@ func TestWalkLinear(t *testing.T) {
 	}
 
 	g := NewGraph()
-	Walk(g, types[0], types[0].Methods[0], tableForTypes(types), resolver)
+	walkTest(g, types[0], types[0].Methods[0], tableForTypes(types), resolver)
 
 	if len(g.Nodes) != 3 {
 		t.Errorf("expected 3 nodes, got %d", len(g.Nodes))
@@ -135,7 +142,7 @@ func TestWalkCycle(t *testing.T) {
 	}
 
 	g := NewGraph()
-	Walk(g, types[0], types[0].Methods[0], tableForTypes(types), resolver)
+	walkTest(g, types[0], types[0].Methods[0], tableForTypes(types), resolver)
 
 	if len(g.Nodes) != 2 {
 		t.Errorf("expected 2 nodes, got %d", len(g.Nodes))
@@ -175,7 +182,7 @@ func TestWalkSelfLoop(t *testing.T) {
 	}
 
 	g := NewGraph()
-	Walk(g, types[0], types[0].Methods[0], tableForTypes(types), resolver)
+	walkTest(g, types[0], types[0].Methods[0], tableForTypes(types), resolver)
 
 	if len(g.Nodes) != 1 {
 		t.Errorf("expected 1 node, got %d", len(g.Nodes))
@@ -204,7 +211,7 @@ func TestWalkUnresolved(t *testing.T) {
 	}
 
 	g := NewGraph()
-	Walk(g, types[0], types[0].Methods[0], tableForTypes(types), resolver)
+	walkTest(g, types[0], types[0].Methods[0], tableForTypes(types), resolver)
 
 	if len(g.Nodes) != 1 {
 		t.Errorf("expected 1 node (just A), got %d", len(g.Nodes))
@@ -232,7 +239,7 @@ func TestWalkFanOut(t *testing.T) {
 	}
 
 	g := NewGraph()
-	Walk(g, types[0], types[0].Methods[0], tableForTypes(types), resolver)
+	walkTest(g, types[0], types[0].Methods[0], tableForTypes(types), resolver)
 
 	if len(g.Nodes) != 3 {
 		t.Errorf("expected 3 nodes (A, X, Y), got %d", len(g.Nodes))
@@ -275,7 +282,7 @@ func TestWalkExternalTarget(t *testing.T) {
 	}
 
 	g := NewGraph()
-	Walk(g, types[0], types[0].Methods[0], tableForTypes(types), resolver)
+	walkTest(g, types[0], types[0].Methods[0], tableForTypes(types), resolver)
 
 	// 2 nodes: A (do projeto) e External (criado por AddEdge mas não recursado).
 	if len(g.Nodes) != 2 {
@@ -296,13 +303,44 @@ func TestWalkExternalTarget(t *testing.T) {
 	}
 }
 
+func TestWalkAttachesDispatchSiteAndProjectsTerminalCandidates(t *testing.T) {
+	method := mkMethod("run", mkCall("work"))
+	caller := mkType("Caller", method)
+	root := graphTestKey("Caller", "run", "()")
+	terminal := resolve.ExecutionKey{
+		Method:          resolve.TerminalHandle("Contract", "work", "()", resolve.ResolutionAmbiguousImplementation, method.Calls[0]),
+		RuntimeTypeFQCN: "Caller",
+	}
+	site := resolve.NewDispatchSite(root, "Contract", "work", "()", method.Calls[0], []resolve.ImplementationCandidate{
+		{ImplementationFQCN: "b.Impl", Kind: resolve.ResolutionConcrete},
+		{ImplementationFQCN: "a.Impl", Kind: resolve.ResolutionConcrete},
+	})
+	resolver := stubResolver{rules: map[string]resolve.Resolution{
+		"work": {
+			Targets:      []resolve.ResolvedTarget{{Key: terminal, Kind: resolve.ResolutionAmbiguousImplementation, Note: "ambiguous"}},
+			DispatchSite: site,
+		},
+	}}
+	g := NewGraph()
+
+	Walk(g, root, tableForTypes([]*java.TypeDecl{caller}), resolver)
+
+	if len(g.Edges) != 1 || g.Edges[0].DispatchSite == nil || g.Edges[0].DispatchSite == site {
+		t.Fatalf("dispatch site not copied to edge: %+v", g.Edges)
+	}
+	node := g.Nodes[terminal]
+	if node == nil || len(node.Candidates) != 2 || node.Candidates[0] != "a.Impl" || node.Candidates[1] != "b.Impl" {
+		t.Fatalf("terminal compatibility candidates = %+v", node)
+	}
+}
+
 func TestWalkPassesLocalVarsToResolver(t *testing.T) {
 	method := mkMethod("run", mkCall("helper"))
 	method.LocalVars = []java.LocalVarDecl{{Name: "helper", Type: java.NewTypeRef("Helper", false)}}
 	typ := mkType("Example", method)
 	resolver := &contextResolver{}
 
-	Walk(NewGraph(), typ, method, tableForTypes([]*java.TypeDecl{typ}), resolver)
+	walkTest(NewGraph(), typ, method, tableForTypes([]*java.TypeDecl{typ}), resolver)
 
 	if len(resolver.localVars) != 1 || resolver.localVars[0].Name != "helper" || resolver.localVars[0].Type.Raw != "Helper" {
 		t.Fatalf("resolver received local vars = %+v, want [{Name: helper, Type.Raw: Helper}]", resolver.localVars)
@@ -312,10 +350,11 @@ func TestWalkPassesLocalVarsToResolver(t *testing.T) {
 func TestWalkPassesParamsToResolver(t *testing.T) {
 	method := mkMethod("run", mkCall("helper"))
 	method.Params = []java.Param{{Name: "helper", Type: java.NewTypeRef("Helper", false)}}
+	method.Signature = "(Helper)"
 	typ := mkType("Example", method)
 	resolver := &contextResolver{}
 
-	Walk(NewGraph(), typ, method, tableForTypes([]*java.TypeDecl{typ}), resolver)
+	walkTest(NewGraph(), typ, method, tableForTypes([]*java.TypeDecl{typ}), resolver)
 
 	if len(resolver.params) != 1 || resolver.params[0].Name != "helper" || resolver.params[0].Type.Raw != "Helper" {
 		t.Fatalf("resolver received params = %+v, want [{Name: helper, Type.Raw: Helper}]", resolver.params)
@@ -336,12 +375,12 @@ func TestWalkKeepsOverloadsDistinctAndDetectsCycle(t *testing.T) {
 	}
 	typ := mkType("Service", zero, withInt)
 	resolver := stubResolver{rules: map[string]resolve.Resolution{
-		"toInt":  resolution(resolve.MethodHandle{TypeFQCN: "Service", Method: "run", Signature: "(int)"}),
-		"toZero": resolution(resolve.MethodHandle{TypeFQCN: "Service", Method: "run", Signature: "()"}),
+		"toInt":  resolution(graphTestKey("Service", "run", "(int)")),
+		"toZero": resolution(graphTestKey("Service", "run", "()")),
 	}}
 
 	g := NewGraph()
-	Walk(g, typ, zero, tableForTypes([]*java.TypeDecl{typ}), resolver)
+	walkTest(g, typ, zero, tableForTypes([]*java.TypeDecl{typ}), resolver)
 
 	if len(g.Nodes) != 2 {
 		t.Fatalf("node count = %d, want 2 overload nodes", len(g.Nodes))
@@ -367,12 +406,12 @@ func TestWalkInheritedMethodUsesDeclaringTypeAndTraversesBody(t *testing.T) {
 	table := tableForTypes([]*java.TypeDecl{child, parent})
 
 	g := NewGraph()
-	Walk(g, child, entry, table, resolve.NewSyntacticResolver(table))
+	walkTest(g, child, entry, table, resolve.NewSyntacticResolver(table))
 
-	for _, handle := range []resolve.MethodHandle{
-		{TypeFQCN: "Child", Method: "entry", Signature: "()"},
-		{TypeFQCN: "Parent", Method: "inherited", Signature: "()"},
-		{TypeFQCN: "Parent", Method: "parentOnly", Signature: "()"},
+	for _, handle := range []resolve.ExecutionKey{
+		graphTestKey("Child", "entry", "()"),
+		{Method: resolve.MethodHandle{TypeFQCN: "Parent", Method: "inherited", Signature: "()"}, RuntimeTypeFQCN: "Child"},
+		{Method: resolve.MethodHandle{TypeFQCN: "Parent", Method: "parentOnly", Signature: "()"}, RuntimeTypeFQCN: "Child"},
 	} {
 		if !g.IsBlack(handle) {
 			t.Fatalf("expected inherited traversal node %+v to be black; nodes=%+v", handle, g.Nodes)
@@ -400,10 +439,10 @@ func TestWalkObjectCreationTraversesConstructorBody(t *testing.T) {
 	table := tableForTypes([]*java.TypeDecl{caller, value})
 
 	g := NewGraph()
-	Walk(g, caller, run, table, resolve.NewSyntacticResolver(table))
+	walkTest(g, caller, run, table, resolve.NewSyntacticResolver(table))
 
-	constructorHandle := resolve.MethodHandle{TypeFQCN: "Value", Method: "<init>", Signature: "()"}
-	validateHandle := resolve.MethodHandle{TypeFQCN: "Value", Method: "validate", Signature: "()"}
+	constructorHandle := graphTestKey("Value", "<init>", "()")
+	validateHandle := graphTestKey("Value", "validate", "()")
 	if !g.IsBlack(constructorHandle) || !g.IsBlack(validateHandle) {
 		t.Fatalf("constructor body was not traversed; nodes=%+v", g.Nodes)
 	}
@@ -426,10 +465,10 @@ func TestWalkMethodReferencePreservesKindAndTraversesBody(t *testing.T) {
 	table := tableForTypes([]*java.TypeDecl{caller, target})
 
 	g := NewGraph()
-	Walk(g, caller, entry, table, resolve.NewSyntacticResolver(table))
+	walkTest(g, caller, entry, table, resolve.NewSyntacticResolver(table))
 
-	referencedHandle := resolve.MethodHandle{TypeFQCN: "Target", Method: "referenced", Signature: "()"}
-	leafHandle := resolve.MethodHandle{TypeFQCN: "Target", Method: "leaf", Signature: "()"}
+	referencedHandle := graphTestKey("Target", "referenced", "()")
+	leafHandle := graphTestKey("Target", "leaf", "()")
 	if !g.IsBlack(referencedHandle) || !g.IsBlack(leafHandle) {
 		t.Fatalf("referenced body was not traversed; nodes=%+v", g.Nodes)
 	}
@@ -449,7 +488,7 @@ func TestWalkConstructorReferencePreservesKind(t *testing.T) {
 	table := tableForTypes([]*java.TypeDecl{caller, value})
 
 	g := NewGraph()
-	Walk(g, caller, entry, table, resolve.NewSyntacticResolver(table))
+	walkTest(g, caller, entry, table, resolve.NewSyntacticResolver(table))
 	if len(g.Edges) != 1 || g.Edges[0].Call.Kind != java.CallConstructorReference {
 		t.Fatalf("constructor reference edges = %+v", g.Edges)
 	}

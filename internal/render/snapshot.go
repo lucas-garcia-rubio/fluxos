@@ -7,6 +7,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/lucas-garcia-rubio/fluxos/internal/extract/java"
 	"github.com/lucas-garcia-rubio/fluxos/internal/graph"
 	"github.com/lucas-garcia-rubio/fluxos/internal/resolve"
 )
@@ -15,6 +16,28 @@ type MethodView struct {
 	TypeFQCN  string
 	Method    string
 	Signature string
+}
+
+type ExecutionView struct {
+	Method          MethodView
+	RuntimeTypeFQCN string
+}
+
+type ImplementationCandidateView struct {
+	ImplementationFQCN string
+	Target             MethodView
+	Kind               string
+	Note               string
+}
+
+type DispatchSiteView struct {
+	ID           string
+	Caller       ExecutionView
+	ReceiverFQCN string
+	Method       string
+	Signature    string
+	Call         CallView
+	Candidates   []ImplementationCandidateView
 }
 
 type NodeKind string
@@ -31,7 +54,7 @@ const (
 
 type NodeView struct {
 	ID         string
-	Method     MethodView
+	Execution  ExecutionView
 	Kind       NodeKind
 	Label      string
 	Note       string
@@ -48,21 +71,22 @@ type CallView struct {
 }
 
 type EdgeView struct {
-	From  string
-	To    string
-	Call  CallView
-	Cycle bool
+	From         string
+	To           string
+	Call         CallView
+	DispatchSite *DispatchSiteView
+	Cycle        bool
 }
 
 type Snapshot struct {
-	Target MethodView
+	Target ExecutionView
 	Nodes  []NodeView
 	Edges  []EdgeView
 }
 
-func NewSnapshot(g *graph.Graph, target resolve.MethodHandle) Snapshot {
+func NewSnapshot(g *graph.Graph, target resolve.ExecutionKey) Snapshot {
 	snapshot := Snapshot{
-		Target: methodView(target, false),
+		Target: executionView(target, false),
 		Nodes:  make([]NodeView, 0),
 		Edges:  make([]EdgeView, 0),
 	}
@@ -70,23 +94,26 @@ func NewSnapshot(g *graph.Graph, target resolve.MethodHandle) Snapshot {
 		return snapshot
 	}
 
+	contextCounts := make(map[resolve.MethodHandle]int, len(g.Nodes))
 	nodes := make([]*graph.Node, 0, len(g.Nodes))
 	for _, node := range g.Nodes {
 		nodes = append(nodes, node)
+		contextCounts[node.Key.Method]++
 	}
 	sort.Slice(nodes, func(i, j int) bool {
-		return compareHandles(nodes[i].Handle, nodes[j].Handle) < 0
+		return compareExecutionKeys(nodes[i].Key, nodes[j].Key) < 0
 	})
 	for _, node := range nodes {
 		kind := nodeKind(node.Kind)
-		method := methodView(node.Handle, isTerminalKind(kind))
+		execution := executionView(node.Key, isTerminalKind(kind))
 		candidates := append([]string{}, node.Candidates...)
 		sort.Strings(candidates)
+		runtimeAware := contextCounts[node.Key.Method] > 1
 		snapshot.Nodes = append(snapshot.Nodes, NodeView{
-			ID:         stableNodeID(node.Handle),
-			Method:     method,
+			ID:         stableExecutionID(node.Key, runtimeAware),
+			Execution:  execution,
 			Kind:       kind,
-			Label:      nodeLabel(method, kind, len(candidates)),
+			Label:      nodeLabel(execution.Method, kind, len(candidates), runtimeLabel(node.Key, runtimeAware)),
 			Note:       node.Note,
 			Candidates: candidates,
 		})
@@ -98,17 +125,11 @@ func NewSnapshot(g *graph.Graph, target resolve.MethodHandle) Snapshot {
 	})
 	for _, edge := range edges {
 		snapshot.Edges = append(snapshot.Edges, EdgeView{
-			From: stableNodeID(edge.From),
-			To:   stableNodeID(edge.To),
-			Call: CallView{
-				Kind:       edge.Call.Kind.String(),
-				File:       edge.Call.File,
-				Line:       edge.Call.Line,
-				StartByte:  edge.Call.StartByte,
-				Receiver:   edge.Call.Receiver,
-				MethodName: edge.Call.MethodName,
-			},
-			Cycle: edge.Cycle,
+			From:         stableExecutionID(edge.From, contextCounts[edge.From.Method] > 1),
+			To:           stableExecutionID(edge.To, contextCounts[edge.To.Method] > 1),
+			Call:         callView(edge.Call),
+			DispatchSite: dispatchSiteView(edge.DispatchSite),
+			Cycle:        edge.Cycle,
 		})
 	}
 	return snapshot
@@ -117,6 +138,18 @@ func NewSnapshot(g *graph.Graph, target resolve.MethodHandle) Snapshot {
 func stableNodeID(handle resolve.MethodHandle) string {
 	sum := sha256.Sum256([]byte(handle.TypeFQCN + "\x00" + handle.Method + "\x00" + handle.Signature))
 	return fmt.Sprintf("m_%x", sum[:6])
+}
+
+func stableExecutionID(key resolve.ExecutionKey, runtimeAware bool) string {
+	if !runtimeAware {
+		return stableNodeID(key.Method)
+	}
+	sum := sha256.Sum256([]byte(key.Method.TypeFQCN + "\x00" + key.Method.Method + "\x00" + key.Method.Signature + "\x00" + key.RuntimeTypeFQCN))
+	return fmt.Sprintf("m_%x", sum[:6])
+}
+
+func executionView(key resolve.ExecutionKey, terminal bool) ExecutionView {
+	return ExecutionView{Method: methodView(key.Method, terminal), RuntimeTypeFQCN: key.RuntimeTypeFQCN}
 }
 
 func methodView(handle resolve.MethodHandle, terminal bool) MethodView {
@@ -157,7 +190,7 @@ func isTerminalKind(kind NodeKind) bool {
 	}
 }
 
-func nodeLabel(method MethodView, kind NodeKind, candidateCount int) string {
+func nodeLabel(method MethodView, kind NodeKind, candidateCount int, runtime string) string {
 	typeFQCN := method.TypeFQCN
 	if typeFQCN == "" {
 		typeFQCN = "<unknown>"
@@ -167,27 +200,88 @@ func nodeLabel(method MethodView, kind NodeKind, candidateCount int) string {
 		signature = "()"
 	}
 	base := typeFQCN + "." + method.Method + signature
+	var label string
 	switch kind {
 	case NodeUnresolved:
-		return base + " [unresolved]"
+		label = base + " [unresolved]"
 	case NodeNoImplementation:
-		return base + " [no implementation]"
+		label = base + " [no implementation]"
 	case NodeAmbiguousType:
-		return base + " [ambiguous type]"
+		label = base + " [ambiguous type]"
 	case NodeAmbiguousOverload:
-		return base + " [ambiguous overload]"
+		label = base + " [ambiguous overload]"
 	case NodeAmbiguousImplementation:
-		return fmt.Sprintf("%s [ambiguous: %d implementations]", base, candidateCount)
+		label = fmt.Sprintf("%s [ambiguous: %d implementations]", base, candidateCount)
 	default:
-		return base
+		label = base
+	}
+	if runtime != "" {
+		label += " [runtime: " + runtime + "]"
+	}
+	return label
+}
+
+func runtimeLabel(key resolve.ExecutionKey, runtimeAware bool) string {
+	if runtimeAware {
+		return key.RuntimeTypeFQCN
+	}
+	return ""
+}
+
+func callView(call java.CallSite) CallView {
+	return CallView{
+		Kind: call.Kind.String(), File: call.File, Line: call.Line, StartByte: call.StartByte,
+		Receiver: call.Receiver, MethodName: call.MethodName,
+	}
+}
+
+func dispatchSiteView(site *resolve.DispatchSite) *DispatchSiteView {
+	if site == nil {
+		return nil
+	}
+	view := &DispatchSiteView{
+		ID: string(site.ID), Caller: executionView(site.Caller, false), ReceiverFQCN: site.ReceiverFQCN,
+		Method: site.Method, Signature: site.Signature, Call: callView(site.Call),
+		Candidates: make([]ImplementationCandidateView, len(site.Candidates)),
+	}
+	for i, candidate := range site.Candidates {
+		view.Candidates[i] = ImplementationCandidateView{
+			ImplementationFQCN: candidate.ImplementationFQCN,
+			Target:             methodView(candidate.Target, false),
+			Kind:               resolutionKind(candidate.Kind),
+			Note:               candidate.Note,
+		}
+	}
+	sort.Slice(view.Candidates, func(i, j int) bool { return compareCandidateViews(view.Candidates[i], view.Candidates[j]) < 0 })
+	return view
+}
+
+func resolutionKind(kind resolve.ResolutionKind) string {
+	switch kind {
+	case resolve.ResolutionConcrete:
+		return "concrete"
+	case resolve.ResolutionExternal:
+		return "external"
+	case resolve.ResolutionUnresolved:
+		return "unresolved"
+	case resolve.ResolutionNoImplementation:
+		return "noImplementation"
+	case resolve.ResolutionAmbiguousType:
+		return "ambiguousType"
+	case resolve.ResolutionAmbiguousOverload:
+		return "ambiguousOverload"
+	case resolve.ResolutionAmbiguousImplementation:
+		return "ambiguousImplementation"
+	default:
+		return "unknown"
 	}
 }
 
 func compareEdges(a, b graph.Edge) int {
-	if cmp := compareHandles(a.From, b.From); cmp != 0 {
+	if cmp := compareExecutionKeys(a.From, b.From); cmp != 0 {
 		return cmp
 	}
-	if cmp := compareHandles(a.To, b.To); cmp != 0 {
+	if cmp := compareExecutionKeys(a.To, b.To); cmp != 0 {
 		return cmp
 	}
 	if a.Call.File != b.Call.File {
@@ -208,6 +302,9 @@ func compareEdges(a, b graph.Edge) int {
 	if a.Call.MethodName != b.Call.MethodName {
 		return compareStrings(a.Call.MethodName, b.Call.MethodName)
 	}
+	if dispatchSiteID(a.DispatchSite) != dispatchSiteID(b.DispatchSite) {
+		return compareStrings(dispatchSiteID(a.DispatchSite), dispatchSiteID(b.DispatchSite))
+	}
 	if a.Cycle == b.Cycle {
 		return 0
 	}
@@ -215,6 +312,40 @@ func compareEdges(a, b graph.Edge) int {
 		return -1
 	}
 	return 1
+}
+
+func dispatchSiteID(site *resolve.DispatchSite) string {
+	if site == nil {
+		return ""
+	}
+	return string(site.ID)
+}
+
+func compareExecutionKeys(a, b resolve.ExecutionKey) int {
+	if cmp := compareHandles(a.Method, b.Method); cmp != 0 {
+		return cmp
+	}
+	return compareStrings(a.RuntimeTypeFQCN, b.RuntimeTypeFQCN)
+}
+
+func compareCandidateViews(a, b ImplementationCandidateView) int {
+	if a.ImplementationFQCN != b.ImplementationFQCN {
+		return compareStrings(a.ImplementationFQCN, b.ImplementationFQCN)
+	}
+	if cmp := compareMethodViews(a.Target, b.Target); cmp != 0 {
+		return cmp
+	}
+	if a.Kind != b.Kind {
+		return compareStrings(a.Kind, b.Kind)
+	}
+	return compareStrings(a.Note, b.Note)
+}
+
+func compareMethodViews(a, b MethodView) int {
+	return compareHandles(
+		resolve.MethodHandle{TypeFQCN: a.TypeFQCN, Method: a.Method, Signature: a.Signature},
+		resolve.MethodHandle{TypeFQCN: b.TypeFQCN, Method: b.Method, Signature: b.Signature},
+	)
 }
 
 func compareHandles(a, b resolve.MethodHandle) int {

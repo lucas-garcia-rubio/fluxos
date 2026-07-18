@@ -28,8 +28,11 @@ func (shortWriter) Write(p []byte) (int, error) {
 	return len(p) - 1, nil
 }
 
-func handle(typeFQCN, method string) resolve.MethodHandle {
-	return resolve.MethodHandle{TypeFQCN: typeFQCN, Method: method, Signature: "()"}
+func handle(typeFQCN, method string) resolve.ExecutionKey {
+	return resolve.ExecutionKey{
+		Method:          resolve.MethodHandle{TypeFQCN: typeFQCN, Method: method, Signature: "()"},
+		RuntimeTypeFQCN: typeFQCN,
+	}
 }
 
 func renderString(t *testing.T, snapshot render.Snapshot, direction Direction) string {
@@ -134,10 +137,10 @@ func TestRenderGolden(t *testing.T) {
 	g.GetOrCreate(c)
 	g.GetOrCreate(a)
 	g.GetOrCreate(b)
-	g.AddEdge(a, b, java.CallSite{File: "A.java", Line: 20}, false)
-	g.AddEdge(c, a, java.CallSite{File: "C.java", Line: 40}, true)
-	g.AddEdge(b, c, java.CallSite{File: "B.java", Line: 30}, false)
-	g.AddEdge(a, b, java.CallSite{File: "A.java", Line: 10}, false)
+	g.AddEdge(a, b, java.CallSite{File: "A.java", Line: 20}, nil, false)
+	g.AddEdge(c, a, java.CallSite{File: "C.java", Line: 40}, nil, true)
+	g.AddEdge(b, c, java.CallSite{File: "B.java", Line: 30}, nil, false)
+	g.AddEdge(a, b, java.CallSite{File: "A.java", Line: 10}, nil, false)
 
 	want, err := os.ReadFile("testdata/callgraph.golden")
 	if err != nil {

@@ -27,19 +27,22 @@ func NewSyntacticResolver(table *index.Table) *SyntacticResolver {
 // Resolve decide qual método call aponta, baseado em call.Receiver e no
 // MethodContext. Ver Passo 8 em PLANO_M2.md pra algoritmo completo.
 func (r *SyntacticResolver) Resolve(call java.CallSite, ctx MethodContext) Resolution {
+	var result Resolution
 	switch call.Kind {
 	case java.CallObjectCreation:
-		return r.resolveObjectCreation(call, ctx)
+		result = r.resolveObjectCreation(call, ctx)
 	case java.CallThisConstructor:
-		return r.resolveThisConstructor(call, ctx)
+		result = r.resolveThisConstructor(call, ctx)
 	case java.CallSuperConstructor:
-		return r.resolveSuperConstructor(call, ctx)
+		result = r.resolveSuperConstructor(call, ctx)
 	case java.CallMethodReference:
-		return r.resolveMethodReference(call, ctx)
+		result = r.resolveMethodReference(call, ctx)
 	case java.CallConstructorReference:
-		return r.resolveConstructorReference(call, ctx)
+		result = r.resolveConstructorReference(call, ctx)
+	default:
+		result = r.resolveInvocation(call, ctx)
 	}
-	return r.resolveInvocation(call, ctx)
+	return normalizeResolutionRuntime(result, ctx)
 }
 
 func (r *SyntacticResolver) resolveInvocation(call java.CallSite, ctx MethodContext) Resolution {
@@ -47,7 +50,7 @@ func (r *SyntacticResolver) resolveInvocation(call java.CallSite, ctx MethodCont
 	case "":
 		return r.resolveUnqualified(call, ctx)
 	case "this":
-		return r.resolveOnType(ctx.EnclosingType, call, ctx)
+		return r.resolveInstanceOnType(ctx.EnclosingType, contextRuntime(ctx), call, ctx)
 	case "super":
 		return r.resolveSuper(call, ctx)
 	default:
@@ -88,7 +91,7 @@ func (r *SyntacticResolver) resolveObjectCreation(call java.CallSite, ctx Method
 
 	candidates := r.accessibleConstructors(typ, ctx, false)
 	if selection := r.selectConstructorCandidates(candidates, call, typ, ctx); selection.Found {
-		return selection.Resolution
+		return selection.withRuntime(typ.FQCN)
 	}
 	return unresolvedSelection(typ.FQCN, call,
 		fmt.Sprintf("constructor with arity %d not found on %s", call.ArgCount, typ.FQCN))
@@ -103,7 +106,7 @@ func (r *SyntacticResolver) resolveThisConstructor(call java.CallSite, ctx Metho
 	}
 	candidates := r.Index.ConstructorCandidates(ctx.EnclosingType.FQCN)
 	if selection := r.selectConstructorCandidates(candidates, call, ctx.EnclosingType, ctx); selection.Found {
-		return selection.Resolution
+		return selection.withRuntime(contextRuntimeOr(ctx, ctx.EnclosingType.FQCN))
 	}
 	return unresolvedSelection(ctx.EnclosingType.FQCN, call,
 		fmt.Sprintf("constructor with arity %d not found on %s", call.ArgCount, ctx.EnclosingType.FQCN))
@@ -125,15 +128,16 @@ func (r *SyntacticResolver) resolveSuperConstructor(call java.CallSite, ctx Meth
 	}
 	candidates := r.accessibleConstructors(superType, ctx, true)
 	if selection := r.selectConstructorCandidates(candidates, call, superType, ctx); selection.Found {
-		return selection.Resolution
+		return selection.withRuntime(contextRuntimeOr(ctx, superType.FQCN))
 	}
 	return unresolvedSelection(superType.FQCN, call,
 		fmt.Sprintf("constructor with arity %d not found on direct superclass %s", call.ArgCount, superType.FQCN))
 }
 
 func (r *SyntacticResolver) resolveUnqualified(call java.CallSite, ctx MethodContext) Resolution {
-	if selection := r.selectMethodCandidates(r.methodCandidatesOnType(ctx.EnclosingType, call.MethodName), call, ctx.EnclosingType, ctx); selection.Found {
-		return selection.Resolution
+	candidates := r.methodCandidatesOnType(ctx.EnclosingType, call.MethodName)
+	if selection := r.selectMethodCandidates(candidates, call, ctx.EnclosingType, ctx); selection.Found {
+		return r.bindInstanceSelection(selection, candidates, contextRuntime(ctx), call, ctx)
 	}
 
 	unit := r.unitForContext(ctx)
@@ -183,6 +187,10 @@ func (r *SyntacticResolver) resolveSuper(call java.CallSite, ctx MethodContext) 
 	superType, ok := r.Index.DirectSuperclass(ctx.EnclosingType.FQCN)
 	if !ok {
 		return r.unresolvedSuperclass(call, ctx, "superclass is not indexed")
+	}
+	selection := r.selectMethodCandidates(r.methodCandidatesOnType(superType, call.MethodName), call, superType, ctx)
+	if selection.Found {
+		return selection.withRuntime(contextRuntimeOr(ctx, superType.FQCN))
 	}
 	return r.resolveOnType(superType, call, ctx)
 }
@@ -318,6 +326,14 @@ func (r *SyntacticResolver) resolveType(ref java.TypeRef, ctx MethodContext) (*j
 
 // resolveOnType seleciona metodos por nome, aridade e tipos obvios dos argumentos.
 func (r *SyntacticResolver) resolveOnType(t *java.TypeDecl, call java.CallSite, ctx MethodContext) Resolution {
+	runtime := ""
+	if t != nil {
+		runtime = t.FQCN
+	}
+	return r.resolveInstanceOnType(t, runtime, call, ctx)
+}
+
+func (r *SyntacticResolver) resolveInstanceOnType(t *java.TypeDecl, runtime string, call java.CallSite, ctx MethodContext) Resolution {
 	if t == nil {
 		return Resolution{Note: "no enclosing type"}
 	}
@@ -332,12 +348,27 @@ func (r *SyntacticResolver) resolveOnType(t *java.TypeDecl, call java.CallSite, 
 		candidates = instanceCandidates
 	}
 	if selection := r.selectMethodCandidates(candidates, call, t, ctx); selection.Found {
-		return selection.Resolution
+		return r.bindInstanceSelection(selection, candidates, runtime, call, ctx)
 	}
 	return Resolution{Targets: []ResolvedTarget{TerminalTarget(
 		ResolutionUnresolved, t.FQCN, call.MethodName, "", call,
 		fmt.Sprintf("method %q with arity %d not found on %s", call.MethodName, call.ArgCount, t.FQCN), nil,
 	)}}
+}
+
+func (r *SyntacticResolver) bindInstanceSelection(
+	selection candidateSelection,
+	lexicalCandidates []index.MethodResolution,
+	runtime string,
+	call java.CallSite,
+	ctx MethodContext,
+) Resolution {
+	if r.Index != nil {
+		if runtimeType, ok := r.Index.TypeByFQCN(runtime); ok && isPolymorphicReceiver(runtimeType) {
+			return r.dispatchPolymorphicSelection(runtimeType, call, ctx, lexicalCandidates, selection)
+		}
+	}
+	return r.bindSelection(selection, runtime, call)
 }
 
 func (r *SyntacticResolver) resolveStaticOnType(t *java.TypeDecl, call java.CallSite, ctx MethodContext) Resolution {
@@ -353,7 +384,7 @@ func (r *SyntacticResolver) resolveStaticOnType(t *java.TypeDecl, call java.Call
 		}
 	}
 	if selection := r.selectMethodCandidates(candidates, call, t, ctx); selection.Found {
-		return selection.Resolution
+		return selection.withDeclaringRuntime()
 	}
 	return Resolution{Targets: []ResolvedTarget{TerminalTarget(
 		ResolutionUnresolved, t.FQCN, call.MethodName, "", call,
@@ -364,6 +395,52 @@ func (r *SyntacticResolver) resolveStaticOnType(t *java.TypeDecl, call java.Call
 type candidateSelection struct {
 	Resolution Resolution
 	Found      bool
+	Candidate  *index.MethodResolution
+}
+
+func (s candidateSelection) withRuntime(runtime string) Resolution {
+	result := s.Resolution
+	if len(result.Targets) == 1 && result.Targets[0].Kind == ResolutionConcrete {
+		result.Targets[0].Key.RuntimeTypeFQCN = runtime
+	}
+	return result
+}
+
+func (s candidateSelection) withDeclaringRuntime() Resolution {
+	if s.Candidate == nil || s.Candidate.DeclaringType == nil {
+		return s.Resolution
+	}
+	return s.withRuntime(s.Candidate.DeclaringType.FQCN)
+}
+
+func contextRuntime(ctx MethodContext) string {
+	if ctx.Execution.RuntimeTypeFQCN != "" {
+		return ctx.Execution.RuntimeTypeFQCN
+	}
+	if ctx.EnclosingType != nil {
+		return ctx.EnclosingType.FQCN
+	}
+	return ""
+}
+
+func contextRuntimeOr(ctx MethodContext, fallback string) string {
+	if runtime := contextRuntime(ctx); runtime != "" {
+		return runtime
+	}
+	return fallback
+}
+
+func normalizeResolutionRuntime(result Resolution, ctx MethodContext) Resolution {
+	runtime := contextRuntime(ctx)
+	if runtime == "" {
+		return result
+	}
+	for i := range result.Targets {
+		if result.Targets[i].Kind != ResolutionConcrete || result.Targets[i].Key.RuntimeTypeFQCN == "" {
+			result.Targets[i].Key.RuntimeTypeFQCN = runtime
+		}
+	}
+	return result
 }
 
 func (r *SyntacticResolver) methodCandidatesOnType(t *java.TypeDecl, name string) []index.MethodResolution {

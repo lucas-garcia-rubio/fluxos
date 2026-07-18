@@ -17,6 +17,14 @@ type MethodHandle struct {
 	Signature string
 }
 
+// ExecutionKey identifies a declared method body under the runtime receiver
+// assumed for that execution. Static methods use their declaring type as the
+// runtime type; inherited instance bodies retain the concrete receiver type.
+type ExecutionKey struct {
+	Method          MethodHandle
+	RuntimeTypeFQCN string
+}
+
 // ResolutionKind classifica cada saída do resolver. Os sete valores cobrem os
 // caminhos previstos pela política M3 de dispatch polimórfico (Passo 13).
 type ResolutionKind int
@@ -48,23 +56,17 @@ const (
 	ResolutionAmbiguousImplementation
 )
 
-// ResolvedTarget é uma saída individual do resolver. O campo Descend diz se o
-// graph.Walk deve recursar no target; Kind classifica o target para o grafo e
-// para o renderer; Note é informativo e nunca é parseado pelo renderer;
-// Candidates é preenchido apenas em AmbiguousImplementation com os FQCNs das
-// implementations ordenados.
+// ResolvedTarget é uma saída individual do resolver. Kind determina se a
+// traversal desce no body; Note é informativo e nunca é parseado pelo renderer.
 type ResolvedTarget struct {
-	Handle     MethodHandle
-	Descend    bool
-	Kind       ResolutionKind
-	Note       string
-	Candidates []string
+	Key  ExecutionKey
+	Kind ResolutionKind
+	Note string
 }
 
-// ConcreteTarget wraps a MethodHandle as a concrete, descending ResolvedTarget.
-// Usado pelos callers que produzem um único alvo concreto.
-func ConcreteTarget(handle MethodHandle) ResolvedTarget {
-	return ResolvedTarget{Handle: handle, Kind: ResolutionConcrete, Descend: true}
+// ConcreteTarget wraps a complete execution identity as a concrete target.
+func ConcreteTarget(key ExecutionKey) ResolvedTarget {
+	return ResolvedTarget{Key: key, Kind: ResolutionConcrete}
 }
 
 // Resolution é o resultado de resolver um CallSite.
@@ -77,8 +79,9 @@ func ConcreteTarget(handle MethodHandle) ResolvedTarget {
 //
 // Note continua existindo para os casos em que nenhum target é produzido.
 type Resolution struct {
-	Targets []ResolvedTarget
-	Note    string
+	Targets      []ResolvedTarget
+	DispatchSite *DispatchSite
+	Note         string
 }
 
 // MethodContext é o que o resolver precisa saber sobre o método que faz a
@@ -86,6 +89,7 @@ type Resolution struct {
 // variáveis locais (com ranges para scoped lookup), e o arquivo source.
 type MethodContext struct {
 	EnclosingType *java.TypeDecl      // classe/interface onde o caller está declarado
+	Execution     ExecutionKey        // body atual + receiver runtime; zero falls back lexically
 	Params        []java.Param        // parâmetros do método caller
 	LocalVars     []java.LocalVarDecl // locais com ScopeStart/ScopeEnd/DeclStart
 	File          string              // path do arquivo (pra warnings file:line)

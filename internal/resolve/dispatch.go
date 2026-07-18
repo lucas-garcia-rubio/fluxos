@@ -47,10 +47,38 @@ func (r *SyntacticResolver) staticBoundCall(typ *java.TypeDecl, call java.CallSi
 // ctx permite que a selecao da unica implementation use tipos obvios dos
 // argumentos sem fazer narrowing pelo initializer do receiver (reservado a M4).
 func (r *SyntacticResolver) dispatchPolymorphic(typ *java.TypeDecl, call java.CallSite, ctx MethodContext) Resolution {
+	lexicalCandidates := r.methodCandidatesOnType(typ, call.MethodName)
+	lexical := r.selectMethodCandidates(lexicalCandidates, call, typ, ctx)
+	return r.dispatchPolymorphicSelection(typ, call, ctx, lexicalCandidates, lexical)
+}
+
+func (r *SyntacticResolver) dispatchPolymorphicSelection(
+	typ *java.TypeDecl,
+	call java.CallSite,
+	ctx MethodContext,
+	lexicalCandidates []index.MethodResolution,
+	lexical candidateSelection,
+) Resolution {
 	impls := r.Index.ImplementationsOf(typ.FQCN)
+	if lexical.Candidate != nil && !isVirtualMethod(lexical.Candidate.Method) {
+		return r.bindSelection(lexical, typ.FQCN, call)
+	}
+	if len(lexicalCandidates) > 0 && !lexical.Found {
+		return unresolvedSelection(typ.FQCN, call,
+			fmt.Sprintf("no compatible overload %q on compile-time receiver %s", call.MethodName, typ.FQCN))
+	}
+	if lexical.Found && lexical.Candidate == nil {
+		return lexical.Resolution
+	}
+	if len(impls) != 1 && lexical.Found && (len(lexical.Resolution.Targets) != 1 || lexical.Resolution.Targets[0].Kind != ResolutionConcrete) {
+		return lexical.Resolution
+	}
 
 	switch len(impls) {
 	case 0:
+		if lexical.Candidate != nil && java.HasModifier(lexical.Candidate.Method.Modifier, "default") {
+			return r.bindSelection(lexical, typ.FQCN, call)
+		}
 		// Sem impls: tenta default method direto na interface. Declarações
 		// abstract em interfaces (sem modifier "default") não são callable sem
 		// impl, então filtramos para só default methods.
@@ -63,7 +91,7 @@ func (r *SyntacticResolver) dispatchPolymorphic(typ *java.TypeDecl, call java.Ca
 		}
 		selection := r.selectMethodCandidates(defaults, call, typ, ctx)
 		if selection.Found && len(selection.Resolution.Targets) == 1 && selection.Resolution.Targets[0].Kind == ResolutionConcrete {
-			return selection.Resolution
+			return r.bindSelection(selection, typ.FQCN, call)
 		}
 		if selection.Found {
 			return selection.Resolution
@@ -75,6 +103,12 @@ func (r *SyntacticResolver) dispatchPolymorphic(typ *java.TypeDecl, call java.Ca
 
 	case 1:
 		impl := impls[0]
+		if lexical.Found && lexical.Candidate != nil {
+			return r.bindSelection(lexical, impl.FQCN, call)
+		}
+		// Preserve M3 behavior only for incomplete models that omit the method
+		// entirely. A declared but incompatible overload must not expose an
+		// implementation-only overload.
 		candidates := r.Index.EffectiveMethodCandidates(impl.FQCN, call.MethodName)
 		selection := r.selectMethodCandidates(candidates, call, impl, ctx)
 		if !selection.Found {
@@ -91,18 +125,87 @@ func (r *SyntacticResolver) dispatchPolymorphic(typ *java.TypeDecl, call java.Ca
 			// AmbiguousOverload ou outro terminal já producido por selectMethodCandidates.
 			return selection.Resolution
 		}
-		return selection.Resolution
+		return selection.withRuntime(impl.FQCN)
 
 	default:
-		candidates := make([]string, len(impls))
-		for i, impl := range impls {
-			candidates[i] = impl.FQCN
+		candidates := make([]ImplementationCandidate, 0, len(impls))
+		signature := ""
+		if lexical.Candidate != nil && lexical.Candidate.Method != nil {
+			signature = lexical.Candidate.Method.Signature
 		}
-		return Resolution{Targets: []ResolvedTarget{TerminalTarget(
+		for _, impl := range impls {
+			candidate := ImplementationCandidate{ImplementationFQCN: impl.FQCN, Kind: ResolutionNoImplementation}
+			if lexical.Found {
+				candidate = r.implementationCandidate(impl, lexical, call)
+			} else {
+				candidate.Kind = ResolutionUnresolved
+				candidate.Note = fmt.Sprintf("compile-time receiver %s does not declare method %q", typ.FQCN, call.MethodName)
+			}
+			candidates = append(candidates, candidate)
+		}
+		caller := ctx.Execution
+		if caller.RuntimeTypeFQCN == "" {
+			caller.RuntimeTypeFQCN = contextRuntime(ctx)
+		}
+		return Resolution{DispatchSite: NewDispatchSite(caller, typ.FQCN, call.MethodName, signature, call, candidates), Targets: []ResolvedTarget{TerminalTarget(
 			ResolutionAmbiguousImplementation, typ.FQCN, call.MethodName, "", call,
-			fmt.Sprintf("multiple concrete implementations of %s", typ.FQCN), candidates,
+			fmt.Sprintf("multiple concrete implementations of %s", typ.FQCN), nil,
 		)}}
 	}
+}
+
+func (r *SyntacticResolver) implementationCandidate(impl *java.TypeDecl, selection candidateSelection, call java.CallSite) ImplementationCandidate {
+	result := r.bindSelection(selection, impl.FQCN, call)
+	candidate := ImplementationCandidate{ImplementationFQCN: impl.FQCN, Kind: ResolutionUnresolved}
+	if len(result.Targets) != 1 {
+		candidate.Note = result.Note
+		return candidate
+	}
+	target := result.Targets[0]
+	candidate.Kind = target.Kind
+	candidate.Note = target.Note
+	if target.Kind == ResolutionConcrete {
+		candidate.Target = target.Key.Method
+	}
+	return candidate
+}
+
+func (r *SyntacticResolver) bindSelection(selection candidateSelection, runtime string, call java.CallSite) Resolution {
+	if selection.Candidate == nil || selection.Candidate.Method == nil || selection.Candidate.DeclaringType == nil {
+		return selection.Resolution
+	}
+	candidate := *selection.Candidate
+	if runtime == "" {
+		runtime = candidate.DeclaringType.FQCN
+	}
+	if !isVirtualMethod(candidate.Method) {
+		if java.HasModifier(candidate.Method.Modifier, "static") {
+			runtime = candidate.DeclaringType.FQCN
+		}
+		return selection.withRuntime(runtime)
+	}
+	if r.Index == nil {
+		return selection.withRuntime(runtime)
+	}
+	if _, indexed := r.Index.TypeByFQCN(runtime); !indexed {
+		return selection.withRuntime(runtime)
+	}
+	exact := r.Index.EffectiveMethod(runtime, candidate.Method.Key())
+	if len(exact) != 1 || exact[0].DeclaringType == nil || exact[0].Method == nil {
+		return unresolvedSelection(runtime, call,
+			fmt.Sprintf("exact virtual method %s%s has %d effective targets on runtime type %s", candidate.Method.Name, candidate.Method.Signature, len(exact), runtime))
+	}
+	handle := MethodHandle{TypeFQCN: exact[0].DeclaringType.FQCN, Method: exact[0].Method.Name, Signature: exact[0].Method.Signature}
+	return Resolution{Targets: []ResolvedTarget{ConcreteTarget(ExecutionKey{Method: handle, RuntimeTypeFQCN: runtime})}}
+}
+
+func isVirtualMethod(method *java.MethodDecl) bool {
+	if method == nil || method.Kind == java.MethodConstructor || method.Kind == java.MethodCompactConstructor {
+		return false
+	}
+	return !java.HasModifier(method.Modifier, "static") &&
+		!java.HasModifier(method.Modifier, "private") &&
+		!java.HasModifier(method.Modifier, "final")
 }
 
 // resolveOnPolymorphicOrType é o ponto único de entrada do dispatch polimórfico

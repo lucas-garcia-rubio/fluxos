@@ -1,0 +1,11 @@
+digraph fluxos {
+  "m_7fa4b09acb67" [label="app.Base.run() [runtime: app.First]", kind="method"];
+  "m_21f2f6fd30d0" [label="app.Base.run() [runtime: app.Second]", kind="method"];
+  "m_5242422cd94c" [label="app.First.hook()", kind="method"];
+  "m_8ba7271b2fba" [label="app.Second.hook()", kind="method"];
+  "m_0b3cef9ccfc2" [label="app.Workflow.start(app.First,app.Second)", kind="method"];
+  "m_7fa4b09acb67" -> "m_5242422cd94c";
+  "m_21f2f6fd30d0" -> "m_8ba7271b2fba";
+  "m_0b3cef9ccfc2" -> "m_7fa4b09acb67";
+  "m_0b3cef9ccfc2" -> "m_21f2f6fd30d0";
+}

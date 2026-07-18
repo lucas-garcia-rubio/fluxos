@@ -12,16 +12,21 @@ import (
 func assertTraceGolden(t *testing.T, fixture, target, golden string) {
 	t.Helper()
 	root := m3FixtureRoot(fixture)
+	assertTraceGoldenAtRoot(t, root, target, golden)
+}
+
+func assertTraceGoldenAtRoot(t *testing.T, root, target, golden string) {
+	t.Helper()
 	var out bytes.Buffer
 	if err := runTrace([]string{target, root}, &out); err != nil {
-		t.Fatalf("runTrace(%q, %q): %v", target, fixture, err)
+		t.Fatalf("runTrace(%q, %q): %v", target, root, err)
 	}
 	want, err := os.ReadFile(filepath.Join(root, golden))
 	if err != nil {
-		t.Fatalf("read golden %s/%s: %v", fixture, golden, err)
+		t.Fatalf("read golden %s/%s: %v", root, golden, err)
 	}
 	if !bytes.Equal(out.Bytes(), want) {
-		t.Fatalf("trace output mismatch for %s target %s (%s):\n%s", fixture, target, golden, firstDiffContext(string(want), out.String()))
+		t.Fatalf("trace output mismatch for %s target %s (%s):\n%s", root, target, golden, firstDiffContext(string(want), out.String()))
 	}
 }
 
@@ -38,6 +43,40 @@ func firstDiffContext(want, got string) string {
 		}
 	}
 	return fmt.Sprintf("line count differs: want %d, got %d", len(wantLines), len(gotLines))
+}
+
+func TestRuntimeContextGoldens(t *testing.T) {
+	root := m4FixtureRoot("runtime-context")
+	tests := []struct {
+		name   string
+		target string
+		golden string
+		format string
+	}{
+		{name: "two inherited runtime contexts", target: "app.Workflow.start", golden: "expected-start.mmd"},
+		{name: "inherited root", target: "app.First.run", golden: "expected-first.mmd"},
+		{name: "structured ambiguous dispatch", target: "app.Workflow.ambiguous", golden: "expected-ambiguous.mmd"},
+		{name: "DOT runtime contexts", target: "app.Workflow.start", golden: "expected-start.dot", format: "dot"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if tt.format == "" {
+				assertTraceGoldenAtRoot(t, root, tt.target, tt.golden)
+				return
+			}
+			var out bytes.Buffer
+			if err := runTrace([]string{"--format=" + tt.format, tt.target, root}, &out); err != nil {
+				t.Fatalf("runTrace(%q, %q): %v", tt.target, root, err)
+			}
+			want, err := os.ReadFile(filepath.Join(root, tt.golden))
+			if err != nil {
+				t.Fatalf("read golden: %v", err)
+			}
+			if !bytes.Equal(out.Bytes(), want) {
+				t.Fatalf("trace output mismatch:\n%s", firstDiffContext(string(want), out.String()))
+			}
+		})
+	}
 }
 
 func TestRunTraceM3Goldens(t *testing.T) {

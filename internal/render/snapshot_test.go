@@ -9,14 +9,17 @@ import (
 	"github.com/lucas-garcia-rubio/fluxos/internal/resolve"
 )
 
-func testHandle(typeFQCN, method, signature string) resolve.MethodHandle {
-	return resolve.MethodHandle{TypeFQCN: typeFQCN, Method: method, Signature: signature}
+func testHandle(typeFQCN, method, signature string) resolve.ExecutionKey {
+	return resolve.ExecutionKey{
+		Method:          resolve.MethodHandle{TypeFQCN: typeFQCN, Method: method, Signature: signature},
+		RuntimeTypeFQCN: typeFQCN,
+	}
 }
 
 func findNode(t *testing.T, snapshot Snapshot, method MethodView) NodeView {
 	t.Helper()
 	for _, node := range snapshot.Nodes {
-		if node.Method == method {
+		if node.Execution.Method == method {
 			return node
 		}
 	}
@@ -32,11 +35,49 @@ func TestNewSnapshotPreservesLegacyMethodIDs(t *testing.T) {
 	g.GetOrCreate(overload)
 
 	snapshot := NewSnapshot(g, worker)
-	if got := findNode(t, snapshot, methodView(worker, false)).ID; got != "m_7c57aeb2fd25" {
+	if got := findNode(t, snapshot, methodView(worker.Method, false)).ID; got != "m_7c57aeb2fd25" {
 		t.Fatalf("worker ID = %q, want m_7c57aeb2fd25", got)
 	}
-	if got := findNode(t, snapshot, methodView(overload, false)).ID; got != "m_54c4cb581b54" {
+	if got := findNode(t, snapshot, methodView(overload.Method, false)).ID; got != "m_54c4cb581b54" {
 		t.Fatalf("overload ID = %q, want m_54c4cb581b54", got)
+	}
+}
+
+func TestNewSnapshotQualifiesCoexistingRuntimeContexts(t *testing.T) {
+	handle := resolve.MethodHandle{TypeFQCN: "base.Base", Method: "run", Signature: "()"}
+	first := resolve.ExecutionKey{Method: handle, RuntimeTypeFQCN: "app.First"}
+	second := resolve.ExecutionKey{Method: handle, RuntimeTypeFQCN: "app.Second"}
+	g := graph.NewGraph()
+	g.GetOrCreate(second)
+	g.GetOrCreate(first)
+
+	snapshot := NewSnapshot(g, first)
+	if len(snapshot.Nodes) != 2 {
+		t.Fatalf("nodes = %+v", snapshot.Nodes)
+	}
+	if snapshot.Nodes[0].Execution != executionView(first, false) || snapshot.Nodes[1].Execution != executionView(second, false) {
+		t.Fatalf("runtime contexts not sorted deterministically: %+v", snapshot.Nodes)
+	}
+	if snapshot.Nodes[0].ID != stableExecutionID(first, true) || snapshot.Nodes[1].ID != stableExecutionID(second, true) || snapshot.Nodes[0].ID == snapshot.Nodes[1].ID {
+		t.Fatalf("runtime-aware IDs = %+v", snapshot.Nodes)
+	}
+	if snapshot.Nodes[0].Label != "base.Base.run() [runtime: app.First]" || snapshot.Nodes[1].Label != "base.Base.run() [runtime: app.Second]" {
+		t.Fatalf("runtime-aware labels = %+v", snapshot.Nodes)
+	}
+}
+
+func TestNewSnapshotSingleInheritedContextKeepsLegacyPresentation(t *testing.T) {
+	handle := resolve.MethodHandle{TypeFQCN: "base.Base", Method: "run", Signature: "()"}
+	key := resolve.ExecutionKey{Method: handle, RuntimeTypeFQCN: "app.First"}
+	g := graph.NewGraph()
+	g.GetOrCreate(key)
+
+	node := NewSnapshot(g, key).Nodes[0]
+	if node.ID != stableNodeID(handle) || node.Label != "base.Base.run()" {
+		t.Fatalf("single context changed legacy presentation: %+v", node)
+	}
+	if node.Execution.RuntimeTypeFQCN != "app.First" {
+		t.Fatalf("runtime metadata lost: %+v", node.Execution)
 	}
 }
 
@@ -50,8 +91,8 @@ func TestNewSnapshotSanitizesTerminalMethodsAfterHashing(t *testing.T) {
 		t.Fatalf("terminal ID = %q, want legacy raw-handle ID", node.ID)
 	}
 	wantMethod := MethodView{TypeFQCN: "contract.Svc", Method: "run"}
-	if node.Method != wantMethod {
-		t.Fatalf("terminal method = %+v, want %+v", node.Method, wantMethod)
+	if node.Execution.Method != wantMethod {
+		t.Fatalf("terminal method = %+v, want %+v", node.Execution.Method, wantMethod)
 	}
 	if node.Label != "contract.Svc.run() [no implementation]" {
 		t.Fatalf("terminal label = %q", node.Label)
@@ -61,10 +102,10 @@ func TestNewSnapshotSanitizesTerminalMethodsAfterHashing(t *testing.T) {
 func TestNewSnapshotKeepsTerminalKindsAndCallSitesDistinct(t *testing.T) {
 	call1 := java.CallSite{File: "App.java", Line: 10, StartByte: 100}
 	call2 := java.CallSite{File: "App.java", Line: 20, StartByte: 200}
-	handles := []resolve.MethodHandle{
-		resolve.TerminalHandle("contract.Svc", "run", "", resolve.ResolutionNoImplementation, call1),
-		resolve.TerminalHandle("contract.Svc", "run", "", resolve.ResolutionUnresolved, call1),
-		resolve.TerminalHandle("contract.Svc", "run", "", resolve.ResolutionNoImplementation, call2),
+	handles := []resolve.ExecutionKey{
+		{Method: resolve.TerminalHandle("contract.Svc", "run", "", resolve.ResolutionNoImplementation, call1), RuntimeTypeFQCN: "Caller"},
+		{Method: resolve.TerminalHandle("contract.Svc", "run", "", resolve.ResolutionUnresolved, call1), RuntimeTypeFQCN: "Caller"},
+		{Method: resolve.TerminalHandle("contract.Svc", "run", "", resolve.ResolutionNoImplementation, call2), RuntimeTypeFQCN: "Caller"},
 	}
 	g := graph.NewGraph()
 	g.MarkTerminal(handles[0], graph.NodeTerminalNoImplementation, "none", nil)
@@ -75,8 +116,8 @@ func TestNewSnapshotKeepsTerminalKindsAndCallSitesDistinct(t *testing.T) {
 	ids := make(map[string]struct{}, len(snapshot.Nodes))
 	for _, node := range snapshot.Nodes {
 		ids[node.ID] = struct{}{}
-		if node.Method.TypeFQCN != "contract.Svc" {
-			t.Fatalf("terminal method leaked synthetic suffix: %+v", node.Method)
+		if node.Execution.Method.TypeFQCN != "contract.Svc" {
+			t.Fatalf("terminal method leaked synthetic suffix: %+v", node.Execution.Method)
 		}
 	}
 	if len(ids) != 3 {
@@ -164,17 +205,17 @@ func TestNewSnapshotOrdersEdgeEndpoints(t *testing.T) {
 	c := testHandle("C", "run", "()")
 	z := testHandle("Z", "run", "()")
 	g := graph.NewGraph()
-	g.AddEdge(a, c, java.CallSite{}, false)
-	g.AddEdge(z, a, java.CallSite{}, false)
-	g.AddEdge(a, b, java.CallSite{}, false)
-	g.AddEdge(a, a, java.CallSite{}, false)
+	g.AddEdge(a, c, java.CallSite{}, nil, false)
+	g.AddEdge(z, a, java.CallSite{}, nil, false)
+	g.AddEdge(a, b, java.CallSite{}, nil, false)
+	g.AddEdge(a, a, java.CallSite{}, nil, false)
 
 	edges := NewSnapshot(g, a).Edges
 	want := [][2]string{
-		{stableNodeID(a), stableNodeID(a)},
-		{stableNodeID(a), stableNodeID(b)},
-		{stableNodeID(a), stableNodeID(c)},
-		{stableNodeID(z), stableNodeID(a)},
+		{stableNodeID(a.Method), stableNodeID(a.Method)},
+		{stableNodeID(a.Method), stableNodeID(b.Method)},
+		{stableNodeID(a.Method), stableNodeID(c.Method)},
+		{stableNodeID(z.Method), stableNodeID(a.Method)},
 	}
 	for i, edge := range edges {
 		if edge.From != want[i][0] || edge.To != want[i][1] {
@@ -198,7 +239,7 @@ func TestNewSnapshotOrdersEveryCallSiteTieBreaker(t *testing.T) {
 		{From: from, To: to, Call: java.CallSite{File: "a", Line: 1, StartByte: 1, Receiver: "a", MethodName: "a"}},
 	}
 	for _, edge := range edges {
-		g.AddEdge(edge.From, edge.To, edge.Call, edge.Cycle)
+		g.AddEdge(edge.From, edge.To, edge.Call, edge.DispatchSite, edge.Cycle)
 	}
 
 	got := NewSnapshot(g, from).Edges
@@ -235,9 +276,9 @@ func TestNewSnapshotPreservesMultiedgesAndCycles(t *testing.T) {
 	a := testHandle("A", "run", "()")
 	b := testHandle("B", "run", "()")
 	g := graph.NewGraph()
-	g.AddEdge(a, b, java.CallSite{Line: 10}, false)
-	g.AddEdge(a, b, java.CallSite{Line: 20}, false)
-	g.AddEdge(b, a, java.CallSite{Line: 30}, true)
+	g.AddEdge(a, b, java.CallSite{Line: 10}, nil, false)
+	g.AddEdge(a, b, java.CallSite{Line: 20}, nil, false)
+	g.AddEdge(b, a, java.CallSite{Line: 30}, nil, true)
 
 	edges := NewSnapshot(g, a).Edges
 	if len(edges) != 3 {
@@ -247,7 +288,7 @@ func TestNewSnapshotPreservesMultiedgesAndCycles(t *testing.T) {
 	for _, edge := range edges {
 		if edge.Cycle {
 			cycles++
-			if edge.From != stableNodeID(b) || edge.To != stableNodeID(a) {
+			if edge.From != stableNodeID(b.Method) || edge.To != stableNodeID(a.Method) {
 				t.Fatalf("wrong cycle edge: %+v", edge)
 			}
 		}
@@ -261,7 +302,7 @@ func TestNewSnapshotDoesNotAliasGraph(t *testing.T) {
 	a := testHandle("A", "run", "()")
 	b := testHandle("B", "run", "()")
 	g := graph.NewGraph()
-	g.AddEdge(a, b, java.CallSite{File: "A.java", Line: 10}, false)
+	g.AddEdge(a, b, java.CallSite{File: "A.java", Line: 10}, nil, false)
 	g.Nodes[a].Note = "original"
 	g.Nodes[a].Candidates = []string{"one"}
 	snapshot := NewSnapshot(g, a)
@@ -275,16 +316,43 @@ func TestNewSnapshotDoesNotAliasGraph(t *testing.T) {
 	if len(snapshot.Nodes) != 2 || len(snapshot.Edges) != 1 || snapshot.Edges[0].Call.Line != 10 {
 		t.Fatalf("snapshot structure changed after graph mutation: %+v", snapshot)
 	}
-	node := findNode(t, snapshot, methodView(a, false))
+	node := findNode(t, snapshot, methodView(a.Method, false))
 	if node.Note != "original" || !reflect.DeepEqual(node.Candidates, []string{"one"}) {
 		t.Fatalf("snapshot node changed after graph mutation: %+v", node)
+	}
+}
+
+func TestNewSnapshotCopiesAndSortsDispatchSite(t *testing.T) {
+	from := testHandle("Caller", "run", "()")
+	to := testHandle("Contract#ambimpl#site", "work", "()")
+	call := java.CallSite{File: "Caller.java", Line: 10, Args: []string{"arg"}}
+	site := resolve.NewDispatchSite(from, "Contract", "work", "()", call, []resolve.ImplementationCandidate{
+		{ImplementationFQCN: "z.Impl", Target: resolve.MethodHandle{TypeFQCN: "Base", Method: "work", Signature: "()"}, Kind: resolve.ResolutionConcrete},
+		{ImplementationFQCN: "a.Impl", Kind: resolve.ResolutionNoImplementation, Note: "missing"},
+	})
+	g := graph.NewGraph()
+	g.AddEdge(from, to, call, site, false)
+
+	snapshot := NewSnapshot(g, from)
+	view := snapshot.Edges[0].DispatchSite
+	if view == nil || view.ID != string(site.ID) || len(view.Candidates) != 2 || view.Candidates[0].ImplementationFQCN != "a.Impl" || view.Candidates[1].ImplementationFQCN != "z.Impl" {
+		t.Fatalf("dispatch view = %+v", view)
+	}
+	if view.Candidates[0].Kind != "noImplementation" || view.Candidates[1].Kind != "concrete" {
+		t.Fatalf("candidate kinds = %+v", view.Candidates)
+	}
+	g.Edges[0].DispatchSite.Call.Args[0] = "changed"
+	g.Edges[0].DispatchSite.Candidates[0].ImplementationFQCN = "changed"
+	g.Edges[0].DispatchSite = nil
+	if view.Call.Kind != call.Kind.String() || view.Candidates[0].ImplementationFQCN != "a.Impl" {
+		t.Fatalf("dispatch view aliases graph: %+v", view)
 	}
 }
 
 func TestNewSnapshotNilAndEmptyUseNonNilSlices(t *testing.T) {
 	target := testHandle("Target", "run", "()")
 	for _, snapshot := range []Snapshot{NewSnapshot(nil, target), NewSnapshot(graph.NewGraph(), target)} {
-		if snapshot.Target != methodView(target, false) || snapshot.Nodes == nil || snapshot.Edges == nil {
+		if snapshot.Target != executionView(target, false) || snapshot.Nodes == nil || snapshot.Edges == nil {
 			t.Fatalf("snapshot = %+v", snapshot)
 		}
 	}

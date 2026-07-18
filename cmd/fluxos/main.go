@@ -72,21 +72,15 @@ func buildTraceSnapshot(opts TraceOptions) (render.Snapshot, error) {
 		return render.Snapshot{}, err
 	}
 
-	targetClass, targetMethod, err := ResolveTarget(table, opts.Target)
+	target, err := ResolveTarget(table, opts.Target)
 	if err != nil {
 		return render.Snapshot{}, err
 	}
 
 	resolver := resolve.NewSyntacticResolver(table)
 	g := graph.NewGraph()
-	graph.Walk(g, targetClass, *targetMethod, table, resolver)
-
-	targetHandle := resolve.MethodHandle{
-		TypeFQCN:  targetClass.FQCN,
-		Method:    targetMethod.Name,
-		Signature: targetMethod.Signature,
-	}
-	return render.NewSnapshot(g, targetHandle), nil
+	graph.Walk(g, target.Execution, table, resolver)
+	return render.NewSnapshot(g, target.Execution), nil
 }
 
 func buildIndex(root string) ([]*java.CompilationUnit, *index.Table, error) {
