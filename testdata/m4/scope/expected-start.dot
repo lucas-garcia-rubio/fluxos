@@ -1,0 +1,5 @@
+digraph fluxos {
+  "m_77e2f47d906c" [label="app.Workflow.start()", kind="method"];
+  "m_67f63e721ad2" [label="app.impl.DefaultGreeter.greet()", kind="method"];
+  "m_77e2f47d906c" -> "m_67f63e721ad2";
+}

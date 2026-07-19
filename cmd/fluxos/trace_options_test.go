@@ -200,7 +200,6 @@ func TestValidateTraceSupportAcceptsCompatibilityValues(t *testing.T) {
 func TestValidateTraceSupportRejectsReservedFeatures(t *testing.T) {
 	tests := [][]string{
 		{"--format=json", "app.Workflow.start"},
-		{"--scope=all", "app.Workflow.start"},
 		{"--pick-impls=x.Y", "app.Workflow.start"},
 		{"--all-impls", "app.Workflow.start"},
 		{"--no-prompt", "app.Workflow.start"},
@@ -222,6 +221,16 @@ func TestValidateTraceSupportRejectsReservedFeatures(t *testing.T) {
 	}
 }
 
+func TestValidateTraceSupportAcceptsScopeAll(t *testing.T) {
+	opts, err := parseTraceOptions([]string{"--scope=all", "app.Workflow.start"})
+	if err != nil {
+		t.Fatalf("parseTraceOptions: %v", err)
+	}
+	if err := validateTraceSupport(opts); err != nil {
+		t.Fatalf("validateTraceSupport: %v", err)
+	}
+}
+
 func TestValidateTraceSupportAcceptsDOTAndDirections(t *testing.T) {
 	tests := [][]string{
 		{"--format=dot", "app.Workflow.start"},
@@ -240,14 +249,22 @@ func TestValidateTraceSupportAcceptsDOTAndDirections(t *testing.T) {
 	}
 }
 
-func TestValidateIndexSupportRejectsScopeAll(t *testing.T) {
+func TestValidateIndexSupportAcceptsScopeAll(t *testing.T) {
 	opts, err := parseIndexOptions([]string{"--scope=all", "./project"})
 	if err != nil {
 		t.Fatalf("parseIndexOptions: %v", err)
 	}
-	err = validateIndexSupport(opts)
-	if err == nil || !strings.Contains(err.Error(), "not implemented yet") {
-		t.Fatalf("validateIndexSupport error = %v", err)
+	if err := validateIndexSupport(opts); err != nil {
+		t.Fatalf("validateIndexSupport: %v", err)
 	}
-	requireUsageError(t, err)
+}
+
+func TestValidateIndexSupportAcceptsScopeMain(t *testing.T) {
+	opts, err := parseIndexOptions([]string{"--scope=main", "./project"})
+	if err != nil {
+		t.Fatalf("parseIndexOptions: %v", err)
+	}
+	if err := validateIndexSupport(opts); err != nil {
+		t.Fatalf("validateIndexSupport: %v", err)
+	}
 }

@@ -11,6 +11,7 @@ import (
 	"testing"
 
 	"github.com/lucas-garcia-rubio/fluxos/internal/extract/java"
+	"github.com/lucas-garcia-rubio/fluxos/internal/project"
 )
 
 var errWrite = errors.New("write failed")
@@ -245,7 +246,7 @@ func TestBuildTraceSnapshotPreservesInheritedDeclaringTarget(t *testing.T) {
 }
 
 func TestBuildIndexPolymorphismFixture(t *testing.T) {
-	_, table, err := buildIndex(m3FixtureRoot("polymorphism"))
+	_, table, err := buildIndex(m3FixtureRoot("polymorphism"), project.ScopeModeMain)
 	if err != nil {
 		t.Fatalf("buildIndex: %v", err)
 	}
@@ -290,7 +291,7 @@ func fqcnList(types []*java.TypeDecl) []string {
 }
 
 func TestBuildUnitsPreservesMetadataAndFlattenCompatibility(t *testing.T) {
-	units, err := buildUnits(traceFixtureRoot())
+	units, err := buildUnits(traceFixtureRoot(), project.ScopeModeMain)
 	if err != nil {
 		t.Fatalf("buildUnits: %v", err)
 	}
@@ -303,7 +304,7 @@ func TestBuildUnitsPreservesMetadataAndFlattenCompatibility(t *testing.T) {
 		t.Fatalf("unit metadata = %+v", unit)
 	}
 
-	indexedUnits, table, err := buildIndex(traceFixtureRoot())
+	indexedUnits, table, err := buildIndex(traceFixtureRoot(), project.ScopeModeMain)
 	if err != nil {
 		t.Fatalf("buildIndex: %v", err)
 	}

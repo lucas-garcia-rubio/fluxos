@@ -21,23 +21,42 @@ var outputDirectories = map[string]struct{}{
 	"target":            {},
 }
 
+// DiscoverOptions configura o comportamento de DiscoverWithOptions.
+type DiscoverOptions struct {
+	Scope ScopeMode
+}
+
+// Discover mantem o comportamento M3: apenas main roots, com fallback explicit
+// quando nenhum source root e encontrado. Callers M2/M3 continuam funcionando
+// sem alteracao.
 func Discover(root string) (*Project, error) {
+	return DiscoverWithOptions(root, DiscoverOptions{Scope: ScopeModeMain})
+}
+
+// DiscoverWithOptions executa discovery respeitando o ScopeMode informado.
+//
+//   - ScopeModeMain: apenas roots em src/main/java; fallback explicit preserva o
+//     comportamento M3, pulando subdiretorios src/test/java.
+//   - ScopeModeAll: roots em src/main/java e src/test/java; fallback explicit
+//     inclui subdiretorios src/test/java. Quando o root passado e exatamente
+//     <base>/src/test/java, o fallback classifica como ScopeTest.
+//
+// Generated/build outputs continuam excluidos em ambos os modos.
+func DiscoverWithOptions(root string, opts DiscoverOptions) (*Project, error) {
 	root = filepath.Clean(root)
-	sourceRoots, err := discoverMainSourceRoots(root)
+	sourceRoots, err := discoverSourceRoots(root, opts.Scope)
 	if err != nil {
 		return nil, err
 	}
 	if len(sourceRoots) == 0 {
-		sourceRoots = append(sourceRoots, SourceRoot{Path: root, Scope: ScopeExplicit})
+		sourceRoots = append(sourceRoots, fallbackSourceRoot(root, opts.Scope))
 	}
-	sort.Slice(sourceRoots, func(i, j int) bool {
-		return sourceRoots[i].Path < sourceRoots[j].Path
-	})
+	sortSourceRoots(sourceRoots)
 
 	files := make([]JavaFile, 0)
 	seenFiles := make(map[string]struct{})
 	for _, sourceRoot := range sourceRoots {
-		discovered, err := discoverJavaFiles(sourceRoot)
+		discovered, err := discoverJavaFiles(sourceRoot, opts.Scope)
 		if err != nil {
 			return nil, err
 		}
@@ -49,9 +68,7 @@ func Discover(root string) (*Project, error) {
 			files = append(files, file)
 		}
 	}
-	sort.Slice(files, func(i, j int) bool {
-		return files[i].Path < files[j].Path
-	})
+	sortFiles(files)
 
 	return &Project{
 		Root:        root,
@@ -60,7 +77,7 @@ func Discover(root string) (*Project, error) {
 	}, nil
 }
 
-func discoverMainSourceRoots(root string) ([]SourceRoot, error) {
+func discoverSourceRoots(root string, mode ScopeMode) ([]SourceRoot, error) {
 	results := make([]SourceRoot, 0)
 	err := filepath.WalkDir(root, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
@@ -73,6 +90,10 @@ func discoverMainSourceRoots(root string) ([]SourceRoot, error) {
 			results = append(results, SourceRoot{Path: filepath.Clean(path), Scope: ScopeMain})
 			return filepath.SkipDir
 		}
+		if mode == ScopeModeAll && d.IsDir() && isTestSourceRoot(path) {
+			results = append(results, SourceRoot{Path: filepath.Clean(path), Scope: ScopeTest})
+			return filepath.SkipDir
+		}
 		return nil
 	})
 	if err != nil {
@@ -81,14 +102,24 @@ func discoverMainSourceRoots(root string) ([]SourceRoot, error) {
 	return results, nil
 }
 
-func discoverJavaFiles(sourceRoot SourceRoot) ([]JavaFile, error) {
+func fallbackSourceRoot(root string, mode ScopeMode) SourceRoot {
+	if mode == ScopeModeAll && isTestSourceRoot(root) {
+		return SourceRoot{Path: root, Scope: ScopeTest}
+	}
+	return SourceRoot{Path: root, Scope: ScopeExplicit}
+}
+
+func discoverJavaFiles(sourceRoot SourceRoot, mode ScopeMode) ([]JavaFile, error) {
 	results := make([]JavaFile, 0)
 	err := filepath.WalkDir(sourceRoot.Path, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return err
 		}
 		if d.IsDir() && path != sourceRoot.Path && sourceRoot.Scope == ScopeExplicit {
-			if shouldSkipExplicitDirectory(sourceRoot.Path, path, d.Name()) || isTestSourceRoot(path) {
+			if shouldSkipExplicitDirectory(sourceRoot.Path, path, d.Name()) {
+				return filepath.SkipDir
+			}
+			if mode == ScopeModeMain && isTestSourceRoot(path) {
 				return filepath.SkipDir
 			}
 		}
@@ -136,4 +167,36 @@ func shouldSkipExplicitDirectory(root, path, name string) bool {
 	}
 	// Nested names may be valid Java packages in a custom source root.
 	return filepath.Dir(path) == root
+}
+
+func sortSourceRoots(roots []SourceRoot) {
+	sort.SliceStable(roots, func(i, j int) bool {
+		if roots[i].Scope != roots[j].Scope {
+			return scopeRank(roots[i].Scope) < scopeRank(roots[j].Scope)
+		}
+		return roots[i].Path < roots[j].Path
+	})
+}
+
+func sortFiles(files []JavaFile) {
+	sort.SliceStable(files, func(i, j int) bool {
+		if files[i].Scope != files[j].Scope {
+			return scopeRank(files[i].Scope) < scopeRank(files[j].Scope)
+		}
+		return files[i].Path < files[j].Path
+	})
+}
+
+func scopeRank(s Scope) int {
+	switch s {
+	case ScopeMain:
+		return 0
+	case ScopeTest:
+		return 1
+	case ScopeExplicit:
+		return 2
+	case ScopeGenerated:
+		return 3
+	}
+	return 4
 }

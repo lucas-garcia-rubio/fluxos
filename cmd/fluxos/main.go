@@ -25,7 +25,7 @@ func main() {
 }
 
 func executeIndex(opts IndexOptions, streams IO) error {
-	units, _, err := buildIndex(opts.ProjectRoot)
+	units, _, err := buildIndex(opts.ProjectRoot, opts.Scope)
 	if err != nil {
 		return err
 	}
@@ -67,7 +67,7 @@ func renderTrace(out io.Writer, snapshot render.Snapshot, opts TraceOptions) err
 }
 
 func buildTraceSnapshot(opts TraceOptions) (render.Snapshot, error) {
-	_, table, err := buildIndex(opts.ProjectRoot)
+	_, table, err := buildIndex(opts.ProjectRoot, opts.Scope)
 	if err != nil {
 		return render.Snapshot{}, err
 	}
@@ -83,8 +83,8 @@ func buildTraceSnapshot(opts TraceOptions) (render.Snapshot, error) {
 	return render.NewSnapshot(g, target.Execution), nil
 }
 
-func buildIndex(root string) ([]*java.CompilationUnit, *index.Table, error) {
-	units, err := buildUnits(root)
+func buildIndex(root string, scope project.ScopeMode) ([]*java.CompilationUnit, *index.Table, error) {
+	units, err := buildUnits(root, scope)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -95,8 +95,8 @@ func buildIndex(root string) ([]*java.CompilationUnit, *index.Table, error) {
 	return units, table, nil
 }
 
-func buildUnits(root string) ([]*java.CompilationUnit, error) {
-	discoveredProject, err := project.Discover(root)
+func buildUnits(root string, scope project.ScopeMode) ([]*java.CompilationUnit, error) {
+	discoveredProject, err := project.DiscoverWithOptions(root, project.DiscoverOptions{Scope: scope})
 	if err != nil {
 		return nil, err
 	}

@@ -134,3 +134,85 @@ func TestRunTraceOverloadedRootWithoutSignatureListsCandidates(t *testing.T) {
 		t.Fatalf("overload error = %q, want signatures %q", err, want)
 	}
 }
+
+func TestScopeMainTraceGolden(t *testing.T) {
+	root := m4FixtureRoot("scope")
+	tests := []struct {
+		name   string
+		target string
+		golden string
+		format string
+	}{
+		{name: "mermaid single implementation", target: "app.Workflow.start", golden: "expected-start.mmd"},
+		{name: "dot single implementation", target: "app.Workflow.start", golden: "expected-start.dot", format: "dot"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			args := []string{tt.target, root}
+			if tt.format != "" {
+				args = []string{"--format=" + tt.format, tt.target, root}
+			}
+			var out bytes.Buffer
+			if err := runTrace(args, &out); err != nil {
+				t.Fatalf("runTrace(%v): %v", args, err)
+			}
+			want, err := os.ReadFile(filepath.Join(root, tt.golden))
+			if err != nil {
+				t.Fatalf("read golden: %v", err)
+			}
+			if !bytes.Equal(out.Bytes(), want) {
+				t.Fatalf("scope main trace mismatch (%s):\n%s", tt.golden, firstDiffContext(string(want), out.String()))
+			}
+		})
+	}
+}
+
+func TestScopeAllTraceGolden(t *testing.T) {
+	root := m4FixtureRoot("scope")
+	var out bytes.Buffer
+	if err := runTrace([]string{"--scope=all", "app.Workflow.start", root}, &out); err != nil {
+		t.Fatalf("runTrace scope=all: %v", err)
+	}
+	want, err := os.ReadFile(filepath.Join(root, "expected-start-all.mmd"))
+	if err != nil {
+		t.Fatalf("read golden: %v", err)
+	}
+	if !bytes.Equal(out.Bytes(), want) {
+		t.Fatalf("scope all trace mismatch:\n%s", firstDiffContext(string(want), out.String()))
+	}
+}
+
+func TestScopeMainRejectsTestOnlyTarget(t *testing.T) {
+	root := m4FixtureRoot("scope")
+	err := runTrace([]string{"app.WorkflowTest.run", root}, &bytes.Buffer{})
+	if err == nil {
+		t.Fatal("test-only target under scope=main succeeded")
+	}
+	if !strings.Contains(err.Error(), `type "app.WorkflowTest" not found`) {
+		t.Fatalf("error = %v, want not-found message", err)
+	}
+}
+
+func TestScopeDuplicateFQCNFailsUnderAll(t *testing.T) {
+	root := m4FixtureRoot("scope-duplicate")
+	var errOut bytes.Buffer
+	code := runCLI([]string{"index", "--scope=all", root}, IO{Out: &bytes.Buffer{}, ErrOut: &errOut})
+	if code == 0 {
+		t.Fatalf("runCLI index scope=all duplicate FQCN: expected nonzero exit, got 0 (stderr=%q)", errOut.String())
+	}
+	if !strings.Contains(errOut.String(), `duplicate FQCN "foo.Greeter"`) {
+		t.Fatalf("stderr = %q, want duplicate FQCN message", errOut.String())
+	}
+}
+
+func TestScopeDuplicateFQCNAcceptedUnderMain(t *testing.T) {
+	root := m4FixtureRoot("scope-duplicate")
+	var out bytes.Buffer
+	code := runCLI([]string{"index", "--scope=main", root}, IO{Out: &out, ErrOut: &bytes.Buffer{}})
+	if code != 0 {
+		t.Fatalf("runCLI index scope=main duplicate FQCN: exit=%d", code)
+	}
+	if !strings.Contains(out.String(), "Greeter") {
+		t.Fatalf("index scope=main output missing Greeter: %s", out.String())
+	}
+}

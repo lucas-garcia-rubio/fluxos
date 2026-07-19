@@ -290,8 +290,6 @@ func validateTraceSupport(opts TraceOptions) error {
 		return unsupportedOption("--format=" + string(opts.Format))
 	case opts.Format != FormatMermaid && opts.Format != FormatDOT:
 		return unsupportedOption("--format=" + string(opts.Format))
-	case opts.Scope != project.ScopeModeMain:
-		return unsupportedOption("--scope=" + string(opts.Scope))
 	case opts.PickImpls != "":
 		return unsupportedOption("--pick-impls")
 	case opts.AllImpls:
@@ -312,9 +310,6 @@ func validateTraceSupport(opts TraceOptions) error {
 }
 
 func validateIndexSupport(opts IndexOptions) error {
-	if opts.Scope != project.ScopeModeMain {
-		return unsupportedOption("--scope=" + string(opts.Scope))
-	}
 	return nil
 }
 

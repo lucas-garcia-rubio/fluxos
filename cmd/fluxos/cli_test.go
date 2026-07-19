@@ -7,6 +7,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/lucas-garcia-rubio/fluxos/internal/project"
 )
 
 func TestRunCLIReturnsZeroAndSeparatesStreams(t *testing.T) {
@@ -106,7 +108,7 @@ func TestRunCLIReportsGlobalUsageBlocks(t *testing.T) {
 
 func TestRunCLIIndexUsesInjectedOutput(t *testing.T) {
 	root := traceFixtureRoot()
-	units, _, err := buildIndex(root)
+	units, _, err := buildIndex(root, project.ScopeModeMain)
 	if err != nil {
 		t.Fatalf("buildIndex: %v", err)
 	}
