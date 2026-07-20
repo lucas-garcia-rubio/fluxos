@@ -1,0 +1,176 @@
+{
+  "schemaVersion": 1,
+  "target": {
+    "method": {
+      "type": "app.Deep",
+      "method": "a",
+      "signature": "()"
+    },
+    "runtimeType": "app.Deep"
+  },
+  "nodes": [
+    {
+      "id": "m_1b9028fe90a6",
+      "execution": {
+        "method": {
+          "type": "app.Deep",
+          "method": "a",
+          "signature": "()"
+        },
+        "runtimeType": "app.Deep"
+      },
+      "kind": "method",
+      "label": "app.Deep.a()",
+      "note": "",
+      "candidates": []
+    },
+    {
+      "id": "m_dd362ee05388",
+      "execution": {
+        "method": {
+          "type": "app.Deep",
+          "method": "b",
+          "signature": "()"
+        },
+        "runtimeType": "app.Deep"
+      },
+      "kind": "method",
+      "label": "app.Deep.b()",
+      "note": "",
+      "candidates": []
+    },
+    {
+      "id": "m_a5209eb41e02",
+      "execution": {
+        "method": {
+          "type": "app.Deep",
+          "method": "c",
+          "signature": "()"
+        },
+        "runtimeType": "app.Deep"
+      },
+      "kind": "method",
+      "label": "app.Deep.c()",
+      "note": "",
+      "candidates": []
+    },
+    {
+      "id": "m_fa8378f0b504",
+      "execution": {
+        "method": {
+          "type": "app.Deep",
+          "method": "d",
+          "signature": "()"
+        },
+        "runtimeType": "app.Deep"
+      },
+      "kind": "method",
+      "label": "app.Deep.d()",
+      "note": "",
+      "candidates": []
+    },
+    {
+      "id": "m_fa5d243d9ae8",
+      "execution": {
+        "method": {
+          "type": "app.Deep",
+          "method": "e",
+          "signature": "()"
+        },
+        "runtimeType": "app.Deep"
+      },
+      "kind": "method",
+      "label": "app.Deep.e()",
+      "note": "",
+      "candidates": []
+    },
+    {
+      "id": "m_8eaee5f3c821",
+      "execution": {
+        "method": {
+          "type": "app.Deep",
+          "method": "f",
+          "signature": "()"
+        },
+        "runtimeType": "app.Deep"
+      },
+      "kind": "method",
+      "label": "app.Deep.f()",
+      "note": "",
+      "candidates": []
+    }
+  ],
+  "edges": [
+    {
+      "from": "m_1b9028fe90a6",
+      "to": "m_dd362ee05388",
+      "call": {
+        "kind": "invocation",
+        "file": "src/main/java/app/Deep.java",
+        "line": 4,
+        "startByte": 56,
+        "receiver": "",
+        "methodName": "b"
+      },
+      "dispatchSite": null,
+      "cycle": false
+    },
+    {
+      "from": "m_dd362ee05388",
+      "to": "m_a5209eb41e02",
+      "call": {
+        "kind": "invocation",
+        "file": "src/main/java/app/Deep.java",
+        "line": 5,
+        "startByte": 86,
+        "receiver": "",
+        "methodName": "c"
+      },
+      "dispatchSite": null,
+      "cycle": false
+    },
+    {
+      "from": "m_a5209eb41e02",
+      "to": "m_fa8378f0b504",
+      "call": {
+        "kind": "invocation",
+        "file": "src/main/java/app/Deep.java",
+        "line": 6,
+        "startByte": 116,
+        "receiver": "",
+        "methodName": "d"
+      },
+      "dispatchSite": null,
+      "cycle": false
+    },
+    {
+      "from": "m_fa8378f0b504",
+      "to": "m_fa5d243d9ae8",
+      "call": {
+        "kind": "invocation",
+        "file": "src/main/java/app/Deep.java",
+        "line": 7,
+        "startByte": 146,
+        "receiver": "",
+        "methodName": "e"
+      },
+      "dispatchSite": null,
+      "cycle": false
+    },
+    {
+      "from": "m_fa5d243d9ae8",
+      "to": "m_8eaee5f3c821",
+      "call": {
+        "kind": "invocation",
+        "file": "src/main/java/app/Deep.java",
+        "line": 8,
+        "startByte": 176,
+        "receiver": "",
+        "methodName": "f"
+      },
+      "dispatchSite": null,
+      "cycle": false
+    }
+  ],
+  "truncations": []
+}

@@ -1,0 +1,19 @@
+digraph fluxos {
+  "m_db036d1d7f4a" [label="app.Fan.callAll()", kind="method"];
+  "m_fb4762201552" [label="app.Fan.i1()", kind="method"];
+  "m_ecbe378201d2" [label="app.Fan.i2()", kind="method"];
+  "m_0e41836d3ce6" [label="app.Fan.i3()", kind="method"];
+  "m_4edc0494cacd" [label="app.Fan.i4()", kind="method"];
+  "m_db036d1d7f4a" -> "m_fb4762201552";
+  "m_db036d1d7f4a" -> "m_ecbe378201d2";
+  "m_db036d1d7f4a" -> "m_0e41836d3ce6";
+  "m_db036d1d7f4a" -> "m_4edc0494cacd";
+  "t_d3541dffd380" [shape=note, label="truncation: maxNodes: omitted 1 at app.Fan.callAll()"];
+  "t_3680ae55682c" [shape=note, label="truncation: maxNodes: omitted 1 at app.Fan.callAll()"];
+  "t_93c9fc946e79" [shape=note, label="truncation: maxNodes: omitted 1 at app.Fan.callAll()"];
+  "t_76dd65999851" [shape=note, label="truncation: maxNodes: omitted 1 at app.Fan.callAll()"];
+  "t_903a78cc8a60" [shape=note, label="truncation: maxNodes: omitted 1 at app.Fan.callAll()"];
+  "t_1ffdc6126966" [shape=note, label="truncation: maxNodes: omitted 1 at app.Fan.callAll()"];
+  "t_0af97c45b501" [shape=note, label="truncation: maxNodes: omitted 1 at app.Fan.callAll()"];
+  "t_b91b95eb89c4" [shape=note, label="truncation: maxNodes: omitted 1 at app.Fan.callAll()"];
+}

@@ -1,0 +1,248 @@
+{
+  "schemaVersion": 1,
+  "target": {
+    "method": {
+      "type": "app.Workflow",
+      "method": "start",
+      "signature": "()"
+    },
+    "runtimeType": "app.Workflow"
+  },
+  "nodes": [
+    {
+      "id": "m_1ff7864fa07e",
+      "execution": {
+        "method": {
+          "type": "app.Workflow",
+          "method": "currentRun",
+          "signature": "()"
+        },
+        "runtimeType": "app.Workflow"
+      },
+      "kind": "method",
+      "label": "app.Workflow.currentRun()",
+      "note": "",
+      "candidates": []
+    },
+    {
+      "id": "m_77e2f47d906c",
+      "execution": {
+        "method": {
+          "type": "app.Workflow",
+          "method": "start",
+          "signature": "()"
+        },
+        "runtimeType": "app.Workflow"
+      },
+      "kind": "method",
+      "label": "app.Workflow.start()",
+      "note": "",
+      "candidates": []
+    },
+    {
+      "id": "m_41c6d2c8b3b3",
+      "execution": {
+        "method": {
+          "type": "contract.ContractTasks",
+          "method": "interfaceRun",
+          "signature": "()"
+        },
+        "runtimeType": "contract.ContractTasks"
+      },
+      "kind": "method",
+      "label": "contract.ContractTasks.interfaceRun()",
+      "note": "",
+      "candidates": []
+    },
+    {
+      "id": "m_35806ba1e913",
+      "execution": {
+        "method": {
+          "type": "explicit.ExplicitTasks",
+          "method": "explicitRun",
+          "signature": "()"
+        },
+        "runtimeType": "explicit.ExplicitTasks"
+      },
+      "kind": "method",
+      "label": "explicit.ExplicitTasks.explicitRun()",
+      "note": "",
+      "candidates": []
+    },
+    {
+      "id": "m_002b98c29d89",
+      "execution": {
+        "method": {
+          "type": "explicit.ExplicitTasks",
+          "method": "explicitRun",
+          "signature": "(types.Helper)"
+        },
+        "runtimeType": "explicit.ExplicitTasks"
+      },
+      "kind": "method",
+      "label": "explicit.ExplicitTasks.explicitRun(types.Helper)",
+      "note": "",
+      "candidates": []
+    },
+    {
+      "id": "m_097e5138bb45",
+      "execution": {
+        "method": {
+          "type": "inherited.BaseTasks",
+          "method": "inheritedRun",
+          "signature": "()"
+        },
+        "runtimeType": "inherited.BaseTasks"
+      },
+      "kind": "method",
+      "label": "inherited.BaseTasks.inheritedRun()",
+      "note": "",
+      "candidates": []
+    },
+    {
+      "id": "m_78151b196f40",
+      "execution": {
+        "method": {
+          "type": "types.Helper",
+          "method": "work",
+          "signature": "()"
+        },
+        "runtimeType": "types.Helper"
+      },
+      "kind": "method",
+      "label": "types.Helper.work()",
+      "note": "",
+      "candidates": []
+    },
+    {
+      "id": "m_84d058b3965c",
+      "execution": {
+        "method": {
+          "type": "wildcard.WildcardTasks",
+          "method": "wildcardRun",
+          "signature": "()"
+        },
+        "runtimeType": "wildcard.WildcardTasks"
+      },
+      "kind": "method",
+      "label": "wildcard.WildcardTasks.wildcardRun()",
+      "note": "",
+      "candidates": []
+    }
+  ],
+  "edges": [
+    {
+      "from": "m_77e2f47d906c",
+      "to": "m_1ff7864fa07e",
+      "call": {
+        "kind": "invocation",
+        "file": "src/main/java/app/Workflow.java",
+        "line": 19,
+        "startByte": 452,
+        "receiver": "",
+        "methodName": "currentRun"
+      },
+      "dispatchSite": null,
+      "cycle": false
+    },
+    {
+      "from": "m_77e2f47d906c",
+      "to": "m_41c6d2c8b3b3",
+      "call": {
+        "kind": "invocation",
+        "file": "src/main/java/app/Workflow.java",
+        "line": 18,
+        "startByte": 428,
+        "receiver": "",
+        "methodName": "interfaceRun"
+      },
+      "dispatchSite": null,
+      "cycle": false
+    },
+    {
+      "from": "m_77e2f47d906c",
+      "to": "m_35806ba1e913",
+      "call": {
+        "kind": "invocation",
+        "file": "src/main/java/app/Workflow.java",
+        "line": 14,
+        "startByte": 329,
+        "receiver": "",
+        "methodName": "explicitRun"
+      },
+      "dispatchSite": null,
+      "cycle": false
+    },
+    {
+      "from": "m_77e2f47d906c",
+      "to": "m_002b98c29d89",
+      "call": {
+        "kind": "invocation",
+        "file": "src/main/java/app/Workflow.java",
+        "line": 15,
+        "startByte": 352,
+        "receiver": "",
+        "methodName": "explicitRun"
+      },
+      "dispatchSite": null,
+      "cycle": false
+    },
+    {
+      "from": "m_77e2f47d906c",
+      "to": "m_097e5138bb45",
+      "call": {
+        "kind": "invocation",
+        "file": "src/main/java/app/Workflow.java",
+        "line": 17,
+        "startByte": 404,
+        "receiver": "",
+        "methodName": "inheritedRun"
+      },
+      "dispatchSite": null,
+      "cycle": false
+    },
+    {
+      "from": "m_77e2f47d906c",
+      "to": "m_78151b196f40",
+      "call": {
+        "kind": "invocation",
+        "file": "src/main/java/app/Workflow.java",
+        "line": 20,
+        "startByte": 474,
+        "receiver": "helper",
+        "methodName": "work"
+      },
+      "dispatchSite": null,
+      "cycle": false
+    },
+    {
+      "from": "m_77e2f47d906c",
+      "to": "m_84d058b3965c",
+      "call": {
+        "kind": "invocation",
+        "file": "src/main/java/app/Workflow.java",
+        "line": 16,
+        "startByte": 381,
+        "receiver": "",
+        "methodName": "wildcardRun"
+      },
+      "dispatchSite": null,
+      "cycle": false
+    },
+    {
+      "from": "m_002b98c29d89",
+      "to": "m_78151b196f40",
+      "call": {
+        "kind": "invocation",
+        "file": "src/main/java/explicit/ExplicitTasks.java",
+        "line": 11,
+        "startByte": 209,
+        "receiver": "helper",
+        "methodName": "work"
+      },
+      "dispatchSite": null,
+      "cycle": false
+    }
+  ],
+  "truncations": []
+}

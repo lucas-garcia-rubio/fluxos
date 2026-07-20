@@ -352,8 +352,11 @@ func TestNewSnapshotCopiesAndSortsDispatchSite(t *testing.T) {
 func TestNewSnapshotNilAndEmptyUseNonNilSlices(t *testing.T) {
 	target := testHandle("Target", "run", "()")
 	for _, snapshot := range []Snapshot{NewSnapshot(nil, target), NewSnapshot(graph.NewGraph(), target)} {
-		if snapshot.Target != executionView(target, false) || snapshot.Nodes == nil || snapshot.Edges == nil {
+		if snapshot.Target != executionView(target, false) || snapshot.Nodes == nil || snapshot.Edges == nil || snapshot.Truncations == nil {
 			t.Fatalf("snapshot = %+v", snapshot)
+		}
+		if snapshot.SchemaVersion != SnapshotSchemaVersion {
+			t.Fatalf("schema version = %d, want %d", snapshot.SchemaVersion, SnapshotSchemaVersion)
 		}
 	}
 }
@@ -364,5 +367,61 @@ func TestNewSnapshotKeepsRawLabelsFormatNeutral(t *testing.T) {
 	g.GetOrCreate(handle)
 	if got := NewSnapshot(g, handle).Nodes[0].Label; got != `com.example."Worker".run()` {
 		t.Fatalf("raw label = %q", got)
+	}
+}
+
+func TestNewResultSnapshotProjectsTruncations(t *testing.T) {
+	target := testHandle("app.Workflow", "start", "()")
+	caller := testHandle("app.Workflow", "start", "()")
+	truncation := graph.Truncation{
+		Kind:    graph.TruncationMaxNodes,
+		Caller:  caller,
+		Call:    java.CallSite{File: "App.java", Line: 12, StartByte: 200, MethodName: "run"},
+		Omitted: 3,
+		Note:    "exceeded cap",
+	}
+	result := graph.BuildResult{Graph: graph.NewGraph(), Truncations: []graph.Truncation{truncation}}
+
+	snapshot := NewResultSnapshot(result, target)
+	if len(snapshot.Truncations) != 1 {
+		t.Fatalf("truncations = %+v, want 1", snapshot.Truncations)
+	}
+	view := snapshot.Truncations[0]
+	if view.ID != truncation.ID() {
+		t.Fatalf("ID = %q, want %q", view.ID, truncation.ID())
+	}
+	if view.Kind != "maxNodes" || view.Omitted != 3 || view.Note != "exceeded cap" {
+		t.Fatalf("truncation view = %+v", view)
+	}
+	if view.Caller != executionView(caller, false) {
+		t.Fatalf("caller = %+v", view.Caller)
+	}
+	if view.Call.StartByte != 200 || view.Call.MethodName != "run" {
+		t.Fatalf("call = %+v", view.Call)
+	}
+}
+
+func TestNewResultSnapshotDoesNotAliasTruncations(t *testing.T) {
+	target := testHandle("app.Workflow", "start", "()")
+	truncation := graph.Truncation{
+		Kind:    graph.TruncationMaxNodes,
+		Caller:  target,
+		Call:    java.CallSite{File: "App.java", StartByte: 100, Args: []string{"x"}},
+		Omitted: 1,
+		Note:    "original",
+	}
+	result := graph.BuildResult{Graph: graph.NewGraph(), Truncations: []graph.Truncation{truncation}}
+
+	snapshot := NewResultSnapshot(result, target)
+	view := snapshot.Truncations[0]
+
+	result.Truncations[0].Omitted = 99
+	result.Truncations[0].Note = "changed"
+	result.Truncations[0].Call.StartByte = 999
+	if view.Omitted != 1 || view.Note != "original" {
+		t.Fatalf("truncation view aliased: %+v", view)
+	}
+	if view.Call.StartByte == 999 {
+		t.Fatalf("truncation call aliased: %+v", view.Call)
 	}
 }

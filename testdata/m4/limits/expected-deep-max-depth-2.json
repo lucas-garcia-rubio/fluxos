@@ -1,0 +1,112 @@
+{
+  "schemaVersion": 1,
+  "target": {
+    "method": {
+      "type": "app.Deep",
+      "method": "a",
+      "signature": "()"
+    },
+    "runtimeType": "app.Deep"
+  },
+  "nodes": [
+    {
+      "id": "m_1b9028fe90a6",
+      "execution": {
+        "method": {
+          "type": "app.Deep",
+          "method": "a",
+          "signature": "()"
+        },
+        "runtimeType": "app.Deep"
+      },
+      "kind": "method",
+      "label": "app.Deep.a()",
+      "note": "",
+      "candidates": []
+    },
+    {
+      "id": "m_dd362ee05388",
+      "execution": {
+        "method": {
+          "type": "app.Deep",
+          "method": "b",
+          "signature": "()"
+        },
+        "runtimeType": "app.Deep"
+      },
+      "kind": "method",
+      "label": "app.Deep.b()",
+      "note": "",
+      "candidates": []
+    },
+    {
+      "id": "m_a5209eb41e02",
+      "execution": {
+        "method": {
+          "type": "app.Deep",
+          "method": "c",
+          "signature": "()"
+        },
+        "runtimeType": "app.Deep"
+      },
+      "kind": "method",
+      "label": "app.Deep.c()",
+      "note": "",
+      "candidates": []
+    }
+  ],
+  "edges": [
+    {
+      "from": "m_1b9028fe90a6",
+      "to": "m_dd362ee05388",
+      "call": {
+        "kind": "invocation",
+        "file": "src/main/java/app/Deep.java",
+        "line": 4,
+        "startByte": 56,
+        "receiver": "",
+        "methodName": "b"
+      },
+      "dispatchSite": null,
+      "cycle": false
+    },
+    {
+      "from": "m_dd362ee05388",
+      "to": "m_a5209eb41e02",
+      "call": {
+        "kind": "invocation",
+        "file": "src/main/java/app/Deep.java",
+        "line": 5,
+        "startByte": 86,
+        "receiver": "",
+        "methodName": "c"
+      },
+      "dispatchSite": null,
+      "cycle": false
+    }
+  ],
+  "truncations": [
+    {
+      "id": "t_3ed2ef38b37d",
+      "kind": "maxDepth",
+      "caller": {
+        "method": {
+          "type": "app.Deep",
+          "method": "c",
+          "signature": "()"
+        },
+        "runtimeType": "app.Deep"
+      },
+      "call": {
+        "kind": "invocation",
+        "file": "src/main/java/app/Deep.java",
+        "line": 6,
+        "startByte": 116,
+        "receiver": "",
+        "methodName": "d"
+      },
+      "omitted": 1,
+      "note": ""
+    }
+  ]
+}

@@ -79,17 +79,40 @@ type EdgeView struct {
 }
 
 type Snapshot struct {
-	Target ExecutionView
-	Nodes  []NodeView
-	Edges  []EdgeView
+	SchemaVersion int
+	Target        ExecutionView
+	Nodes         []NodeView
+	Edges         []EdgeView
+	Truncations   []TruncationView
 }
 
+// TruncationView é a representação detached de uma Truncation do graph package.
+// Como Call carrega apenas tipos-valor e slices que a CallView já copia, a view
+// fica independente do graph original.
+type TruncationView struct {
+	ID      string
+	Kind    string
+	Caller  ExecutionView
+	Call    CallView
+	Omitted int
+	Note    string
+}
+
+const SnapshotSchemaVersion = 1
+
 func NewSnapshot(g *graph.Graph, target resolve.ExecutionKey) Snapshot {
+	return NewResultSnapshot(graph.BuildResult{Graph: g}, target)
+}
+
+func NewResultSnapshot(result graph.BuildResult, target resolve.ExecutionKey) Snapshot {
 	snapshot := Snapshot{
-		Target: executionView(target, false),
-		Nodes:  make([]NodeView, 0),
-		Edges:  make([]EdgeView, 0),
+		SchemaVersion: SnapshotSchemaVersion,
+		Target:        executionView(target, false),
+		Nodes:         make([]NodeView, 0),
+		Edges:         make([]EdgeView, 0),
+		Truncations:   make([]TruncationView, 0),
 	}
+	g := result.Graph
 	if g == nil {
 		return snapshot
 	}
@@ -130,6 +153,18 @@ func NewSnapshot(g *graph.Graph, target resolve.ExecutionKey) Snapshot {
 			Call:         callView(edge.Call),
 			DispatchSite: dispatchSiteView(edge.DispatchSite),
 			Cycle:        edge.Cycle,
+		})
+	}
+
+	truncations := append([]graph.Truncation{}, result.Truncations...)
+	for _, tr := range truncations {
+		snapshot.Truncations = append(snapshot.Truncations, TruncationView{
+			ID:      tr.ID(),
+			Kind:    string(tr.Kind),
+			Caller:  executionView(tr.Caller, false),
+			Call:    callView(tr.Call),
+			Omitted: tr.Omitted,
+			Note:    tr.Note,
 		})
 	}
 	return snapshot

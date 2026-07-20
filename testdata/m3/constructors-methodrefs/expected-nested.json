@@ -1,0 +1,118 @@
+{
+  "schemaVersion": 1,
+  "target": {
+    "method": {
+      "type": "refs.References.Nested",
+      "method": "run",
+      "signature": "()"
+    },
+    "runtimeType": "refs.References.Nested"
+  },
+  "nodes": [
+    {
+      "id": "m_24d939780e06",
+      "execution": {
+        "method": {
+          "type": "IllegalArgumentException",
+          "method": "<init>",
+          "signature": ""
+        },
+        "runtimeType": "support.Validator"
+      },
+      "kind": "unresolved",
+      "label": "IllegalArgumentException.<init>() [unresolved]",
+      "note": "constructor type \"IllegalArgumentException\" unresolved: no candidate",
+      "candidates": []
+    },
+    {
+      "id": "m_859de30c2f97",
+      "execution": {
+        "method": {
+          "type": "String",
+          "method": "isEmpty",
+          "signature": ""
+        },
+        "runtimeType": "support.Validator"
+      },
+      "kind": "unresolved",
+      "label": "String.isEmpty() [unresolved]",
+      "note": "param type \"String\" unresolved: external type java.lang.String",
+      "candidates": []
+    },
+    {
+      "id": "m_10373ee5a41d",
+      "execution": {
+        "method": {
+          "type": "refs.References.Nested",
+          "method": "run",
+          "signature": "()"
+        },
+        "runtimeType": "refs.References.Nested"
+      },
+      "kind": "method",
+      "label": "refs.References.Nested.run()",
+      "note": "",
+      "candidates": []
+    },
+    {
+      "id": "m_f121243d1d9b",
+      "execution": {
+        "method": {
+          "type": "support.Validator",
+          "method": "require",
+          "signature": "(java.lang.String)"
+        },
+        "runtimeType": "support.Validator"
+      },
+      "kind": "method",
+      "label": "support.Validator.require(java.lang.String)",
+      "note": "",
+      "candidates": []
+    }
+  ],
+  "edges": [
+    {
+      "from": "m_10373ee5a41d",
+      "to": "m_f121243d1d9b",
+      "call": {
+        "kind": "invocation",
+        "file": "src/main/java/refs/References.java",
+        "line": 51,
+        "startByte": 1324,
+        "receiver": "Validator",
+        "methodName": "require"
+      },
+      "dispatchSite": null,
+      "cycle": false
+    },
+    {
+      "from": "m_f121243d1d9b",
+      "to": "m_24d939780e06",
+      "call": {
+        "kind": "objectCreation",
+        "file": "src/main/java/support/Validator.java",
+        "line": 13,
+        "startByte": 293,
+        "receiver": "",
+        "methodName": "<init>"
+      },
+      "dispatchSite": null,
+      "cycle": false
+    },
+    {
+      "from": "m_f121243d1d9b",
+      "to": "m_859de30c2f97",
+      "call": {
+        "kind": "invocation",
+        "file": "src/main/java/support/Validator.java",
+        "line": 12,
+        "startByte": 256,
+        "receiver": "value",
+        "methodName": "isEmpty"
+      },
+      "dispatchSite": null,
+      "cycle": false
+    }
+  ],
+  "truncations": []
+}

@@ -1,0 +1,593 @@
+{
+  "schemaVersion": 1,
+  "target": {
+    "method": {
+      "type": "app.Workflow",
+      "method": "run",
+      "signature": "()"
+    },
+    "runtimeType": "app.Workflow"
+  },
+  "nodes": [
+    {
+      "id": "m_24d939780e06",
+      "execution": {
+        "method": {
+          "type": "IllegalArgumentException",
+          "method": "<init>",
+          "signature": ""
+        },
+        "runtimeType": "support.Validator"
+      },
+      "kind": "unresolved",
+      "label": "IllegalArgumentException.<init>() [unresolved]",
+      "note": "constructor type \"IllegalArgumentException\" unresolved: no candidate",
+      "candidates": []
+    },
+    {
+      "id": "m_79e9281f0114",
+      "execution": {
+        "method": {
+          "type": "IllegalArgumentException",
+          "method": "<init>",
+          "signature": ""
+        },
+        "runtimeType": "support.Validator"
+      },
+      "kind": "unresolved",
+      "label": "IllegalArgumentException.<init>() [unresolved]",
+      "note": "constructor type \"IllegalArgumentException\" unresolved: no candidate",
+      "candidates": []
+    },
+    {
+      "id": "m_859de30c2f97",
+      "execution": {
+        "method": {
+          "type": "String",
+          "method": "isEmpty",
+          "signature": ""
+        },
+        "runtimeType": "support.Validator"
+      },
+      "kind": "unresolved",
+      "label": "String.isEmpty() [unresolved]",
+      "note": "param type \"String\" unresolved: external type java.lang.String",
+      "candidates": []
+    },
+    {
+      "id": "m_a3650563eab7",
+      "execution": {
+        "method": {
+          "type": "String",
+          "method": "repeat",
+          "signature": ""
+        },
+        "runtimeType": "model.OverloadedValue"
+      },
+      "kind": "unresolved",
+      "label": "String.repeat() [unresolved]",
+      "note": "param type \"String\" unresolved: external type java.lang.String",
+      "candidates": []
+    },
+    {
+      "id": "m_ea1fffa3724d",
+      "execution": {
+        "method": {
+          "type": "app.Workflow",
+          "method": "run",
+          "signature": "()"
+        },
+        "runtimeType": "app.Workflow"
+      },
+      "kind": "method",
+      "label": "app.Workflow.run()",
+      "note": "",
+      "candidates": []
+    },
+    {
+      "id": "m_f9c86dc9202f",
+      "execution": {
+        "method": {
+          "type": "model.BaseValue",
+          "method": "<init>",
+          "signature": "(java.lang.String)"
+        },
+        "runtimeType": "model.ChildValue"
+      },
+      "kind": "method",
+      "label": "model.BaseValue.<init>(java.lang.String)",
+      "note": "",
+      "candidates": []
+    },
+    {
+      "id": "m_64bfcdeb5dda",
+      "execution": {
+        "method": {
+          "type": "model.ChildValue",
+          "method": "<init>",
+          "signature": "(java.lang.String)"
+        },
+        "runtimeType": "model.ChildValue"
+      },
+      "kind": "method",
+      "label": "model.ChildValue.<init>(java.lang.String)",
+      "note": "",
+      "candidates": []
+    },
+    {
+      "id": "m_77b0ebe86b3f",
+      "execution": {
+        "method": {
+          "type": "model.DefaultValue",
+          "method": "<init>",
+          "signature": "()"
+        },
+        "runtimeType": "model.DefaultValue"
+      },
+      "kind": "method",
+      "label": "model.DefaultValue.<init>()",
+      "note": "",
+      "candidates": []
+    },
+    {
+      "id": "m_0bb8e597df4b",
+      "execution": {
+        "method": {
+          "type": "model.DelegatingValue",
+          "method": "<init>",
+          "signature": "(java.lang.String)"
+        },
+        "runtimeType": "model.DelegatingValue"
+      },
+      "kind": "method",
+      "label": "model.DelegatingValue.<init>(java.lang.String)",
+      "note": "",
+      "candidates": []
+    },
+    {
+      "id": "m_461bce9cda4a",
+      "execution": {
+        "method": {
+          "type": "model.DelegatingValue",
+          "method": "<init>",
+          "signature": "(java.lang.String,boolean)"
+        },
+        "runtimeType": "model.DelegatingValue"
+      },
+      "kind": "method",
+      "label": "model.DelegatingValue.<init>(java.lang.String,boolean)",
+      "note": "",
+      "candidates": []
+    },
+    {
+      "id": "m_f436880770a7",
+      "execution": {
+        "method": {
+          "type": "model.OverloadedValue",
+          "method": "<init>",
+          "signature": "(java.lang.String)"
+        },
+        "runtimeType": "model.OverloadedValue"
+      },
+      "kind": "method",
+      "label": "model.OverloadedValue.<init>(java.lang.String)",
+      "note": "",
+      "candidates": []
+    },
+    {
+      "id": "m_f1478dfb595f",
+      "execution": {
+        "method": {
+          "type": "model.OverloadedValue",
+          "method": "<init>",
+          "signature": "(java.lang.String,int)"
+        },
+        "runtimeType": "model.OverloadedValue"
+      },
+      "kind": "method",
+      "label": "model.OverloadedValue.<init>(java.lang.String,int)",
+      "note": "",
+      "candidates": []
+    },
+    {
+      "id": "m_a82dbb70d6bd",
+      "execution": {
+        "method": {
+          "type": "model.Point",
+          "method": "<init>",
+          "signature": "(int,int)"
+        },
+        "runtimeType": "model.Point"
+      },
+      "kind": "method",
+      "label": "model.Point.<init>(int,int)",
+      "note": "",
+      "candidates": []
+    },
+    {
+      "id": "m_eb03041fcc0b",
+      "execution": {
+        "method": {
+          "type": "require(value)",
+          "method": "trim",
+          "signature": ""
+        },
+        "runtimeType": "support.Validator"
+      },
+      "kind": "unresolved",
+      "label": "require(value).trim() [unresolved]",
+      "note": "receiver \"require(value)\" is not a local var, field, or resolvable type: no candidate",
+      "candidates": []
+    },
+    {
+      "id": "m_e3566a83e1a6",
+      "execution": {
+        "method": {
+          "type": "support.Validator",
+          "method": "normalize",
+          "signature": "(java.lang.String)"
+        },
+        "runtimeType": "support.Validator"
+      },
+      "kind": "method",
+      "label": "support.Validator.normalize(java.lang.String)",
+      "note": "",
+      "candidates": []
+    },
+    {
+      "id": "m_f121243d1d9b",
+      "execution": {
+        "method": {
+          "type": "support.Validator",
+          "method": "require",
+          "signature": "(java.lang.String)"
+        },
+        "runtimeType": "support.Validator"
+      },
+      "kind": "method",
+      "label": "support.Validator.require(java.lang.String)",
+      "note": "",
+      "candidates": []
+    },
+    {
+      "id": "m_d9e42097b50a",
+      "execution": {
+        "method": {
+          "type": "support.Validator",
+          "method": "requireNonNegative",
+          "signature": "(int)"
+        },
+        "runtimeType": "support.Validator"
+      },
+      "kind": "method",
+      "label": "support.Validator.requireNonNegative(int)",
+      "note": "",
+      "candidates": []
+    }
+  ],
+  "edges": [
+    {
+      "from": "m_ea1fffa3724d",
+      "to": "m_64bfcdeb5dda",
+      "call": {
+        "kind": "objectCreation",
+        "file": "src/main/java/app/Workflow.java",
+        "line": 21,
+        "startByte": 467,
+        "receiver": "",
+        "methodName": "<init>"
+      },
+      "dispatchSite": null,
+      "cycle": false
+    },
+    {
+      "from": "m_ea1fffa3724d",
+      "to": "m_77b0ebe86b3f",
+      "call": {
+        "kind": "objectCreation",
+        "file": "src/main/java/app/Workflow.java",
+        "line": 17,
+        "startByte": 322,
+        "receiver": "",
+        "methodName": "<init>"
+      },
+      "dispatchSite": null,
+      "cycle": false
+    },
+    {
+      "from": "m_ea1fffa3724d",
+      "to": "m_0bb8e597df4b",
+      "call": {
+        "kind": "objectCreation",
+        "file": "src/main/java/app/Workflow.java",
+        "line": 20,
+        "startByte": 425,
+        "receiver": "",
+        "methodName": "<init>"
+      },
+      "dispatchSite": null,
+      "cycle": false
+    },
+    {
+      "from": "m_ea1fffa3724d",
+      "to": "m_f436880770a7",
+      "call": {
+        "kind": "objectCreation",
+        "file": "src/main/java/app/Workflow.java",
+        "line": 18,
+        "startByte": 350,
+        "receiver": "",
+        "methodName": "<init>"
+      },
+      "dispatchSite": null,
+      "cycle": false
+    },
+    {
+      "from": "m_ea1fffa3724d",
+      "to": "m_f436880770a7",
+      "call": {
+        "kind": "objectCreation",
+        "file": "src/main/java/app/Workflow.java",
+        "line": 23,
+        "startByte": 525,
+        "receiver": "",
+        "methodName": "<init>"
+      },
+      "dispatchSite": null,
+      "cycle": false
+    },
+    {
+      "from": "m_ea1fffa3724d",
+      "to": "m_f1478dfb595f",
+      "call": {
+        "kind": "objectCreation",
+        "file": "src/main/java/app/Workflow.java",
+        "line": 19,
+        "startByte": 386,
+        "receiver": "",
+        "methodName": "<init>"
+      },
+      "dispatchSite": null,
+      "cycle": false
+    },
+    {
+      "from": "m_ea1fffa3724d",
+      "to": "m_a82dbb70d6bd",
+      "call": {
+        "kind": "objectCreation",
+        "file": "src/main/java/app/Workflow.java",
+        "line": 22,
+        "startByte": 500,
+        "receiver": "",
+        "methodName": "<init>"
+      },
+      "dispatchSite": null,
+      "cycle": false
+    },
+    {
+      "from": "m_ea1fffa3724d",
+      "to": "m_e3566a83e1a6",
+      "call": {
+        "kind": "invocation",
+        "file": "src/main/java/app/Workflow.java",
+        "line": 23,
+        "startByte": 545,
+        "receiver": "Validator",
+        "methodName": "normalize"
+      },
+      "dispatchSite": null,
+      "cycle": false
+    },
+    {
+      "from": "m_ea1fffa3724d",
+      "to": "m_e3566a83e1a6",
+      "call": {
+        "kind": "invocation",
+        "file": "src/main/java/app/Workflow.java",
+        "line": 24,
+        "startByte": 599,
+        "receiver": "Validator",
+        "methodName": "normalize"
+      },
+      "dispatchSite": null,
+      "cycle": false
+    },
+    {
+      "from": "m_64bfcdeb5dda",
+      "to": "m_f9c86dc9202f",
+      "call": {
+        "kind": "superConstructor",
+        "file": "src/main/java/model/ChildValue.java",
+        "line": 7,
+        "startByte": 139,
+        "receiver": "",
+        "methodName": "<init>"
+      },
+      "dispatchSite": null,
+      "cycle": false
+    },
+    {
+      "from": "m_64bfcdeb5dda",
+      "to": "m_e3566a83e1a6",
+      "call": {
+        "kind": "invocation",
+        "file": "src/main/java/model/ChildValue.java",
+        "line": 7,
+        "startByte": 145,
+        "receiver": "Validator",
+        "methodName": "normalize"
+      },
+      "dispatchSite": null,
+      "cycle": false
+    },
+    {
+      "from": "m_0bb8e597df4b",
+      "to": "m_461bce9cda4a",
+      "call": {
+        "kind": "thisConstructor",
+        "file": "src/main/java/model/DelegatingValue.java",
+        "line": 9,
+        "startByte": 164,
+        "receiver": "",
+        "methodName": "<init>"
+      },
+      "dispatchSite": null,
+      "cycle": false
+    },
+    {
+      "from": "m_461bce9cda4a",
+      "to": "m_f121243d1d9b",
+      "call": {
+        "kind": "invocation",
+        "file": "src/main/java/model/DelegatingValue.java",
+        "line": 13,
+        "startByte": 284,
+        "receiver": "Validator",
+        "methodName": "require"
+      },
+      "dispatchSite": null,
+      "cycle": false
+    },
+    {
+      "from": "m_f436880770a7",
+      "to": "m_f121243d1d9b",
+      "call": {
+        "kind": "invocation",
+        "file": "src/main/java/model/OverloadedValue.java",
+        "line": 9,
+        "startByte": 177,
+        "receiver": "Validator",
+        "methodName": "require"
+      },
+      "dispatchSite": null,
+      "cycle": false
+    },
+    {
+      "from": "m_f1478dfb595f",
+      "to": "m_a3650563eab7",
+      "call": {
+        "kind": "invocation",
+        "file": "src/main/java/model/OverloadedValue.java",
+        "line": 13,
+        "startByte": 309,
+        "receiver": "value",
+        "methodName": "repeat"
+      },
+      "dispatchSite": null,
+      "cycle": false
+    },
+    {
+      "from": "m_f1478dfb595f",
+      "to": "m_f121243d1d9b",
+      "call": {
+        "kind": "invocation",
+        "file": "src/main/java/model/OverloadedValue.java",
+        "line": 13,
+        "startByte": 291,
+        "receiver": "Validator",
+        "methodName": "require"
+      },
+      "dispatchSite": null,
+      "cycle": false
+    },
+    {
+      "from": "m_a82dbb70d6bd",
+      "to": "m_d9e42097b50a",
+      "call": {
+        "kind": "invocation",
+        "file": "src/main/java/model/Point.java",
+        "line": 7,
+        "startByte": 106,
+        "receiver": "Validator",
+        "methodName": "requireNonNegative"
+      },
+      "dispatchSite": null,
+      "cycle": false
+    },
+    {
+      "from": "m_a82dbb70d6bd",
+      "to": "m_d9e42097b50a",
+      "call": {
+        "kind": "invocation",
+        "file": "src/main/java/model/Point.java",
+        "line": 8,
+        "startByte": 147,
+        "receiver": "Validator",
+        "methodName": "requireNonNegative"
+      },
+      "dispatchSite": null,
+      "cycle": false
+    },
+    {
+      "from": "m_e3566a83e1a6",
+      "to": "m_eb03041fcc0b",
+      "call": {
+        "kind": "invocation",
+        "file": "src/main/java/support/Validator.java",
+        "line": 8,
+        "startByte": 148,
+        "receiver": "require(value)",
+        "methodName": "trim"
+      },
+      "dispatchSite": null,
+      "cycle": false
+    },
+    {
+      "from": "m_e3566a83e1a6",
+      "to": "m_f121243d1d9b",
+      "call": {
+        "kind": "invocation",
+        "file": "src/main/java/support/Validator.java",
+        "line": 8,
+        "startByte": 148,
+        "receiver": "",
+        "methodName": "require"
+      },
+      "dispatchSite": null,
+      "cycle": false
+    },
+    {
+      "from": "m_f121243d1d9b",
+      "to": "m_24d939780e06",
+      "call": {
+        "kind": "objectCreation",
+        "file": "src/main/java/support/Validator.java",
+        "line": 13,
+        "startByte": 293,
+        "receiver": "",
+        "methodName": "<init>"
+      },
+      "dispatchSite": null,
+      "cycle": false
+    },
+    {
+      "from": "m_f121243d1d9b",
+      "to": "m_859de30c2f97",
+      "call": {
+        "kind": "invocation",
+        "file": "src/main/java/support/Validator.java",
+        "line": 12,
+        "startByte": 256,
+        "receiver": "value",
+        "methodName": "isEmpty"
+      },
+      "dispatchSite": null,
+      "cycle": false
+    },
+    {
+      "from": "m_d9e42097b50a",
+      "to": "m_79e9281f0114",
+      "call": {
+        "kind": "objectCreation",
+        "file": "src/main/java/support/Validator.java",
+        "line": 20,
+        "startByte": 487,
+        "receiver": "",
+        "methodName": "<init>"
+      },
+      "dispatchSite": null,
+      "cycle": false
+    }
+  ],
+  "truncations": []
+}

@@ -1,0 +1,190 @@
+{
+  "schemaVersion": 1,
+  "target": {
+    "method": {
+      "type": "app.Mixed",
+      "method": "go",
+      "signature": "()"
+    },
+    "runtimeType": "app.Mixed"
+  },
+  "nodes": [
+    {
+      "id": "m_f13ebd89eb7a",
+      "execution": {
+        "method": {
+          "type": "app.Mixed",
+          "method": "go",
+          "signature": "()"
+        },
+        "runtimeType": "app.Mixed"
+      },
+      "kind": "method",
+      "label": "app.Mixed.go()",
+      "note": "",
+      "candidates": []
+    },
+    {
+      "id": "m_299dd090c15d",
+      "execution": {
+        "method": {
+          "type": "app.Mixed",
+          "method": "shared",
+          "signature": "()"
+        },
+        "runtimeType": "app.Mixed"
+      },
+      "kind": "method",
+      "label": "app.Mixed.shared()",
+      "note": "",
+      "candidates": []
+    },
+    {
+      "id": "m_aae3366583b7",
+      "execution": {
+        "method": {
+          "type": "app.Mixed",
+          "method": "shortcut",
+          "signature": "()"
+        },
+        "runtimeType": "app.Mixed"
+      },
+      "kind": "method",
+      "label": "app.Mixed.shortcut()",
+      "note": "",
+      "candidates": []
+    },
+    {
+      "id": "m_3ae5606d2895",
+      "execution": {
+        "method": {
+          "type": "app.Mixed",
+          "method": "step1",
+          "signature": "()"
+        },
+        "runtimeType": "app.Mixed"
+      },
+      "kind": "method",
+      "label": "app.Mixed.step1()",
+      "note": "",
+      "candidates": []
+    },
+    {
+      "id": "m_8623edfb3c0c",
+      "execution": {
+        "method": {
+          "type": "app.Mixed",
+          "method": "step2",
+          "signature": "()"
+        },
+        "runtimeType": "app.Mixed"
+      },
+      "kind": "method",
+      "label": "app.Mixed.step2()",
+      "note": "",
+      "candidates": []
+    },
+    {
+      "id": "m_e1fa84dfe61c",
+      "execution": {
+        "method": {
+          "type": "app.Mixed",
+          "method": "step3",
+          "signature": "()"
+        },
+        "runtimeType": "app.Mixed"
+      },
+      "kind": "method",
+      "label": "app.Mixed.step3()",
+      "note": "",
+      "candidates": []
+    }
+  ],
+  "edges": [
+    {
+      "from": "m_f13ebd89eb7a",
+      "to": "m_aae3366583b7",
+      "call": {
+        "kind": "invocation",
+        "file": "src/main/java/app/Mixed.java",
+        "line": 6,
+        "startByte": 83,
+        "receiver": "",
+        "methodName": "shortcut"
+      },
+      "dispatchSite": null,
+      "cycle": false
+    },
+    {
+      "from": "m_f13ebd89eb7a",
+      "to": "m_3ae5606d2895",
+      "call": {
+        "kind": "invocation",
+        "file": "src/main/java/app/Mixed.java",
+        "line": 5,
+        "startByte": 66,
+        "receiver": "",
+        "methodName": "step1"
+      },
+      "dispatchSite": null,
+      "cycle": false
+    },
+    {
+      "from": "m_aae3366583b7",
+      "to": "m_299dd090c15d",
+      "call": {
+        "kind": "invocation",
+        "file": "src/main/java/app/Mixed.java",
+        "line": 11,
+        "startByte": 246,
+        "receiver": "",
+        "methodName": "shared"
+      },
+      "dispatchSite": null,
+      "cycle": false
+    },
+    {
+      "from": "m_3ae5606d2895",
+      "to": "m_8623edfb3c0c",
+      "call": {
+        "kind": "invocation",
+        "file": "src/main/java/app/Mixed.java",
+        "line": 8,
+        "startByte": 128,
+        "receiver": "",
+        "methodName": "step2"
+      },
+      "dispatchSite": null,
+      "cycle": false
+    },
+    {
+      "from": "m_8623edfb3c0c",
+      "to": "m_e1fa84dfe61c",
+      "call": {
+        "kind": "invocation",
+        "file": "src/main/java/app/Mixed.java",
+        "line": 9,
+        "startByte": 166,
+        "receiver": "",
+        "methodName": "step3"
+      },
+      "dispatchSite": null,
+      "cycle": false
+    },
+    {
+      "from": "m_e1fa84dfe61c",
+      "to": "m_299dd090c15d",
+      "call": {
+        "kind": "invocation",
+        "file": "src/main/java/app/Mixed.java",
+        "line": 10,
+        "startByte": 204,
+        "receiver": "",
+        "methodName": "shared"
+      },
+      "dispatchSite": null,
+      "cycle": false
+    }
+  ],
+  "truncations": []
+}

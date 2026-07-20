@@ -1,0 +1,60 @@
+{
+  "schemaVersion": 1,
+  "target": {
+    "method": {
+      "type": "app.Workflow",
+      "method": "start",
+      "signature": "()"
+    },
+    "runtimeType": "app.Workflow"
+  },
+  "nodes": [
+    {
+      "id": "m_4107b01343ed",
+      "execution": {
+        "method": {
+          "type": "api.Service",
+          "method": "run",
+          "signature": "()"
+        },
+        "runtimeType": "api.Service"
+      },
+      "kind": "method",
+      "label": "api.Service.run()",
+      "note": "",
+      "candidates": []
+    },
+    {
+      "id": "m_77e2f47d906c",
+      "execution": {
+        "method": {
+          "type": "app.Workflow",
+          "method": "start",
+          "signature": "()"
+        },
+        "runtimeType": "app.Workflow"
+      },
+      "kind": "method",
+      "label": "app.Workflow.start()",
+      "note": "",
+      "candidates": []
+    }
+  ],
+  "edges": [
+    {
+      "from": "m_77e2f47d906c",
+      "to": "m_4107b01343ed",
+      "call": {
+        "kind": "invocation",
+        "file": "module-app/src/main/java/app/Workflow.java",
+        "line": 13,
+        "startByte": 207,
+        "receiver": "service",
+        "methodName": "run"
+      },
+      "dispatchSite": null,
+      "cycle": false
+    }
+  ],
+  "truncations": []
+}

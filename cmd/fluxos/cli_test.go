@@ -39,7 +39,7 @@ func TestRunCLIClassifiesUsageErrors(t *testing.T) {
 		{name: "missing trace target", args: []string{"trace"}, want: "fluxos trace: usage:"},
 		{name: "invalid target", args: []string{"trace", "Workflow"}, want: "fluxos trace: invalid target"},
 		{name: "extra positional", args: []string{"trace", "Workflow.start", traceFixtureRoot(), "extra"}, want: "at most one project path"},
-		{name: "reserved feature", args: []string{"trace", "--format=json", "Workflow.start", "/missing"}, want: "not implemented yet"},
+		{name: "reserved feature", args: []string{"trace", "--all-impls=true", "Workflow.start", "/missing"}, want: "not implemented yet"},
 		{name: "missing index root", args: []string{"index"}, want: "fluxos index: usage:"},
 	}
 	for _, tt := range tests {

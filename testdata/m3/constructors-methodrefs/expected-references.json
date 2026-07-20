@@ -1,0 +1,740 @@
+{
+  "schemaVersion": 1,
+  "target": {
+    "method": {
+      "type": "app.Workflow",
+      "method": "references",
+      "signature": "()"
+    },
+    "runtimeType": "app.Workflow"
+  },
+  "nodes": [
+    {
+      "id": "m_812cbfe8c3a1",
+      "execution": {
+        "method": {
+          "type": "Function<BaseValue, String>",
+          "method": "apply",
+          "signature": ""
+        },
+        "runtimeType": "refs.References"
+      },
+      "kind": "unresolved",
+      "label": "Function<BaseValue, String>.apply() [unresolved]",
+      "note": "local var type \"Function<BaseValue, String>\" unresolved: external type java.util.function.Function",
+      "candidates": []
+    },
+    {
+      "id": "m_5c942b582f28",
+      "execution": {
+        "method": {
+          "type": "Function<String, String>",
+          "method": "apply",
+          "signature": ""
+        },
+        "runtimeType": "refs.References"
+      },
+      "kind": "unresolved",
+      "label": "Function<String, String>.apply() [unresolved]",
+      "note": "local var type \"Function<String, String>\" unresolved: external type java.util.function.Function",
+      "candidates": []
+    },
+    {
+      "id": "m_24d939780e06",
+      "execution": {
+        "method": {
+          "type": "IllegalArgumentException",
+          "method": "<init>",
+          "signature": ""
+        },
+        "runtimeType": "support.Validator"
+      },
+      "kind": "unresolved",
+      "label": "IllegalArgumentException.<init>() [unresolved]",
+      "note": "constructor type \"IllegalArgumentException\" unresolved: no candidate",
+      "candidates": []
+    },
+    {
+      "id": "m_9b0fda292c70",
+      "execution": {
+        "method": {
+          "type": "Runnable",
+          "method": "run",
+          "signature": ""
+        },
+        "runtimeType": "refs.References"
+      },
+      "kind": "unresolved",
+      "label": "Runnable.run() [unresolved]",
+      "note": "local var type \"Runnable\" unresolved: no candidate",
+      "candidates": []
+    },
+    {
+      "id": "m_f649eddf58ae",
+      "execution": {
+        "method": {
+          "type": "Runnable",
+          "method": "run",
+          "signature": ""
+        },
+        "runtimeType": "refs.References"
+      },
+      "kind": "unresolved",
+      "label": "Runnable.run() [unresolved]",
+      "note": "local var type \"Runnable\" unresolved: no candidate",
+      "candidates": []
+    },
+    {
+      "id": "m_963aa09c3d49",
+      "execution": {
+        "method": {
+          "type": "Runnable",
+          "method": "run",
+          "signature": ""
+        },
+        "runtimeType": "refs.References"
+      },
+      "kind": "unresolved",
+      "label": "Runnable.run() [unresolved]",
+      "note": "local var type \"Runnable\" unresolved: no candidate",
+      "candidates": []
+    },
+    {
+      "id": "m_859de30c2f97",
+      "execution": {
+        "method": {
+          "type": "String",
+          "method": "isEmpty",
+          "signature": ""
+        },
+        "runtimeType": "support.Validator"
+      },
+      "kind": "unresolved",
+      "label": "String.isEmpty() [unresolved]",
+      "note": "param type \"String\" unresolved: external type java.lang.String",
+      "candidates": []
+    },
+    {
+      "id": "m_5556182d79cf",
+      "execution": {
+        "method": {
+          "type": "Supplier<DefaultValue>",
+          "method": "get",
+          "signature": ""
+        },
+        "runtimeType": "refs.References"
+      },
+      "kind": "unresolved",
+      "label": "Supplier<DefaultValue>.get() [unresolved]",
+      "note": "local var type \"Supplier<DefaultValue>\" unresolved: external type java.util.function.Supplier",
+      "candidates": []
+    },
+    {
+      "id": "m_1ed1adf22d04",
+      "execution": {
+        "method": {
+          "type": "Supplier<Nested>",
+          "method": "get",
+          "signature": ""
+        },
+        "runtimeType": "refs.References"
+      },
+      "kind": "unresolved",
+      "label": "Supplier<Nested>.get() [unresolved]",
+      "note": "local var type \"Supplier<Nested>\" unresolved: external type java.util.function.Supplier",
+      "candidates": []
+    },
+    {
+      "id": "m_b84c8c7a9a1b",
+      "execution": {
+        "method": {
+          "type": "Supplier<String>",
+          "method": "get",
+          "signature": ""
+        },
+        "runtimeType": "refs.References"
+      },
+      "kind": "unresolved",
+      "label": "Supplier<String>.get() [unresolved]",
+      "note": "local var type \"Supplier<String>\" unresolved: external type java.util.function.Supplier",
+      "candidates": []
+    },
+    {
+      "id": "m_e8df649834e2",
+      "execution": {
+        "method": {
+          "type": "app.Workflow",
+          "method": "references",
+          "signature": "()"
+        },
+        "runtimeType": "app.Workflow"
+      },
+      "kind": "method",
+      "label": "app.Workflow.references()",
+      "note": "",
+      "candidates": []
+    },
+    {
+      "id": "m_f9c86dc9202f",
+      "execution": {
+        "method": {
+          "type": "model.BaseValue",
+          "method": "<init>",
+          "signature": "(java.lang.String)"
+        },
+        "runtimeType": "refs.References"
+      },
+      "kind": "method",
+      "label": "model.BaseValue.<init>(java.lang.String)",
+      "note": "",
+      "candidates": []
+    },
+    {
+      "id": "m_84ed2044c2ed",
+      "execution": {
+        "method": {
+          "type": "model.BaseValue",
+          "method": "value",
+          "signature": "()"
+        },
+        "runtimeType": "model.BaseValue"
+      },
+      "kind": "method",
+      "label": "model.BaseValue.value() [runtime: model.BaseValue]",
+      "note": "",
+      "candidates": []
+    },
+    {
+      "id": "m_f97d577def56",
+      "execution": {
+        "method": {
+          "type": "model.BaseValue",
+          "method": "value",
+          "signature": "()"
+        },
+        "runtimeType": "refs.References"
+      },
+      "kind": "method",
+      "label": "model.BaseValue.value() [runtime: refs.References]",
+      "note": "",
+      "candidates": []
+    },
+    {
+      "id": "m_77b0ebe86b3f",
+      "execution": {
+        "method": {
+          "type": "model.DefaultValue",
+          "method": "<init>",
+          "signature": "()"
+        },
+        "runtimeType": "model.DefaultValue"
+      },
+      "kind": "method",
+      "label": "model.DefaultValue.<init>()",
+      "note": "",
+      "candidates": []
+    },
+    {
+      "id": "m_bd677b62ab48",
+      "execution": {
+        "method": {
+          "type": "refs.References",
+          "method": "<init>",
+          "signature": "()"
+        },
+        "runtimeType": "refs.References"
+      },
+      "kind": "method",
+      "label": "refs.References.<init>()",
+      "note": "",
+      "candidates": []
+    },
+    {
+      "id": "m_2292119d3129",
+      "execution": {
+        "method": {
+          "type": "refs.References",
+          "method": "own",
+          "signature": "()"
+        },
+        "runtimeType": "refs.References"
+      },
+      "kind": "method",
+      "label": "refs.References.own()",
+      "note": "",
+      "candidates": []
+    },
+    {
+      "id": "m_6cdb9c52f7f1",
+      "execution": {
+        "method": {
+          "type": "refs.References",
+          "method": "references",
+          "signature": "()"
+        },
+        "runtimeType": "refs.References"
+      },
+      "kind": "method",
+      "label": "refs.References.references()",
+      "note": "",
+      "candidates": []
+    },
+    {
+      "id": "m_bc924d7eafb8",
+      "execution": {
+        "method": {
+          "type": "refs.References.Nested",
+          "method": "<init>",
+          "signature": "()"
+        },
+        "runtimeType": "refs.References.Nested"
+      },
+      "kind": "method",
+      "label": "refs.References.Nested.<init>()",
+      "note": "",
+      "candidates": []
+    },
+    {
+      "id": "m_10373ee5a41d",
+      "execution": {
+        "method": {
+          "type": "refs.References.Nested",
+          "method": "run",
+          "signature": "()"
+        },
+        "runtimeType": "refs.References.Nested"
+      },
+      "kind": "method",
+      "label": "refs.References.Nested.run()",
+      "note": "",
+      "candidates": []
+    },
+    {
+      "id": "m_5c65cea9be33",
+      "execution": {
+        "method": {
+          "type": "refs.References.Service",
+          "method": "run",
+          "signature": "()"
+        },
+        "runtimeType": "refs.References.Service"
+      },
+      "kind": "method",
+      "label": "refs.References.Service.run()",
+      "note": "",
+      "candidates": []
+    },
+    {
+      "id": "m_eb03041fcc0b",
+      "execution": {
+        "method": {
+          "type": "require(value)",
+          "method": "trim",
+          "signature": ""
+        },
+        "runtimeType": "support.Validator"
+      },
+      "kind": "unresolved",
+      "label": "require(value).trim() [unresolved]",
+      "note": "receiver \"require(value)\" is not a local var, field, or resolvable type: no candidate",
+      "candidates": []
+    },
+    {
+      "id": "m_e3566a83e1a6",
+      "execution": {
+        "method": {
+          "type": "support.Validator",
+          "method": "normalize",
+          "signature": "(java.lang.String)"
+        },
+        "runtimeType": "support.Validator"
+      },
+      "kind": "method",
+      "label": "support.Validator.normalize(java.lang.String)",
+      "note": "",
+      "candidates": []
+    },
+    {
+      "id": "m_f121243d1d9b",
+      "execution": {
+        "method": {
+          "type": "support.Validator",
+          "method": "require",
+          "signature": "(java.lang.String)"
+        },
+        "runtimeType": "support.Validator"
+      },
+      "kind": "method",
+      "label": "support.Validator.require(java.lang.String)",
+      "note": "",
+      "candidates": []
+    }
+  ],
+  "edges": [
+    {
+      "from": "m_e8df649834e2",
+      "to": "m_bd677b62ab48",
+      "call": {
+        "kind": "objectCreation",
+        "file": "src/main/java/app/Workflow.java",
+        "line": 33,
+        "startByte": 855,
+        "receiver": "",
+        "methodName": "<init>"
+      },
+      "dispatchSite": null,
+      "cycle": false
+    },
+    {
+      "from": "m_e8df649834e2",
+      "to": "m_6cdb9c52f7f1",
+      "call": {
+        "kind": "invocation",
+        "file": "src/main/java/app/Workflow.java",
+        "line": 34,
+        "startByte": 881,
+        "receiver": "references",
+        "methodName": "references"
+      },
+      "dispatchSite": null,
+      "cycle": false
+    },
+    {
+      "from": "m_bd677b62ab48",
+      "to": "m_f9c86dc9202f",
+      "call": {
+        "kind": "superConstructor",
+        "file": "src/main/java/refs/References.java",
+        "line": 13,
+        "startByte": 301,
+        "receiver": "",
+        "methodName": "<init>"
+      },
+      "dispatchSite": null,
+      "cycle": false
+    },
+    {
+      "from": "m_2292119d3129",
+      "to": "m_f121243d1d9b",
+      "call": {
+        "kind": "invocation",
+        "file": "src/main/java/refs/References.java",
+        "line": 37,
+        "startByte": 1040,
+        "receiver": "Validator",
+        "methodName": "require"
+      },
+      "dispatchSite": null,
+      "cycle": false
+    },
+    {
+      "from": "m_6cdb9c52f7f1",
+      "to": "m_812cbfe8c3a1",
+      "call": {
+        "kind": "invocation",
+        "file": "src/main/java/refs/References.java",
+        "line": 29,
+        "startByte": 869,
+        "receiver": "unbound",
+        "methodName": "apply"
+      },
+      "dispatchSite": null,
+      "cycle": false
+    },
+    {
+      "from": "m_6cdb9c52f7f1",
+      "to": "m_5c942b582f28",
+      "call": {
+        "kind": "invocation",
+        "file": "src/main/java/refs/References.java",
+        "line": 28,
+        "startByte": 831,
+        "receiver": "staticMethod",
+        "methodName": "apply"
+      },
+      "dispatchSite": null,
+      "cycle": false
+    },
+    {
+      "from": "m_6cdb9c52f7f1",
+      "to": "m_9b0fda292c70",
+      "call": {
+        "kind": "invocation",
+        "file": "src/main/java/refs/References.java",
+        "line": 27,
+        "startByte": 812,
+        "receiver": "own",
+        "methodName": "run"
+      },
+      "dispatchSite": null,
+      "cycle": false
+    },
+    {
+      "from": "m_6cdb9c52f7f1",
+      "to": "m_f649eddf58ae",
+      "call": {
+        "kind": "invocation",
+        "file": "src/main/java/refs/References.java",
+        "line": 26,
+        "startByte": 791,
+        "receiver": "bound",
+        "methodName": "run"
+      },
+      "dispatchSite": null,
+      "cycle": false
+    },
+    {
+      "from": "m_6cdb9c52f7f1",
+      "to": "m_963aa09c3d49",
+      "call": {
+        "kind": "invocation",
+        "file": "src/main/java/refs/References.java",
+        "line": 33,
+        "startByte": 980,
+        "receiver": "nestedMethod",
+        "methodName": "run"
+      },
+      "dispatchSite": null,
+      "cycle": false
+    },
+    {
+      "from": "m_6cdb9c52f7f1",
+      "to": "m_5556182d79cf",
+      "call": {
+        "kind": "invocation",
+        "file": "src/main/java/refs/References.java",
+        "line": 31,
+        "startByte": 920,
+        "receiver": "constructor",
+        "methodName": "get"
+      },
+      "dispatchSite": null,
+      "cycle": false
+    },
+    {
+      "from": "m_6cdb9c52f7f1",
+      "to": "m_1ed1adf22d04",
+      "call": {
+        "kind": "invocation",
+        "file": "src/main/java/refs/References.java",
+        "line": 32,
+        "startByte": 947,
+        "receiver": "nestedConstructor",
+        "methodName": "get"
+      },
+      "dispatchSite": null,
+      "cycle": false
+    },
+    {
+      "from": "m_6cdb9c52f7f1",
+      "to": "m_b84c8c7a9a1b",
+      "call": {
+        "kind": "invocation",
+        "file": "src/main/java/refs/References.java",
+        "line": 30,
+        "startByte": 898,
+        "receiver": "parent",
+        "methodName": "get"
+      },
+      "dispatchSite": null,
+      "cycle": false
+    },
+    {
+      "from": "m_6cdb9c52f7f1",
+      "to": "m_84ed2044c2ed",
+      "call": {
+        "kind": "methodReference",
+        "file": "src/main/java/refs/References.java",
+        "line": 20,
+        "startByte": 549,
+        "receiver": "BaseValue",
+        "methodName": "value"
+      },
+      "dispatchSite": null,
+      "cycle": false
+    },
+    {
+      "from": "m_6cdb9c52f7f1",
+      "to": "m_f97d577def56",
+      "call": {
+        "kind": "methodReference",
+        "file": "src/main/java/refs/References.java",
+        "line": 21,
+        "startByte": 601,
+        "receiver": "super",
+        "methodName": "value"
+      },
+      "dispatchSite": null,
+      "cycle": false
+    },
+    {
+      "from": "m_6cdb9c52f7f1",
+      "to": "m_77b0ebe86b3f",
+      "call": {
+        "kind": "constructorReference",
+        "file": "src/main/java/refs/References.java",
+        "line": 22,
+        "startByte": 660,
+        "receiver": "",
+        "methodName": "<init>"
+      },
+      "dispatchSite": null,
+      "cycle": false
+    },
+    {
+      "from": "m_6cdb9c52f7f1",
+      "to": "m_2292119d3129",
+      "call": {
+        "kind": "methodReference",
+        "file": "src/main/java/refs/References.java",
+        "line": 18,
+        "startByte": 422,
+        "receiver": "this",
+        "methodName": "own"
+      },
+      "dispatchSite": null,
+      "cycle": false
+    },
+    {
+      "from": "m_6cdb9c52f7f1",
+      "to": "m_bc924d7eafb8",
+      "call": {
+        "kind": "constructorReference",
+        "file": "src/main/java/refs/References.java",
+        "line": 23,
+        "startByte": 724,
+        "receiver": "",
+        "methodName": "<init>"
+      },
+      "dispatchSite": null,
+      "cycle": false
+    },
+    {
+      "from": "m_6cdb9c52f7f1",
+      "to": "m_10373ee5a41d",
+      "call": {
+        "kind": "methodReference",
+        "file": "src/main/java/refs/References.java",
+        "line": 24,
+        "startByte": 769,
+        "receiver": "Nested",
+        "methodName": "run"
+      },
+      "dispatchSite": null,
+      "cycle": false
+    },
+    {
+      "from": "m_6cdb9c52f7f1",
+      "to": "m_5c65cea9be33",
+      "call": {
+        "kind": "methodReference",
+        "file": "src/main/java/refs/References.java",
+        "line": 17,
+        "startByte": 385,
+        "receiver": "service",
+        "methodName": "run"
+      },
+      "dispatchSite": null,
+      "cycle": false
+    },
+    {
+      "from": "m_6cdb9c52f7f1",
+      "to": "m_e3566a83e1a6",
+      "call": {
+        "kind": "methodReference",
+        "file": "src/main/java/refs/References.java",
+        "line": 19,
+        "startByte": 481,
+        "receiver": "Validator",
+        "methodName": "normalize"
+      },
+      "dispatchSite": null,
+      "cycle": false
+    },
+    {
+      "from": "m_10373ee5a41d",
+      "to": "m_f121243d1d9b",
+      "call": {
+        "kind": "invocation",
+        "file": "src/main/java/refs/References.java",
+        "line": 51,
+        "startByte": 1324,
+        "receiver": "Validator",
+        "methodName": "require"
+      },
+      "dispatchSite": null,
+      "cycle": false
+    },
+    {
+      "from": "m_5c65cea9be33",
+      "to": "m_f121243d1d9b",
+      "call": {
+        "kind": "invocation",
+        "file": "src/main/java/refs/References.java",
+        "line": 42,
+        "startByte": 1156,
+        "receiver": "Validator",
+        "methodName": "require"
+      },
+      "dispatchSite": null,
+      "cycle": false
+    },
+    {
+      "from": "m_e3566a83e1a6",
+      "to": "m_eb03041fcc0b",
+      "call": {
+        "kind": "invocation",
+        "file": "src/main/java/support/Validator.java",
+        "line": 8,
+        "startByte": 148,
+        "receiver": "require(value)",
+        "methodName": "trim"
+      },
+      "dispatchSite": null,
+      "cycle": false
+    },
+    {
+      "from": "m_e3566a83e1a6",
+      "to": "m_f121243d1d9b",
+      "call": {
+        "kind": "invocation",
+        "file": "src/main/java/support/Validator.java",
+        "line": 8,
+        "startByte": 148,
+        "receiver": "",
+        "methodName": "require"
+      },
+      "dispatchSite": null,
+      "cycle": false
+    },
+    {
+      "from": "m_f121243d1d9b",
+      "to": "m_24d939780e06",
+      "call": {
+        "kind": "objectCreation",
+        "file": "src/main/java/support/Validator.java",
+        "line": 13,
+        "startByte": 293,
+        "receiver": "",
+        "methodName": "<init>"
+      },
+      "dispatchSite": null,
+      "cycle": false
+    },
+    {
+      "from": "m_f121243d1d9b",
+      "to": "m_859de30c2f97",
+      "call": {
+        "kind": "invocation",
+        "file": "src/main/java/support/Validator.java",
+        "line": 12,
+        "startByte": 256,
+        "receiver": "value",
+        "methodName": "isEmpty"
+      },
+      "dispatchSite": null,
+      "cycle": false
+    }
+  ],
+  "truncations": []
+}

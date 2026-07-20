@@ -1,0 +1,134 @@
+{
+  "schemaVersion": 1,
+  "target": {
+    "method": {
+      "type": "app.Diamond",
+      "method": "top",
+      "signature": "()"
+    },
+    "runtimeType": "app.Diamond"
+  },
+  "nodes": [
+    {
+      "id": "m_64e44623e8e3",
+      "execution": {
+        "method": {
+          "type": "app.Diamond",
+          "method": "left",
+          "signature": "()"
+        },
+        "runtimeType": "app.Diamond"
+      },
+      "kind": "method",
+      "label": "app.Diamond.left()",
+      "note": "",
+      "candidates": []
+    },
+    {
+      "id": "m_e5f12553687a",
+      "execution": {
+        "method": {
+          "type": "app.Diamond",
+          "method": "right",
+          "signature": "()"
+        },
+        "runtimeType": "app.Diamond"
+      },
+      "kind": "method",
+      "label": "app.Diamond.right()",
+      "note": "",
+      "candidates": []
+    },
+    {
+      "id": "m_cad4b9f8169d",
+      "execution": {
+        "method": {
+          "type": "app.Diamond",
+          "method": "top",
+          "signature": "()"
+        },
+        "runtimeType": "app.Diamond"
+      },
+      "kind": "method",
+      "label": "app.Diamond.top()",
+      "note": "",
+      "candidates": []
+    }
+  ],
+  "edges": [
+    {
+      "from": "m_cad4b9f8169d",
+      "to": "m_64e44623e8e3",
+      "call": {
+        "kind": "invocation",
+        "file": "src/main/java/app/Diamond.java",
+        "line": 5,
+        "startByte": 69,
+        "receiver": "",
+        "methodName": "left"
+      },
+      "dispatchSite": null,
+      "cycle": false
+    },
+    {
+      "from": "m_cad4b9f8169d",
+      "to": "m_e5f12553687a",
+      "call": {
+        "kind": "invocation",
+        "file": "src/main/java/app/Diamond.java",
+        "line": 6,
+        "startByte": 85,
+        "receiver": "",
+        "methodName": "right"
+      },
+      "dispatchSite": null,
+      "cycle": false
+    }
+  ],
+  "truncations": [
+    {
+      "id": "t_9752a85babdf",
+      "kind": "maxNodes",
+      "caller": {
+        "method": {
+          "type": "app.Diamond",
+          "method": "left",
+          "signature": "()"
+        },
+        "runtimeType": "app.Diamond"
+      },
+      "call": {
+        "kind": "invocation",
+        "file": "src/main/java/app/Diamond.java",
+        "line": 8,
+        "startByte": 126,
+        "receiver": "",
+        "methodName": "bottom"
+      },
+      "omitted": 1,
+      "note": ""
+    },
+    {
+      "id": "t_a6c5d9fe884b",
+      "kind": "maxNodes",
+      "caller": {
+        "method": {
+          "type": "app.Diamond",
+          "method": "right",
+          "signature": "()"
+        },
+        "runtimeType": "app.Diamond"
+      },
+      "call": {
+        "kind": "invocation",
+        "file": "src/main/java/app/Diamond.java",
+        "line": 9,
+        "startByte": 165,
+        "receiver": "",
+        "methodName": "bottom"
+      },
+      "omitted": 1,
+      "note": ""
+    }
+  ]
+}

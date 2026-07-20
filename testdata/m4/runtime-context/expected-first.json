@@ -1,0 +1,60 @@
+{
+  "schemaVersion": 1,
+  "target": {
+    "method": {
+      "type": "app.Base",
+      "method": "run",
+      "signature": "()"
+    },
+    "runtimeType": "app.First"
+  },
+  "nodes": [
+    {
+      "id": "m_0cb0e28f8d9e",
+      "execution": {
+        "method": {
+          "type": "app.Base",
+          "method": "run",
+          "signature": "()"
+        },
+        "runtimeType": "app.First"
+      },
+      "kind": "method",
+      "label": "app.Base.run()",
+      "note": "",
+      "candidates": []
+    },
+    {
+      "id": "m_5242422cd94c",
+      "execution": {
+        "method": {
+          "type": "app.First",
+          "method": "hook",
+          "signature": "()"
+        },
+        "runtimeType": "app.First"
+      },
+      "kind": "method",
+      "label": "app.First.hook()",
+      "note": "",
+      "candidates": []
+    }
+  ],
+  "edges": [
+    {
+      "from": "m_0cb0e28f8d9e",
+      "to": "m_5242422cd94c",
+      "call": {
+        "kind": "invocation",
+        "file": "src/main/java/app/Base.java",
+        "line": 6,
+        "startByte": 115,
+        "receiver": "",
+        "methodName": "hook"
+      },
+      "dispatchSite": null,
+      "cycle": false
+    }
+  ],
+  "truncations": []
+}

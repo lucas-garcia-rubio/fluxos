@@ -1,0 +1,8 @@
+digraph fluxos {
+  "m_1b9028fe90a6" [label="app.Deep.a()", kind="method"];
+  "m_dd362ee05388" [label="app.Deep.b()", kind="method"];
+  "m_a5209eb41e02" [label="app.Deep.c()", kind="method"];
+  "m_1b9028fe90a6" -> "m_dd362ee05388";
+  "m_dd362ee05388" -> "m_a5209eb41e02";
+  "t_3ed2ef38b37d" [shape=note, label="truncation: maxDepth: omitted 1 at app.Deep.c()"];
+}

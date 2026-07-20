@@ -1,0 +1,324 @@
+{
+  "schemaVersion": 1,
+  "target": {
+    "method": {
+      "type": "app.Fan",
+      "method": "callAll",
+      "signature": "()"
+    },
+    "runtimeType": "app.Fan"
+  },
+  "nodes": [
+    {
+      "id": "m_db036d1d7f4a",
+      "execution": {
+        "method": {
+          "type": "app.Fan",
+          "method": "callAll",
+          "signature": "()"
+        },
+        "runtimeType": "app.Fan"
+      },
+      "kind": "method",
+      "label": "app.Fan.callAll()",
+      "note": "",
+      "candidates": []
+    },
+    {
+      "id": "m_fb4762201552",
+      "execution": {
+        "method": {
+          "type": "app.Fan",
+          "method": "i1",
+          "signature": "()"
+        },
+        "runtimeType": "app.Fan"
+      },
+      "kind": "method",
+      "label": "app.Fan.i1()",
+      "note": "",
+      "candidates": []
+    },
+    {
+      "id": "m_ecbe378201d2",
+      "execution": {
+        "method": {
+          "type": "app.Fan",
+          "method": "i2",
+          "signature": "()"
+        },
+        "runtimeType": "app.Fan"
+      },
+      "kind": "method",
+      "label": "app.Fan.i2()",
+      "note": "",
+      "candidates": []
+    },
+    {
+      "id": "m_0e41836d3ce6",
+      "execution": {
+        "method": {
+          "type": "app.Fan",
+          "method": "i3",
+          "signature": "()"
+        },
+        "runtimeType": "app.Fan"
+      },
+      "kind": "method",
+      "label": "app.Fan.i3()",
+      "note": "",
+      "candidates": []
+    },
+    {
+      "id": "m_4edc0494cacd",
+      "execution": {
+        "method": {
+          "type": "app.Fan",
+          "method": "i4",
+          "signature": "()"
+        },
+        "runtimeType": "app.Fan"
+      },
+      "kind": "method",
+      "label": "app.Fan.i4()",
+      "note": "",
+      "candidates": []
+    }
+  ],
+  "edges": [
+    {
+      "from": "m_db036d1d7f4a",
+      "to": "m_fb4762201552",
+      "call": {
+        "kind": "invocation",
+        "file": "src/main/java/app/Fan.java",
+        "line": 5,
+        "startByte": 69,
+        "receiver": "",
+        "methodName": "i1"
+      },
+      "dispatchSite": null,
+      "cycle": false
+    },
+    {
+      "from": "m_db036d1d7f4a",
+      "to": "m_ecbe378201d2",
+      "call": {
+        "kind": "invocation",
+        "file": "src/main/java/app/Fan.java",
+        "line": 6,
+        "startByte": 83,
+        "receiver": "",
+        "methodName": "i2"
+      },
+      "dispatchSite": null,
+      "cycle": false
+    },
+    {
+      "from": "m_db036d1d7f4a",
+      "to": "m_0e41836d3ce6",
+      "call": {
+        "kind": "invocation",
+        "file": "src/main/java/app/Fan.java",
+        "line": 7,
+        "startByte": 97,
+        "receiver": "",
+        "methodName": "i3"
+      },
+      "dispatchSite": null,
+      "cycle": false
+    },
+    {
+      "from": "m_db036d1d7f4a",
+      "to": "m_4edc0494cacd",
+      "call": {
+        "kind": "invocation",
+        "file": "src/main/java/app/Fan.java",
+        "line": 8,
+        "startByte": 111,
+        "receiver": "",
+        "methodName": "i4"
+      },
+      "dispatchSite": null,
+      "cycle": false
+    }
+  ],
+  "truncations": [
+    {
+      "id": "t_d3541dffd380",
+      "kind": "maxNodes",
+      "caller": {
+        "method": {
+          "type": "app.Fan",
+          "method": "callAll",
+          "signature": "()"
+        },
+        "runtimeType": "app.Fan"
+      },
+      "call": {
+        "kind": "invocation",
+        "file": "src/main/java/app/Fan.java",
+        "line": 9,
+        "startByte": 125,
+        "receiver": "",
+        "methodName": "i5"
+      },
+      "omitted": 1,
+      "note": ""
+    },
+    {
+      "id": "t_3680ae55682c",
+      "kind": "maxNodes",
+      "caller": {
+        "method": {
+          "type": "app.Fan",
+          "method": "callAll",
+          "signature": "()"
+        },
+        "runtimeType": "app.Fan"
+      },
+      "call": {
+        "kind": "invocation",
+        "file": "src/main/java/app/Fan.java",
+        "line": 10,
+        "startByte": 139,
+        "receiver": "",
+        "methodName": "i6"
+      },
+      "omitted": 1,
+      "note": ""
+    },
+    {
+      "id": "t_93c9fc946e79",
+      "kind": "maxNodes",
+      "caller": {
+        "method": {
+          "type": "app.Fan",
+          "method": "callAll",
+          "signature": "()"
+        },
+        "runtimeType": "app.Fan"
+      },
+      "call": {
+        "kind": "invocation",
+        "file": "src/main/java/app/Fan.java",
+        "line": 11,
+        "startByte": 153,
+        "receiver": "",
+        "methodName": "i7"
+      },
+      "omitted": 1,
+      "note": ""
+    },
+    {
+      "id": "t_76dd65999851",
+      "kind": "maxNodes",
+      "caller": {
+        "method": {
+          "type": "app.Fan",
+          "method": "callAll",
+          "signature": "()"
+        },
+        "runtimeType": "app.Fan"
+      },
+      "call": {
+        "kind": "invocation",
+        "file": "src/main/java/app/Fan.java",
+        "line": 12,
+        "startByte": 167,
+        "receiver": "",
+        "methodName": "i8"
+      },
+      "omitted": 1,
+      "note": ""
+    },
+    {
+      "id": "t_903a78cc8a60",
+      "kind": "maxNodes",
+      "caller": {
+        "method": {
+          "type": "app.Fan",
+          "method": "callAll",
+          "signature": "()"
+        },
+        "runtimeType": "app.Fan"
+      },
+      "call": {
+        "kind": "invocation",
+        "file": "src/main/java/app/Fan.java",
+        "line": 13,
+        "startByte": 181,
+        "receiver": "",
+        "methodName": "i9"
+      },
+      "omitted": 1,
+      "note": ""
+    },
+    {
+      "id": "t_1ffdc6126966",
+      "kind": "maxNodes",
+      "caller": {
+        "method": {
+          "type": "app.Fan",
+          "method": "callAll",
+          "signature": "()"
+        },
+        "runtimeType": "app.Fan"
+      },
+      "call": {
+        "kind": "invocation",
+        "file": "src/main/java/app/Fan.java",
+        "line": 14,
+        "startByte": 195,
+        "receiver": "",
+        "methodName": "i10"
+      },
+      "omitted": 1,
+      "note": ""
+    },
+    {
+      "id": "t_0af97c45b501",
+      "kind": "maxNodes",
+      "caller": {
+        "method": {
+          "type": "app.Fan",
+          "method": "callAll",
+          "signature": "()"
+        },
+        "runtimeType": "app.Fan"
+      },
+      "call": {
+        "kind": "invocation",
+        "file": "src/main/java/app/Fan.java",
+        "line": 15,
+        "startByte": 210,
+        "receiver": "",
+        "methodName": "i11"
+      },
+      "omitted": 1,
+      "note": ""
+    },
+    {
+      "id": "t_b91b95eb89c4",
+      "kind": "maxNodes",
+      "caller": {
+        "method": {
+          "type": "app.Fan",
+          "method": "callAll",
+          "signature": "()"
+        },
+        "runtimeType": "app.Fan"
+      },
+      "call": {
+        "kind": "invocation",
+        "file": "src/main/java/app/Fan.java",
+        "line": 16,
+        "startByte": 225,
+        "receiver": "",
+        "methodName": "i12"
+      },
+      "omitted": 1,
+      "note": ""
+    }
+  ]
+}

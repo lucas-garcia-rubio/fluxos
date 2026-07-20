@@ -150,3 +150,34 @@ func TestRenderGolden(t *testing.T) {
 		t.Fatalf("golden mismatch:\ngot:\n%s\nwant:\n%s", got, want)
 	}
 }
+
+func TestRenderAppendsTruncationMarkersAfterAnalysisNodes(t *testing.T) {
+	caller := render.ExecutionView{
+		Method: render.MethodView{TypeFQCN: "app.Workflow", Method: "start", Signature: "()"},
+		RuntimeTypeFQCN: "app.Workflow",
+	}
+	snapshot := render.Snapshot{
+		SchemaVersion: render.SnapshotSchemaVersion,
+		Nodes: []render.NodeView{{ID: "m_root", Label: "app.Workflow.start()"}},
+		Edges: []render.EdgeView{},
+		Truncations: []render.TruncationView{{
+			ID: "t_abc123", Kind: "maxNodes", Caller: caller,
+			Call: render.CallView{File: "App.java", StartByte: 100, MethodName: "run"},
+			Omitted: 3, Note: "",
+		}},
+	}
+	got := renderString(t, snapshot, DirectionTD)
+	if !strings.Contains(got, "  t_abc123[\"% truncation: maxNodes: omitted 3 at app.Workflow.start()\"]\n") {
+		t.Fatalf("truncation marker missing or malformed:\n%s", got)
+	}
+	// Marker aparece após o analysis node.
+	rootIdx := strings.Index(got, "m_root")
+	truncIdx := strings.Index(got, "t_abc123")
+	if rootIdx == -1 || truncIdx == -1 || rootIdx > truncIdx {
+		t.Fatalf("truncation marker should follow analysis nodes:\n%s", got)
+	}
+	// Não participa de edges.
+	if strings.Contains(got, "t_abc123 -->") || strings.Contains(got, "--> t_abc123") {
+		t.Fatalf("truncation marker must not participate in edges:\n%s", got)
+	}
+}

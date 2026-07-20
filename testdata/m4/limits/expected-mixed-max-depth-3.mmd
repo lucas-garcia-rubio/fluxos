@@ -1,0 +1,13 @@
+flowchart TD
+  m_f13ebd89eb7a["app.Mixed.go()"]
+  m_299dd090c15d["app.Mixed.shared()"]
+  m_aae3366583b7["app.Mixed.shortcut()"]
+  m_3ae5606d2895["app.Mixed.step1()"]
+  m_8623edfb3c0c["app.Mixed.step2()"]
+  m_e1fa84dfe61c["app.Mixed.step3()"]
+  m_f13ebd89eb7a --> m_aae3366583b7
+  m_f13ebd89eb7a --> m_3ae5606d2895
+  m_aae3366583b7 --> m_299dd090c15d
+  m_3ae5606d2895 --> m_8623edfb3c0c
+  m_8623edfb3c0c --> m_e1fa84dfe61c
+  m_e1fa84dfe61c --> m_299dd090c15d

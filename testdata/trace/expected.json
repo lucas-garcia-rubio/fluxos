@@ -1,0 +1,247 @@
+{
+  "schemaVersion": 1,
+  "target": {
+    "method": {
+      "type": "com.foo.Workflow",
+      "method": "start",
+      "signature": "()"
+    },
+    "runtimeType": "com.foo.Workflow"
+  },
+  "nodes": [
+    {
+      "id": "m_f178eb338fce",
+      "execution": {
+        "method": {
+          "type": "com.foo.Audit",
+          "method": "record",
+          "signature": "()"
+        },
+        "runtimeType": "com.foo.Audit"
+      },
+      "kind": "method",
+      "label": "com.foo.Audit.record()",
+      "note": "",
+      "candidates": []
+    },
+    {
+      "id": "m_d476e84e6bdb",
+      "execution": {
+        "method": {
+          "type": "com.foo.BaseWorkflow",
+          "method": "initialize",
+          "signature": "()"
+        },
+        "runtimeType": "com.foo.Workflow"
+      },
+      "kind": "method",
+      "label": "com.foo.BaseWorkflow.initialize()",
+      "note": "",
+      "candidates": []
+    },
+    {
+      "id": "m_eabd356c3532",
+      "execution": {
+        "method": {
+          "type": "com.foo.Helper",
+          "method": "<init>",
+          "signature": "()"
+        },
+        "runtimeType": "com.foo.Helper"
+      },
+      "kind": "method",
+      "label": "com.foo.Helper.<init>()",
+      "note": "",
+      "candidates": []
+    },
+    {
+      "id": "m_6e6e7d2457b4",
+      "execution": {
+        "method": {
+          "type": "com.foo.Helper",
+          "method": "work",
+          "signature": "()"
+        },
+        "runtimeType": "com.foo.Helper"
+      },
+      "kind": "method",
+      "label": "com.foo.Helper.work()",
+      "note": "",
+      "candidates": []
+    },
+    {
+      "id": "m_e12e5f041264",
+      "execution": {
+        "method": {
+          "type": "com.foo.Workflow",
+          "method": "finish",
+          "signature": "()"
+        },
+        "runtimeType": "com.foo.Workflow"
+      },
+      "kind": "method",
+      "label": "com.foo.Workflow.finish()",
+      "note": "",
+      "candidates": []
+    },
+    {
+      "id": "m_6c09a7835283",
+      "execution": {
+        "method": {
+          "type": "com.foo.Workflow",
+          "method": "prepare",
+          "signature": "()"
+        },
+        "runtimeType": "com.foo.Workflow"
+      },
+      "kind": "method",
+      "label": "com.foo.Workflow.prepare()",
+      "note": "",
+      "candidates": []
+    },
+    {
+      "id": "m_45ad6583a724",
+      "execution": {
+        "method": {
+          "type": "com.foo.Workflow",
+          "method": "start",
+          "signature": "()"
+        },
+        "runtimeType": "com.foo.Workflow"
+      },
+      "kind": "method",
+      "label": "com.foo.Workflow.start()",
+      "note": "",
+      "candidates": []
+    }
+  ],
+  "edges": [
+    {
+      "from": "m_6e6e7d2457b4",
+      "to": "m_f178eb338fce",
+      "call": {
+        "kind": "invocation",
+        "file": "src/main/java/com/foo/Workflow.java",
+        "line": 32,
+        "startByte": 479,
+        "receiver": "Audit",
+        "methodName": "record"
+      },
+      "dispatchSite": null,
+      "cycle": false
+    },
+    {
+      "from": "m_e12e5f041264",
+      "to": "m_6c09a7835283",
+      "call": {
+        "kind": "invocation",
+        "file": "src/main/java/com/foo/Workflow.java",
+        "line": 22,
+        "startByte": 369,
+        "receiver": "",
+        "methodName": "prepare"
+      },
+      "dispatchSite": null,
+      "cycle": true
+    },
+    {
+      "from": "m_6c09a7835283",
+      "to": "m_e12e5f041264",
+      "call": {
+        "kind": "invocation",
+        "file": "src/main/java/com/foo/Workflow.java",
+        "line": 18,
+        "startByte": 316,
+        "receiver": "",
+        "methodName": "finish"
+      },
+      "dispatchSite": null,
+      "cycle": false
+    },
+    {
+      "from": "m_45ad6583a724",
+      "to": "m_f178eb338fce",
+      "call": {
+        "kind": "invocation",
+        "file": "src/main/java/com/foo/Workflow.java",
+        "line": 14,
+        "startByte": 256,
+        "receiver": "Audit",
+        "methodName": "record"
+      },
+      "dispatchSite": null,
+      "cycle": false
+    },
+    {
+      "from": "m_45ad6583a724",
+      "to": "m_d476e84e6bdb",
+      "call": {
+        "kind": "invocation",
+        "file": "src/main/java/com/foo/Workflow.java",
+        "line": 7,
+        "startByte": 125,
+        "receiver": "super",
+        "methodName": "initialize"
+      },
+      "dispatchSite": null,
+      "cycle": false
+    },
+    {
+      "from": "m_45ad6583a724",
+      "to": "m_eabd356c3532",
+      "call": {
+        "kind": "objectCreation",
+        "file": "src/main/java/com/foo/Workflow.java",
+        "line": 11,
+        "startByte": 211,
+        "receiver": "",
+        "methodName": "<init>"
+      },
+      "dispatchSite": null,
+      "cycle": false
+    },
+    {
+      "from": "m_45ad6583a724",
+      "to": "m_6e6e7d2457b4",
+      "call": {
+        "kind": "invocation",
+        "file": "src/main/java/com/foo/Workflow.java",
+        "line": 9,
+        "startByte": 172,
+        "receiver": "helper",
+        "methodName": "work"
+      },
+      "dispatchSite": null,
+      "cycle": false
+    },
+    {
+      "from": "m_45ad6583a724",
+      "to": "m_6e6e7d2457b4",
+      "call": {
+        "kind": "invocation",
+        "file": "src/main/java/com/foo/Workflow.java",
+        "line": 12,
+        "startByte": 233,
+        "receiver": "local",
+        "methodName": "work"
+      },
+      "dispatchSite": null,
+      "cycle": false
+    },
+    {
+      "from": "m_45ad6583a724",
+      "to": "m_6c09a7835283",
+      "call": {
+        "kind": "invocation",
+        "file": "src/main/java/com/foo/Workflow.java",
+        "line": 8,
+        "startByte": 153,
+        "receiver": "",
+        "methodName": "prepare"
+      },
+      "dispatchSite": null,
+      "cycle": false
+    }
+  ],
+  "truncations": []
+}

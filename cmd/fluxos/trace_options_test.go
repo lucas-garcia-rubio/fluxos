@@ -29,6 +29,7 @@ func TestParseTraceOptionsDefaults(t *testing.T) {
 		Direction:         "TD",
 		Scope:             project.ScopeModeMain,
 		IncludeUnresolved: true,
+		MaxNodes:          1000,
 		MaxImpls:          5,
 	}
 	if !reflect.DeepEqual(got, want) {
@@ -199,13 +200,10 @@ func TestValidateTraceSupportAcceptsCompatibilityValues(t *testing.T) {
 
 func TestValidateTraceSupportRejectsReservedFeatures(t *testing.T) {
 	tests := [][]string{
-		{"--format=json", "app.Workflow.start"},
 		{"--pick-impls=x.Y", "app.Workflow.start"},
 		{"--all-impls", "app.Workflow.start"},
 		{"--no-prompt", "app.Workflow.start"},
 		{"--include-unresolved=false", "app.Workflow.start"},
-		{"--max-depth=1", "app.Workflow.start"},
-		{"--max-nodes=1", "app.Workflow.start"},
 		{"--max-impls=4", "app.Workflow.start"},
 	}
 	for _, args := range tests {
@@ -218,6 +216,25 @@ func TestValidateTraceSupportRejectsReservedFeatures(t *testing.T) {
 			t.Fatalf("validateTraceSupport(%v) error = %v", args, err)
 		}
 		requireUsageError(t, err)
+	}
+}
+
+func TestValidateTraceSupportAcceptsLimitsAndJSON(t *testing.T) {
+	tests := [][]string{
+		{"--format=json", "app.Workflow.start"},
+		{"--max-depth=2", "app.Workflow.start"},
+		{"--max-nodes=10", "app.Workflow.start"},
+		{"--max-nodes=0", "app.Workflow.start"},
+		{"--format=json", "--max-depth=1", "--max-nodes=5", "app.Workflow.start"},
+	}
+	for _, args := range tests {
+		opts, err := parseTraceOptions(args)
+		if err != nil {
+			t.Fatalf("parseTraceOptions(%v): %v", args, err)
+		}
+		if err := validateTraceSupport(opts); err != nil {
+			t.Fatalf("validateTraceSupport(%v): %v", args, err)
+		}
 	}
 }
 

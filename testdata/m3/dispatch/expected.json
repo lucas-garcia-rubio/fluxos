@@ -1,0 +1,251 @@
+{
+  "schemaVersion": 1,
+  "target": {
+    "method": {
+      "type": "app.Workflow",
+      "method": "start",
+      "signature": "()"
+    },
+    "runtimeType": "app.Workflow"
+  },
+  "nodes": [
+    {
+      "id": "m_77e2f47d906c",
+      "execution": {
+        "method": {
+          "type": "app.Workflow",
+          "method": "start",
+          "signature": "()"
+        },
+        "runtimeType": "app.Workflow"
+      },
+      "kind": "method",
+      "label": "app.Workflow.start()",
+      "note": "",
+      "candidates": []
+    },
+    {
+      "id": "m_dee7e245606d",
+      "execution": {
+        "method": {
+          "type": "app.Workflow",
+          "method": "value",
+          "signature": "()"
+        },
+        "runtimeType": "app.Workflow"
+      },
+      "kind": "method",
+      "label": "app.Workflow.value()",
+      "note": "",
+      "candidates": []
+    },
+    {
+      "id": "m_5a5979b57b85",
+      "execution": {
+        "method": {
+          "type": "contract.DefaultedService",
+          "method": "run",
+          "signature": "()"
+        },
+        "runtimeType": "contract.DefaultedService"
+      },
+      "kind": "method",
+      "label": "contract.DefaultedService.run()",
+      "note": "",
+      "candidates": []
+    },
+    {
+      "id": "m_399cc96a5877",
+      "execution": {
+        "method": {
+          "type": "contract.EmptyService",
+          "method": "run",
+          "signature": ""
+        },
+        "runtimeType": "app.Workflow"
+      },
+      "kind": "noImplementation",
+      "label": "contract.EmptyService.run() [no implementation]",
+      "note": "no concrete implementations of contract.EmptyService in project",
+      "candidates": []
+    },
+    {
+      "id": "m_6b52f88d91f1",
+      "execution": {
+        "method": {
+          "type": "contract.MultiService",
+          "method": "run",
+          "signature": ""
+        },
+        "runtimeType": "app.Workflow"
+      },
+      "kind": "ambiguousImplementation",
+      "label": "contract.MultiService.run() [ambiguous: 2 implementations]",
+      "note": "multiple concrete implementations of contract.MultiService",
+      "candidates": [
+        "contract.FirstImpl",
+        "contract.SecondImpl"
+      ]
+    },
+    {
+      "id": "m_8121c82751e4",
+      "execution": {
+        "method": {
+          "type": "contract.OverloadContract",
+          "method": "run",
+          "signature": ""
+        },
+        "runtimeType": "app.Workflow"
+      },
+      "kind": "ambiguousOverload",
+      "label": "contract.OverloadContract.run() [ambiguous overload]",
+      "note": "ambiguous overload \"run\" on contract.OverloadContract: (java.lang.Integer), (java.lang.String)",
+      "candidates": []
+    },
+    {
+      "id": "m_6c3f86819d18",
+      "execution": {
+        "method": {
+          "type": "contract.SingleServiceImpl",
+          "method": "run",
+          "signature": "()"
+        },
+        "runtimeType": "contract.SingleServiceImpl"
+      },
+      "kind": "method",
+      "label": "contract.SingleServiceImpl.run()",
+      "note": "",
+      "candidates": []
+    }
+  ],
+  "edges": [
+    {
+      "from": "m_77e2f47d906c",
+      "to": "m_dee7e245606d",
+      "call": {
+        "kind": "invocation",
+        "file": "src/main/java/app/Workflow.java",
+        "line": 31,
+        "startByte": 889,
+        "receiver": "",
+        "methodName": "value"
+      },
+      "dispatchSite": null,
+      "cycle": false
+    },
+    {
+      "from": "m_77e2f47d906c",
+      "to": "m_5a5979b57b85",
+      "call": {
+        "kind": "invocation",
+        "file": "src/main/java/app/Workflow.java",
+        "line": 28,
+        "startByte": 807,
+        "receiver": "defaulted",
+        "methodName": "run"
+      },
+      "dispatchSite": null,
+      "cycle": false
+    },
+    {
+      "from": "m_77e2f47d906c",
+      "to": "m_399cc96a5877",
+      "call": {
+        "kind": "invocation",
+        "file": "src/main/java/app/Workflow.java",
+        "line": 27,
+        "startByte": 786,
+        "receiver": "empty",
+        "methodName": "run"
+      },
+      "dispatchSite": null,
+      "cycle": false
+    },
+    {
+      "from": "m_77e2f47d906c",
+      "to": "m_6b52f88d91f1",
+      "call": {
+        "kind": "invocation",
+        "file": "src/main/java/app/Workflow.java",
+        "line": 30,
+        "startByte": 854,
+        "receiver": "multi",
+        "methodName": "run"
+      },
+      "dispatchSite": {
+        "id": "ds_c95e30a5d0dd",
+        "caller": {
+          "method": {
+            "type": "app.Workflow",
+            "method": "start",
+            "signature": "()"
+          },
+          "runtimeType": "app.Workflow"
+        },
+        "receiverFQCN": "contract.MultiService",
+        "method": "run",
+        "signature": "()",
+        "call": {
+          "kind": "invocation",
+          "file": "src/main/java/app/Workflow.java",
+          "line": 30,
+          "startByte": 854,
+          "receiver": "multi",
+          "methodName": "run"
+        },
+        "candidates": [
+          {
+            "implementationFQCN": "contract.FirstImpl",
+            "target": {
+              "type": "contract.FirstImpl",
+              "method": "run",
+              "signature": "()"
+            },
+            "kind": "concrete",
+            "note": ""
+          },
+          {
+            "implementationFQCN": "contract.SecondImpl",
+            "target": {
+              "type": "contract.SecondImpl",
+              "method": "run",
+              "signature": "()"
+            },
+            "kind": "concrete",
+            "note": ""
+          }
+        ]
+      },
+      "cycle": false
+    },
+    {
+      "from": "m_77e2f47d906c",
+      "to": "m_8121c82751e4",
+      "call": {
+        "kind": "invocation",
+        "file": "src/main/java/app/Workflow.java",
+        "line": 31,
+        "startByte": 875,
+        "receiver": "overloads",
+        "methodName": "run"
+      },
+      "dispatchSite": null,
+      "cycle": false
+    },
+    {
+      "from": "m_77e2f47d906c",
+      "to": "m_6c3f86819d18",
+      "call": {
+        "kind": "invocation",
+        "file": "src/main/java/app/Workflow.java",
+        "line": 29,
+        "startByte": 832,
+        "receiver": "single",
+        "methodName": "run"
+      },
+      "dispatchSite": null,
+      "cycle": false
+    }
+  ],
+  "truncations": []
+}

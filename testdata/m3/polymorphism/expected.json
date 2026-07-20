@@ -1,0 +1,314 @@
+{
+  "schemaVersion": 1,
+  "target": {
+    "method": {
+      "type": "app.Workflow",
+      "method": "start",
+      "signature": "()"
+    },
+    "runtimeType": "app.Workflow"
+  },
+  "nodes": [
+    {
+      "id": "m_77e2f47d906c",
+      "execution": {
+        "method": {
+          "type": "app.Workflow",
+          "method": "start",
+          "signature": "()"
+        },
+        "runtimeType": "app.Workflow"
+      },
+      "kind": "method",
+      "label": "app.Workflow.start()",
+      "note": "",
+      "candidates": []
+    },
+    {
+      "id": "m_40469ada427d",
+      "execution": {
+        "method": {
+          "type": "app.Workflow.SoloImplementation",
+          "method": "run",
+          "signature": "()"
+        },
+        "runtimeType": "app.Workflow.SoloImplementation"
+      },
+      "kind": "method",
+      "label": "app.Workflow.SoloImplementation.run()",
+      "note": "",
+      "candidates": []
+    },
+    {
+      "id": "m_720daae82d4b",
+      "execution": {
+        "method": {
+          "type": "base.AbstractBase",
+          "method": "run",
+          "signature": ""
+        },
+        "runtimeType": "app.Workflow"
+      },
+      "kind": "ambiguousImplementation",
+      "label": "base.AbstractBase.run() [ambiguous: 2 implementations]",
+      "note": "multiple concrete implementations of base.AbstractBase",
+      "candidates": [
+        "base.ConcreteBase",
+        "base.ConcreteChild"
+      ]
+    },
+    {
+      "id": "m_ca6d01edd22f",
+      "execution": {
+        "method": {
+          "type": "multi.MultiService",
+          "method": "run",
+          "signature": ""
+        },
+        "runtimeType": "app.Workflow"
+      },
+      "kind": "ambiguousImplementation",
+      "label": "multi.MultiService.run() [ambiguous: 2 implementations]",
+      "note": "multiple concrete implementations of multi.MultiService",
+      "candidates": [
+        "multi.FirstService",
+        "multi.SecondService"
+      ]
+    },
+    {
+      "id": "m_815d60460325",
+      "execution": {
+        "method": {
+          "type": "nested.NestedTypes.Contract",
+          "method": "run",
+          "signature": ""
+        },
+        "runtimeType": "app.Workflow"
+      },
+      "kind": "ambiguousImplementation",
+      "label": "nested.NestedTypes.Contract.run() [ambiguous: 2 implementations]",
+      "note": "multiple concrete implementations of nested.NestedTypes.Contract",
+      "candidates": [
+        "nested.NestedTypes.Impl",
+        "nested.NestedTypes.InnerImpl"
+      ]
+    },
+    {
+      "id": "m_d74fa0d5e11c",
+      "execution": {
+        "method": {
+          "type": "transitive.ViaChild",
+          "method": "run",
+          "signature": "()"
+        },
+        "runtimeType": "transitive.ViaChild"
+      },
+      "kind": "method",
+      "label": "transitive.ViaChild.run()",
+      "note": "",
+      "candidates": []
+    }
+  ],
+  "edges": [
+    {
+      "from": "m_77e2f47d906c",
+      "to": "m_40469ada427d",
+      "call": {
+        "kind": "invocation",
+        "file": "src/main/java/app/Workflow.java",
+        "line": 30,
+        "startByte": 853,
+        "receiver": "solo",
+        "methodName": "run"
+      },
+      "dispatchSite": null,
+      "cycle": false
+    },
+    {
+      "from": "m_77e2f47d906c",
+      "to": "m_720daae82d4b",
+      "call": {
+        "kind": "invocation",
+        "file": "src/main/java/app/Workflow.java",
+        "line": 27,
+        "startByte": 779,
+        "receiver": "abstractBase",
+        "methodName": "run"
+      },
+      "dispatchSite": {
+        "id": "ds_34e6c7a4e417",
+        "caller": {
+          "method": {
+            "type": "app.Workflow",
+            "method": "start",
+            "signature": "()"
+          },
+          "runtimeType": "app.Workflow"
+        },
+        "receiverFQCN": "base.AbstractBase",
+        "method": "run",
+        "signature": "()",
+        "call": {
+          "kind": "invocation",
+          "file": "src/main/java/app/Workflow.java",
+          "line": 27,
+          "startByte": 779,
+          "receiver": "abstractBase",
+          "methodName": "run"
+        },
+        "candidates": [
+          {
+            "implementationFQCN": "base.ConcreteBase",
+            "target": {
+              "type": "base.ConcreteBase",
+              "method": "run",
+              "signature": "()"
+            },
+            "kind": "concrete",
+            "note": ""
+          },
+          {
+            "implementationFQCN": "base.ConcreteChild",
+            "target": {
+              "type": "base.ConcreteBase",
+              "method": "run",
+              "signature": "()"
+            },
+            "kind": "concrete",
+            "note": ""
+          }
+        ]
+      },
+      "cycle": false
+    },
+    {
+      "from": "m_77e2f47d906c",
+      "to": "m_ca6d01edd22f",
+      "call": {
+        "kind": "invocation",
+        "file": "src/main/java/app/Workflow.java",
+        "line": 28,
+        "startByte": 807,
+        "receiver": "multiple",
+        "methodName": "run"
+      },
+      "dispatchSite": {
+        "id": "ds_c769cab511d2",
+        "caller": {
+          "method": {
+            "type": "app.Workflow",
+            "method": "start",
+            "signature": "()"
+          },
+          "runtimeType": "app.Workflow"
+        },
+        "receiverFQCN": "multi.MultiService",
+        "method": "run",
+        "signature": "()",
+        "call": {
+          "kind": "invocation",
+          "file": "src/main/java/app/Workflow.java",
+          "line": 28,
+          "startByte": 807,
+          "receiver": "multiple",
+          "methodName": "run"
+        },
+        "candidates": [
+          {
+            "implementationFQCN": "multi.FirstService",
+            "target": {
+              "type": "multi.FirstService",
+              "method": "run",
+              "signature": "()"
+            },
+            "kind": "concrete",
+            "note": ""
+          },
+          {
+            "implementationFQCN": "multi.SecondService",
+            "target": {
+              "type": "multi.SecondService",
+              "method": "run",
+              "signature": "()"
+            },
+            "kind": "concrete",
+            "note": ""
+          }
+        ]
+      },
+      "cycle": false
+    },
+    {
+      "from": "m_77e2f47d906c",
+      "to": "m_815d60460325",
+      "call": {
+        "kind": "invocation",
+        "file": "src/main/java/app/Workflow.java",
+        "line": 29,
+        "startByte": 831,
+        "receiver": "nested",
+        "methodName": "run"
+      },
+      "dispatchSite": {
+        "id": "ds_eba9ddb9aaff",
+        "caller": {
+          "method": {
+            "type": "app.Workflow",
+            "method": "start",
+            "signature": "()"
+          },
+          "runtimeType": "app.Workflow"
+        },
+        "receiverFQCN": "nested.NestedTypes.Contract",
+        "method": "run",
+        "signature": "()",
+        "call": {
+          "kind": "invocation",
+          "file": "src/main/java/app/Workflow.java",
+          "line": 29,
+          "startByte": 831,
+          "receiver": "nested",
+          "methodName": "run"
+        },
+        "candidates": [
+          {
+            "implementationFQCN": "nested.NestedTypes.Impl",
+            "target": {
+              "type": "nested.NestedTypes.Impl",
+              "method": "run",
+              "signature": "()"
+            },
+            "kind": "concrete",
+            "note": ""
+          },
+          {
+            "implementationFQCN": "nested.NestedTypes.InnerImpl",
+            "target": {
+              "type": "nested.NestedTypes.InnerImpl",
+              "method": "run",
+              "signature": "()"
+            },
+            "kind": "concrete",
+            "note": ""
+          }
+        ]
+      },
+      "cycle": false
+    },
+    {
+      "from": "m_77e2f47d906c",
+      "to": "m_d74fa0d5e11c",
+      "call": {
+        "kind": "invocation",
+        "file": "src/main/java/app/Workflow.java",
+        "line": 26,
+        "startByte": 753,
+        "receiver": "transitive",
+        "methodName": "run"
+      },
+      "dispatchSite": null,
+      "cycle": false
+    }
+  ],
+  "truncations": []
+}

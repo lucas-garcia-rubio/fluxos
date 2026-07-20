@@ -1,0 +1,106 @@
+{
+  "schemaVersion": 1,
+  "target": {
+    "method": {
+      "type": "app.Workflow",
+      "method": "ambiguous",
+      "signature": "(app.Contract)"
+    },
+    "runtimeType": "app.Workflow"
+  },
+  "nodes": [
+    {
+      "id": "m_a3be8b90a8d4",
+      "execution": {
+        "method": {
+          "type": "app.Contract",
+          "method": "run",
+          "signature": ""
+        },
+        "runtimeType": "app.Workflow"
+      },
+      "kind": "ambiguousImplementation",
+      "label": "app.Contract.run() [ambiguous: 2 implementations]",
+      "note": "multiple concrete implementations of app.Contract",
+      "candidates": [
+        "app.First",
+        "app.Second"
+      ]
+    },
+    {
+      "id": "m_2f865a6e2d2c",
+      "execution": {
+        "method": {
+          "type": "app.Workflow",
+          "method": "ambiguous",
+          "signature": "(app.Contract)"
+        },
+        "runtimeType": "app.Workflow"
+      },
+      "kind": "method",
+      "label": "app.Workflow.ambiguous(app.Contract)",
+      "note": "",
+      "candidates": []
+    }
+  ],
+  "edges": [
+    {
+      "from": "m_2f865a6e2d2c",
+      "to": "m_a3be8b90a8d4",
+      "call": {
+        "kind": "invocation",
+        "file": "src/main/java/app/Workflow.java",
+        "line": 10,
+        "startByte": 200,
+        "receiver": "service",
+        "methodName": "run"
+      },
+      "dispatchSite": {
+        "id": "ds_ee2072059f17",
+        "caller": {
+          "method": {
+            "type": "app.Workflow",
+            "method": "ambiguous",
+            "signature": "(app.Contract)"
+          },
+          "runtimeType": "app.Workflow"
+        },
+        "receiverFQCN": "app.Contract",
+        "method": "run",
+        "signature": "()",
+        "call": {
+          "kind": "invocation",
+          "file": "src/main/java/app/Workflow.java",
+          "line": 10,
+          "startByte": 200,
+          "receiver": "service",
+          "methodName": "run"
+        },
+        "candidates": [
+          {
+            "implementationFQCN": "app.First",
+            "target": {
+              "type": "app.Base",
+              "method": "run",
+              "signature": "()"
+            },
+            "kind": "concrete",
+            "note": ""
+          },
+          {
+            "implementationFQCN": "app.Second",
+            "target": {
+              "type": "app.Base",
+              "method": "run",
+              "signature": "()"
+            },
+            "kind": "concrete",
+            "note": ""
+          }
+        ]
+      },
+      "cycle": false
+    }
+  ],
+  "truncations": []
+}

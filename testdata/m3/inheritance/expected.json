@@ -1,0 +1,449 @@
+{
+  "schemaVersion": 1,
+  "target": {
+    "method": {
+      "type": "app.Workflow",
+      "method": "start",
+      "signature": "()"
+    },
+    "runtimeType": "app.Workflow"
+  },
+  "nodes": [
+    {
+      "id": "m_3a0a94b6b4da",
+      "execution": {
+        "method": {
+          "type": "app.ChildService",
+          "method": "callDefaultMethod",
+          "signature": "()"
+        },
+        "runtimeType": "app.ChildService"
+      },
+      "kind": "method",
+      "label": "app.ChildService.callDefaultMethod()",
+      "note": "",
+      "candidates": []
+    },
+    {
+      "id": "m_79dd5f9be016",
+      "execution": {
+        "method": {
+          "type": "app.ChildService",
+          "method": "callGrandparent",
+          "signature": "()"
+        },
+        "runtimeType": "app.ChildService"
+      },
+      "kind": "method",
+      "label": "app.ChildService.callGrandparent()",
+      "note": "",
+      "candidates": []
+    },
+    {
+      "id": "m_a6f9a5b28b13",
+      "execution": {
+        "method": {
+          "type": "app.ChildService",
+          "method": "callInheritedOverload",
+          "signature": "()"
+        },
+        "runtimeType": "app.ChildService"
+      },
+      "kind": "method",
+      "label": "app.ChildService.callInheritedOverload()",
+      "note": "",
+      "candidates": []
+    },
+    {
+      "id": "m_bb9661afc920",
+      "execution": {
+        "method": {
+          "type": "app.ChildService",
+          "method": "callParent",
+          "signature": "()"
+        },
+        "runtimeType": "app.ChildService"
+      },
+      "kind": "method",
+      "label": "app.ChildService.callParent()",
+      "note": "",
+      "candidates": []
+    },
+    {
+      "id": "m_6d16be02321c",
+      "execution": {
+        "method": {
+          "type": "app.ChildService",
+          "method": "overriddenMethod",
+          "signature": "()"
+        },
+        "runtimeType": "app.ChildService"
+      },
+      "kind": "method",
+      "label": "app.ChildService.overriddenMethod()",
+      "note": "",
+      "candidates": []
+    },
+    {
+      "id": "m_e7f2dae64d2c",
+      "execution": {
+        "method": {
+          "type": "app.ChildService",
+          "method": "useInheritedField",
+          "signature": "()"
+        },
+        "runtimeType": "app.ChildService"
+      },
+      "kind": "method",
+      "label": "app.ChildService.useInheritedField()",
+      "note": "",
+      "candidates": []
+    },
+    {
+      "id": "m_77e2f47d906c",
+      "execution": {
+        "method": {
+          "type": "app.Workflow",
+          "method": "start",
+          "signature": "()"
+        },
+        "runtimeType": "app.Workflow"
+      },
+      "kind": "method",
+      "label": "app.Workflow.start()",
+      "note": "",
+      "candidates": []
+    },
+    {
+      "id": "m_1fc12b6d0a6c",
+      "execution": {
+        "method": {
+          "type": "base.BaseService",
+          "method": "inheritedMethod",
+          "signature": "()"
+        },
+        "runtimeType": "app.ChildService"
+      },
+      "kind": "method",
+      "label": "base.BaseService.inheritedMethod()",
+      "note": "",
+      "candidates": []
+    },
+    {
+      "id": "m_9ad14f8a4a25",
+      "execution": {
+        "method": {
+          "type": "base.GrandparentService",
+          "method": "grandparentMethod",
+          "signature": "()"
+        },
+        "runtimeType": "app.ChildService"
+      },
+      "kind": "method",
+      "label": "base.GrandparentService.grandparentMethod()",
+      "note": "",
+      "candidates": []
+    },
+    {
+      "id": "m_80a5652b25e9",
+      "execution": {
+        "method": {
+          "type": "base.GrandparentService",
+          "method": "overloaded",
+          "signature": "()"
+        },
+        "runtimeType": "app.ChildService"
+      },
+      "kind": "method",
+      "label": "base.GrandparentService.overloaded()",
+      "note": "",
+      "candidates": []
+    },
+    {
+      "id": "m_5adbd033d83c",
+      "execution": {
+        "method": {
+          "type": "contract.ChildContract",
+          "method": "childDefault",
+          "signature": "()"
+        },
+        "runtimeType": "app.ChildService"
+      },
+      "kind": "method",
+      "label": "contract.ChildContract.childDefault()",
+      "note": "",
+      "candidates": []
+    },
+    {
+      "id": "m_05621927eb72",
+      "execution": {
+        "method": {
+          "type": "contract.RootContract",
+          "method": "rootDefault",
+          "signature": "()"
+        },
+        "runtimeType": "app.ChildService"
+      },
+      "kind": "method",
+      "label": "contract.RootContract.rootDefault()",
+      "note": "",
+      "candidates": []
+    },
+    {
+      "id": "m_66dc99145f35",
+      "execution": {
+        "method": {
+          "type": "support.Helper",
+          "method": "work",
+          "signature": "()"
+        },
+        "runtimeType": "support.Helper"
+      },
+      "kind": "method",
+      "label": "support.Helper.work()",
+      "note": "",
+      "candidates": []
+    }
+  ],
+  "edges": [
+    {
+      "from": "m_3a0a94b6b4da",
+      "to": "m_5adbd033d83c",
+      "call": {
+        "kind": "invocation",
+        "file": "src/main/java/app/ChildService.java",
+        "line": 32,
+        "startByte": 621,
+        "receiver": "",
+        "methodName": "childDefault"
+      },
+      "dispatchSite": null,
+      "cycle": false
+    },
+    {
+      "from": "m_79dd5f9be016",
+      "to": "m_9ad14f8a4a25",
+      "call": {
+        "kind": "invocation",
+        "file": "src/main/java/app/ChildService.java",
+        "line": 20,
+        "startByte": 399,
+        "receiver": "",
+        "methodName": "grandparentMethod"
+      },
+      "dispatchSite": null,
+      "cycle": false
+    },
+    {
+      "from": "m_a6f9a5b28b13",
+      "to": "m_80a5652b25e9",
+      "call": {
+        "kind": "invocation",
+        "file": "src/main/java/app/ChildService.java",
+        "line": 24,
+        "startByte": 477,
+        "receiver": "",
+        "methodName": "overloaded"
+      },
+      "dispatchSite": null,
+      "cycle": false
+    },
+    {
+      "from": "m_bb9661afc920",
+      "to": "m_1fc12b6d0a6c",
+      "call": {
+        "kind": "invocation",
+        "file": "src/main/java/app/ChildService.java",
+        "line": 16,
+        "startByte": 323,
+        "receiver": "super",
+        "methodName": "inheritedMethod"
+      },
+      "dispatchSite": null,
+      "cycle": false
+    },
+    {
+      "from": "m_6d16be02321c",
+      "to": "m_66dc99145f35",
+      "call": {
+        "kind": "invocation",
+        "file": "src/main/java/app/ChildService.java",
+        "line": 12,
+        "startByte": 258,
+        "receiver": "baseHelper",
+        "methodName": "work"
+      },
+      "dispatchSite": null,
+      "cycle": false
+    },
+    {
+      "from": "m_e7f2dae64d2c",
+      "to": "m_66dc99145f35",
+      "call": {
+        "kind": "invocation",
+        "file": "src/main/java/app/ChildService.java",
+        "line": 28,
+        "startByte": 544,
+        "receiver": "inheritedHelper",
+        "methodName": "work"
+      },
+      "dispatchSite": null,
+      "cycle": false
+    },
+    {
+      "from": "m_77e2f47d906c",
+      "to": "m_3a0a94b6b4da",
+      "call": {
+        "kind": "invocation",
+        "file": "src/main/java/app/Workflow.java",
+        "line": 13,
+        "startByte": 321,
+        "receiver": "service",
+        "methodName": "callDefaultMethod"
+      },
+      "dispatchSite": null,
+      "cycle": false
+    },
+    {
+      "from": "m_77e2f47d906c",
+      "to": "m_79dd5f9be016",
+      "call": {
+        "kind": "invocation",
+        "file": "src/main/java/app/Workflow.java",
+        "line": 10,
+        "startByte": 208,
+        "receiver": "service",
+        "methodName": "callGrandparent"
+      },
+      "dispatchSite": null,
+      "cycle": false
+    },
+    {
+      "from": "m_77e2f47d906c",
+      "to": "m_a6f9a5b28b13",
+      "call": {
+        "kind": "invocation",
+        "file": "src/main/java/app/Workflow.java",
+        "line": 11,
+        "startByte": 243,
+        "receiver": "service",
+        "methodName": "callInheritedOverload"
+      },
+      "dispatchSite": null,
+      "cycle": false
+    },
+    {
+      "from": "m_77e2f47d906c",
+      "to": "m_bb9661afc920",
+      "call": {
+        "kind": "invocation",
+        "file": "src/main/java/app/Workflow.java",
+        "line": 9,
+        "startByte": 178,
+        "receiver": "service",
+        "methodName": "callParent"
+      },
+      "dispatchSite": null,
+      "cycle": false
+    },
+    {
+      "from": "m_77e2f47d906c",
+      "to": "m_6d16be02321c",
+      "call": {
+        "kind": "invocation",
+        "file": "src/main/java/app/Workflow.java",
+        "line": 8,
+        "startByte": 142,
+        "receiver": "service",
+        "methodName": "overriddenMethod"
+      },
+      "dispatchSite": null,
+      "cycle": false
+    },
+    {
+      "from": "m_77e2f47d906c",
+      "to": "m_e7f2dae64d2c",
+      "call": {
+        "kind": "invocation",
+        "file": "src/main/java/app/Workflow.java",
+        "line": 12,
+        "startByte": 284,
+        "receiver": "service",
+        "methodName": "useInheritedField"
+      },
+      "dispatchSite": null,
+      "cycle": false
+    },
+    {
+      "from": "m_77e2f47d906c",
+      "to": "m_1fc12b6d0a6c",
+      "call": {
+        "kind": "invocation",
+        "file": "src/main/java/app/Workflow.java",
+        "line": 7,
+        "startByte": 107,
+        "receiver": "service",
+        "methodName": "inheritedMethod"
+      },
+      "dispatchSite": null,
+      "cycle": false
+    },
+    {
+      "from": "m_1fc12b6d0a6c",
+      "to": "m_66dc99145f35",
+      "call": {
+        "kind": "invocation",
+        "file": "src/main/java/base/BaseService.java",
+        "line": 9,
+        "startByte": 171,
+        "receiver": "baseHelper",
+        "methodName": "work"
+      },
+      "dispatchSite": null,
+      "cycle": false
+    },
+    {
+      "from": "m_9ad14f8a4a25",
+      "to": "m_66dc99145f35",
+      "call": {
+        "kind": "invocation",
+        "file": "src/main/java/base/GrandparentService.java",
+        "line": 9,
+        "startByte": 158,
+        "receiver": "inheritedHelper",
+        "methodName": "work"
+      },
+      "dispatchSite": null,
+      "cycle": false
+    },
+    {
+      "from": "m_80a5652b25e9",
+      "to": "m_66dc99145f35",
+      "call": {
+        "kind": "invocation",
+        "file": "src/main/java/base/GrandparentService.java",
+        "line": 13,
+        "startByte": 228,
+        "receiver": "inheritedHelper",
+        "methodName": "work"
+      },
+      "dispatchSite": null,
+      "cycle": false
+    },
+    {
+      "from": "m_5adbd033d83c",
+      "to": "m_05621927eb72",
+      "call": {
+        "kind": "invocation",
+        "file": "src/main/java/contract/ChildContract.java",
+        "line": 5,
+        "startByte": 115,
+        "receiver": "",
+        "methodName": "rootDefault"
+      },
+      "dispatchSite": null,
+      "cycle": false
+    }
+  ],
+  "truncations": []
+}

@@ -1,0 +1,478 @@
+{
+  "schemaVersion": 1,
+  "target": {
+    "method": {
+      "type": "app.Workflow",
+      "method": "calls",
+      "signature": "()"
+    },
+    "runtimeType": "app.Workflow"
+  },
+  "nodes": [
+    {
+      "id": "m_e1e4d0eb8f59",
+      "execution": {
+        "method": {
+          "type": "app.Workflow",
+          "method": "calls",
+          "signature": "()"
+        },
+        "runtimeType": "app.Workflow"
+      },
+      "kind": "method",
+      "label": "app.Workflow.calls()",
+      "note": "",
+      "candidates": []
+    },
+    {
+      "id": "m_7378dea6c318",
+      "execution": {
+        "method": {
+          "type": "app.Workflow",
+          "method": "makeText",
+          "signature": "()"
+        },
+        "runtimeType": "app.Workflow"
+      },
+      "kind": "method",
+      "label": "app.Workflow.makeText()",
+      "note": "",
+      "candidates": []
+    },
+    {
+      "id": "m_7f4e4631a375",
+      "execution": {
+        "method": {
+          "type": "app.Workflow",
+          "method": "useIdentifiers",
+          "signature": "(java.lang.String)"
+        },
+        "runtimeType": "app.Workflow"
+      },
+      "kind": "method",
+      "label": "app.Workflow.useIdentifiers(java.lang.String)",
+      "note": "",
+      "candidates": []
+    },
+    {
+      "id": "m_b9e8f4862b1e",
+      "execution": {
+        "method": {
+          "type": "overloads.Product",
+          "method": "<init>",
+          "signature": "(int)"
+        },
+        "runtimeType": "overloads.Product"
+      },
+      "kind": "method",
+      "label": "overloads.Product.<init>(int)",
+      "note": "",
+      "candidates": []
+    },
+    {
+      "id": "m_89da39f117e3",
+      "execution": {
+        "method": {
+          "type": "overloads.Product",
+          "method": "<init>",
+          "signature": "(java.lang.String)"
+        },
+        "runtimeType": "overloads.Product"
+      },
+      "kind": "method",
+      "label": "overloads.Product.<init>(java.lang.String)",
+      "note": "",
+      "candidates": []
+    },
+    {
+      "id": "m_33c47eac89ca",
+      "execution": {
+        "method": {
+          "type": "overloads.Product",
+          "method": "<init>",
+          "signature": "(overloads.Request)"
+        },
+        "runtimeType": "overloads.Product"
+      },
+      "kind": "method",
+      "label": "overloads.Product.<init>(overloads.Request)",
+      "note": "",
+      "candidates": []
+    },
+    {
+      "id": "m_b9d3cd72cda4",
+      "execution": {
+        "method": {
+          "type": "overloads.Request",
+          "method": "<init>",
+          "signature": "()"
+        },
+        "runtimeType": "overloads.Request"
+      },
+      "kind": "method",
+      "label": "overloads.Request.<init>()",
+      "note": "",
+      "candidates": []
+    },
+    {
+      "id": "m_1360815c16a7",
+      "execution": {
+        "method": {
+          "type": "overloads.Selector",
+          "method": "byArity",
+          "signature": "()"
+        },
+        "runtimeType": "overloads.Selector"
+      },
+      "kind": "method",
+      "label": "overloads.Selector.byArity()",
+      "note": "",
+      "candidates": []
+    },
+    {
+      "id": "m_5908a527c736",
+      "execution": {
+        "method": {
+          "type": "overloads.Selector",
+          "method": "byArity",
+          "signature": "(java.lang.String,int)"
+        },
+        "runtimeType": "overloads.Selector"
+      },
+      "kind": "method",
+      "label": "overloads.Selector.byArity(java.lang.String,int)",
+      "note": "",
+      "candidates": []
+    },
+    {
+      "id": "m_29cdf95f91f2",
+      "execution": {
+        "method": {
+          "type": "overloads.Selector",
+          "method": "byLiteral",
+          "signature": "(int)"
+        },
+        "runtimeType": "overloads.Selector"
+      },
+      "kind": "method",
+      "label": "overloads.Selector.byLiteral(int)",
+      "note": "",
+      "candidates": []
+    },
+    {
+      "id": "m_63a17de8b6c9",
+      "execution": {
+        "method": {
+          "type": "overloads.Selector",
+          "method": "byLiteral",
+          "signature": "(java.lang.String)"
+        },
+        "runtimeType": "overloads.Selector"
+      },
+      "kind": "method",
+      "label": "overloads.Selector.byLiteral(java.lang.String)",
+      "note": "",
+      "candidates": []
+    },
+    {
+      "id": "m_c9714a8e15f7",
+      "execution": {
+        "method": {
+          "type": "overloads.Selector",
+          "method": "byObject",
+          "signature": "(overloads.Request)"
+        },
+        "runtimeType": "overloads.Selector"
+      },
+      "kind": "method",
+      "label": "overloads.Selector.byObject(overloads.Request)",
+      "note": "",
+      "candidates": []
+    },
+    {
+      "id": "m_7c229f90fdc1",
+      "execution": {
+        "method": {
+          "type": "overloads.Selector",
+          "method": "byLiteral",
+          "signature": ""
+        },
+        "runtimeType": "app.Workflow"
+      },
+      "kind": "ambiguousOverload",
+      "label": "overloads.Selector.byLiteral() [ambiguous overload]",
+      "note": "ambiguous overload \"byLiteral\" on overloads.Selector: (int), (java.lang.String)",
+      "candidates": []
+    },
+    {
+      "id": "m_5eec98da0e71",
+      "execution": {
+        "method": {
+          "type": "overloads.Selector",
+          "method": "byReference",
+          "signature": ""
+        },
+        "runtimeType": "app.Workflow"
+      },
+      "kind": "ambiguousOverload",
+      "label": "overloads.Selector.byReference() [ambiguous overload]",
+      "note": "ambiguous overload \"byReference\" on overloads.Selector: (java.lang.Object), (overloads.Request)",
+      "candidates": []
+    }
+  ],
+  "edges": [
+    {
+      "from": "m_e1e4d0eb8f59",
+      "to": "m_7378dea6c318",
+      "call": {
+        "kind": "invocation",
+        "file": "src/main/java/app/Workflow.java",
+        "line": 27,
+        "startByte": 750,
+        "receiver": "",
+        "methodName": "makeText"
+      },
+      "dispatchSite": null,
+      "cycle": false
+    },
+    {
+      "from": "m_e1e4d0eb8f59",
+      "to": "m_7f4e4631a375",
+      "call": {
+        "kind": "invocation",
+        "file": "src/main/java/app/Workflow.java",
+        "line": 23,
+        "startByte": 571,
+        "receiver": "",
+        "methodName": "useIdentifiers"
+      },
+      "dispatchSite": null,
+      "cycle": false
+    },
+    {
+      "from": "m_e1e4d0eb8f59",
+      "to": "m_b9e8f4862b1e",
+      "call": {
+        "kind": "objectCreation",
+        "file": "src/main/java/app/Workflow.java",
+        "line": 29,
+        "startByte": 800,
+        "receiver": "",
+        "methodName": "<init>"
+      },
+      "dispatchSite": null,
+      "cycle": false
+    },
+    {
+      "from": "m_e1e4d0eb8f59",
+      "to": "m_89da39f117e3",
+      "call": {
+        "kind": "objectCreation",
+        "file": "src/main/java/app/Workflow.java",
+        "line": 28,
+        "startByte": 771,
+        "receiver": "",
+        "methodName": "<init>"
+      },
+      "dispatchSite": null,
+      "cycle": false
+    },
+    {
+      "from": "m_e1e4d0eb8f59",
+      "to": "m_33c47eac89ca",
+      "call": {
+        "kind": "objectCreation",
+        "file": "src/main/java/app/Workflow.java",
+        "line": 30,
+        "startByte": 824,
+        "receiver": "",
+        "methodName": "<init>"
+      },
+      "dispatchSite": null,
+      "cycle": false
+    },
+    {
+      "from": "m_e1e4d0eb8f59",
+      "to": "m_b9d3cd72cda4",
+      "call": {
+        "kind": "objectCreation",
+        "file": "src/main/java/app/Workflow.java",
+        "line": 22,
+        "startByte": 547,
+        "receiver": "",
+        "methodName": "<init>"
+      },
+      "dispatchSite": null,
+      "cycle": false
+    },
+    {
+      "from": "m_e1e4d0eb8f59",
+      "to": "m_b9d3cd72cda4",
+      "call": {
+        "kind": "objectCreation",
+        "file": "src/main/java/app/Workflow.java",
+        "line": 30,
+        "startByte": 836,
+        "receiver": "",
+        "methodName": "<init>"
+      },
+      "dispatchSite": null,
+      "cycle": false
+    },
+    {
+      "from": "m_e1e4d0eb8f59",
+      "to": "m_1360815c16a7",
+      "call": {
+        "kind": "invocation",
+        "file": "src/main/java/app/Workflow.java",
+        "line": 18,
+        "startByte": 397,
+        "receiver": "selector",
+        "methodName": "byArity"
+      },
+      "dispatchSite": null,
+      "cycle": false
+    },
+    {
+      "from": "m_e1e4d0eb8f59",
+      "to": "m_5908a527c736",
+      "call": {
+        "kind": "invocation",
+        "file": "src/main/java/app/Workflow.java",
+        "line": 19,
+        "startByte": 425,
+        "receiver": "selector",
+        "methodName": "byArity"
+      },
+      "dispatchSite": null,
+      "cycle": false
+    },
+    {
+      "from": "m_e1e4d0eb8f59",
+      "to": "m_29cdf95f91f2",
+      "call": {
+        "kind": "invocation",
+        "file": "src/main/java/app/Workflow.java",
+        "line": 21,
+        "startByte": 498,
+        "receiver": "selector",
+        "methodName": "byLiteral"
+      },
+      "dispatchSite": null,
+      "cycle": false
+    },
+    {
+      "from": "m_e1e4d0eb8f59",
+      "to": "m_63a17de8b6c9",
+      "call": {
+        "kind": "invocation",
+        "file": "src/main/java/app/Workflow.java",
+        "line": 20,
+        "startByte": 462,
+        "receiver": "selector",
+        "methodName": "byLiteral"
+      },
+      "dispatchSite": null,
+      "cycle": false
+    },
+    {
+      "from": "m_e1e4d0eb8f59",
+      "to": "m_63a17de8b6c9",
+      "call": {
+        "kind": "invocation",
+        "file": "src/main/java/app/Workflow.java",
+        "line": 25,
+        "startByte": 647,
+        "receiver": "selector",
+        "methodName": "byLiteral"
+      },
+      "dispatchSite": null,
+      "cycle": false
+    },
+    {
+      "from": "m_e1e4d0eb8f59",
+      "to": "m_c9714a8e15f7",
+      "call": {
+        "kind": "invocation",
+        "file": "src/main/java/app/Workflow.java",
+        "line": 22,
+        "startByte": 529,
+        "receiver": "selector",
+        "methodName": "byObject"
+      },
+      "dispatchSite": null,
+      "cycle": false
+    },
+    {
+      "from": "m_e1e4d0eb8f59",
+      "to": "m_7c229f90fdc1",
+      "call": {
+        "kind": "invocation",
+        "file": "src/main/java/app/Workflow.java",
+        "line": 27,
+        "startByte": 731,
+        "receiver": "selector",
+        "methodName": "byLiteral"
+      },
+      "dispatchSite": null,
+      "cycle": false
+    },
+    {
+      "from": "m_e1e4d0eb8f59",
+      "to": "m_5eec98da0e71",
+      "call": {
+        "kind": "invocation",
+        "file": "src/main/java/app/Workflow.java",
+        "line": 26,
+        "startByte": 695,
+        "receiver": "selector",
+        "methodName": "byReference"
+      },
+      "dispatchSite": null,
+      "cycle": false
+    },
+    {
+      "from": "m_7f4e4631a375",
+      "to": "m_29cdf95f91f2",
+      "call": {
+        "kind": "invocation",
+        "file": "src/main/java/app/Workflow.java",
+        "line": 36,
+        "startByte": 986,
+        "receiver": "selector",
+        "methodName": "byLiteral"
+      },
+      "dispatchSite": null,
+      "cycle": false
+    },
+    {
+      "from": "m_7f4e4631a375",
+      "to": "m_63a17de8b6c9",
+      "call": {
+        "kind": "invocation",
+        "file": "src/main/java/app/Workflow.java",
+        "line": 35,
+        "startByte": 947,
+        "receiver": "selector",
+        "methodName": "byLiteral"
+      },
+      "dispatchSite": null,
+      "cycle": false
+    },
+    {
+      "from": "m_7f4e4631a375",
+      "to": "m_63a17de8b6c9",
+      "call": {
+        "kind": "invocation",
+        "file": "src/main/java/app/Workflow.java",
+        "line": 37,
+        "startByte": 1026,
+        "receiver": "selector",
+        "methodName": "byLiteral"
+      },
+      "dispatchSite": null,
+      "cycle": false
+    }
+  ],
+  "truncations": []
+}

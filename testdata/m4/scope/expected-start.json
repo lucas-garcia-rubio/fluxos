@@ -1,0 +1,60 @@
+{
+  "schemaVersion": 1,
+  "target": {
+    "method": {
+      "type": "app.Workflow",
+      "method": "start",
+      "signature": "()"
+    },
+    "runtimeType": "app.Workflow"
+  },
+  "nodes": [
+    {
+      "id": "m_77e2f47d906c",
+      "execution": {
+        "method": {
+          "type": "app.Workflow",
+          "method": "start",
+          "signature": "()"
+        },
+        "runtimeType": "app.Workflow"
+      },
+      "kind": "method",
+      "label": "app.Workflow.start()",
+      "note": "",
+      "candidates": []
+    },
+    {
+      "id": "m_67f63e721ad2",
+      "execution": {
+        "method": {
+          "type": "app.impl.DefaultGreeter",
+          "method": "greet",
+          "signature": "()"
+        },
+        "runtimeType": "app.impl.DefaultGreeter"
+      },
+      "kind": "method",
+      "label": "app.impl.DefaultGreeter.greet()",
+      "note": "",
+      "candidates": []
+    }
+  ],
+  "edges": [
+    {
+      "from": "m_77e2f47d906c",
+      "to": "m_67f63e721ad2",
+      "call": {
+        "kind": "invocation",
+        "file": "src/main/java/app/Workflow.java",
+        "line": 11,
+        "startByte": 192,
+        "receiver": "greeter",
+        "methodName": "greet"
+      },
+      "dispatchSite": null,
+      "cycle": false
+    }
+  ],
+  "truncations": []
+}

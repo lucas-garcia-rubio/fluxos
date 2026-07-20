@@ -15,6 +15,7 @@ import (
 	"github.com/lucas-garcia-rubio/fluxos/internal/project"
 	"github.com/lucas-garcia-rubio/fluxos/internal/render"
 	"github.com/lucas-garcia-rubio/fluxos/internal/render/dot"
+	renderjson "github.com/lucas-garcia-rubio/fluxos/internal/render/json"
 	"github.com/lucas-garcia-rubio/fluxos/internal/render/mermaid"
 	"github.com/lucas-garcia-rubio/fluxos/internal/resolve"
 	tree_sitter "github.com/tree-sitter/go-tree-sitter"
@@ -61,6 +62,8 @@ func renderTrace(out io.Writer, snapshot render.Snapshot, opts TraceOptions) err
 		return mermaid.Render(out, snapshot, mermaid.Direction(opts.Direction))
 	case FormatDOT:
 		return dot.Render(out, snapshot)
+	case FormatJSON:
+		return renderjson.Render(out, snapshot)
 	default:
 		return fmt.Errorf("unsupported trace format %q", opts.Format)
 	}
@@ -78,9 +81,11 @@ func buildTraceSnapshot(opts TraceOptions) (render.Snapshot, error) {
 	}
 
 	resolver := resolve.NewSyntacticResolver(table)
-	g := graph.NewGraph()
-	graph.Walk(g, target.Execution, table, resolver)
-	return render.NewSnapshot(g, target.Execution), nil
+	result := graph.Build(target.Execution, table, resolver, graph.BuildOptions{
+		MaxDepth: opts.MaxDepth,
+		MaxNodes: opts.MaxNodes,
+	})
+	return render.NewResultSnapshot(result, target.Execution), nil
 }
 
 func buildIndex(root string, scope project.ScopeMode) ([]*java.CompilationUnit, *index.Table, error) {

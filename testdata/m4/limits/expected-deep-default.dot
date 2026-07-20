@@ -1,0 +1,13 @@
+digraph fluxos {
+  "m_1b9028fe90a6" [label="app.Deep.a()", kind="method"];
+  "m_dd362ee05388" [label="app.Deep.b()", kind="method"];
+  "m_a5209eb41e02" [label="app.Deep.c()", kind="method"];
+  "m_fa8378f0b504" [label="app.Deep.d()", kind="method"];
+  "m_fa5d243d9ae8" [label="app.Deep.e()", kind="method"];
+  "m_8eaee5f3c821" [label="app.Deep.f()", kind="method"];
+  "m_1b9028fe90a6" -> "m_dd362ee05388";
+  "m_dd362ee05388" -> "m_a5209eb41e02";
+  "m_a5209eb41e02" -> "m_fa8378f0b504";
+  "m_fa8378f0b504" -> "m_fa5d243d9ae8";
+  "m_fa5d243d9ae8" -> "m_8eaee5f3c821";
+}

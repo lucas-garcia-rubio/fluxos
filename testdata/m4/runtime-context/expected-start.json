@@ -1,0 +1,147 @@
+{
+  "schemaVersion": 1,
+  "target": {
+    "method": {
+      "type": "app.Workflow",
+      "method": "start",
+      "signature": "(app.First,app.Second)"
+    },
+    "runtimeType": "app.Workflow"
+  },
+  "nodes": [
+    {
+      "id": "m_7fa4b09acb67",
+      "execution": {
+        "method": {
+          "type": "app.Base",
+          "method": "run",
+          "signature": "()"
+        },
+        "runtimeType": "app.First"
+      },
+      "kind": "method",
+      "label": "app.Base.run() [runtime: app.First]",
+      "note": "",
+      "candidates": []
+    },
+    {
+      "id": "m_21f2f6fd30d0",
+      "execution": {
+        "method": {
+          "type": "app.Base",
+          "method": "run",
+          "signature": "()"
+        },
+        "runtimeType": "app.Second"
+      },
+      "kind": "method",
+      "label": "app.Base.run() [runtime: app.Second]",
+      "note": "",
+      "candidates": []
+    },
+    {
+      "id": "m_5242422cd94c",
+      "execution": {
+        "method": {
+          "type": "app.First",
+          "method": "hook",
+          "signature": "()"
+        },
+        "runtimeType": "app.First"
+      },
+      "kind": "method",
+      "label": "app.First.hook()",
+      "note": "",
+      "candidates": []
+    },
+    {
+      "id": "m_8ba7271b2fba",
+      "execution": {
+        "method": {
+          "type": "app.Second",
+          "method": "hook",
+          "signature": "()"
+        },
+        "runtimeType": "app.Second"
+      },
+      "kind": "method",
+      "label": "app.Second.hook()",
+      "note": "",
+      "candidates": []
+    },
+    {
+      "id": "m_0b3cef9ccfc2",
+      "execution": {
+        "method": {
+          "type": "app.Workflow",
+          "method": "start",
+          "signature": "(app.First,app.Second)"
+        },
+        "runtimeType": "app.Workflow"
+      },
+      "kind": "method",
+      "label": "app.Workflow.start(app.First,app.Second)",
+      "note": "",
+      "candidates": []
+    }
+  ],
+  "edges": [
+    {
+      "from": "m_7fa4b09acb67",
+      "to": "m_5242422cd94c",
+      "call": {
+        "kind": "invocation",
+        "file": "src/main/java/app/Base.java",
+        "line": 6,
+        "startByte": 115,
+        "receiver": "",
+        "methodName": "hook"
+      },
+      "dispatchSite": null,
+      "cycle": false
+    },
+    {
+      "from": "m_21f2f6fd30d0",
+      "to": "m_8ba7271b2fba",
+      "call": {
+        "kind": "invocation",
+        "file": "src/main/java/app/Base.java",
+        "line": 6,
+        "startByte": 115,
+        "receiver": "",
+        "methodName": "hook"
+      },
+      "dispatchSite": null,
+      "cycle": false
+    },
+    {
+      "from": "m_0b3cef9ccfc2",
+      "to": "m_7fa4b09acb67",
+      "call": {
+        "kind": "invocation",
+        "file": "src/main/java/app/Workflow.java",
+        "line": 5,
+        "startByte": 104,
+        "receiver": "first",
+        "methodName": "run"
+      },
+      "dispatchSite": null,
+      "cycle": false
+    },
+    {
+      "from": "m_0b3cef9ccfc2",
+      "to": "m_21f2f6fd30d0",
+      "call": {
+        "kind": "invocation",
+        "file": "src/main/java/app/Workflow.java",
+        "line": 6,
+        "startByte": 125,
+        "receiver": "second",
+        "methodName": "run"
+      },
+      "dispatchSite": null,
+      "cycle": false
+    }
+  ],
+  "truncations": []
+}

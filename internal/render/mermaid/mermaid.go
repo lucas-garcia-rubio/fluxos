@@ -34,7 +34,24 @@ func Render(out io.Writer, snapshot render.Snapshot, direction Direction) error 
 		}
 		fmt.Fprintf(&payload, "  %s --> %s\n", edge.From, edge.To)
 	}
+	for _, truncation := range snapshot.Truncations {
+		fmt.Fprintf(&payload, "  %s[\"%% truncation: %s: omitted %d at %s\"]\n",
+			truncation.ID, truncation.Kind, truncation.Omitted, escapeLabel(executionLabel(truncation.Caller)))
+	}
 	return writeAll(out, payload.String())
+}
+
+func executionLabel(execution render.ExecutionView) string {
+	method := execution.Method
+	typeFQCN := method.TypeFQCN
+	if typeFQCN == "" {
+		typeFQCN = "<unknown>"
+	}
+	signature := method.Signature
+	if signature == "" {
+		signature = "()"
+	}
+	return typeFQCN + "." + method.Method + signature
 }
 
 func (d Direction) valid() bool {

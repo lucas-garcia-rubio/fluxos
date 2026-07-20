@@ -1,0 +1,53 @@
+{
+  "schemaVersion": 1,
+  "target": {
+    "method": {
+      "type": "app.Deep",
+      "method": "a",
+      "signature": "()"
+    },
+    "runtimeType": "app.Deep"
+  },
+  "nodes": [
+    {
+      "id": "m_1b9028fe90a6",
+      "execution": {
+        "method": {
+          "type": "app.Deep",
+          "method": "a",
+          "signature": "()"
+        },
+        "runtimeType": "app.Deep"
+      },
+      "kind": "method",
+      "label": "app.Deep.a()",
+      "note": "",
+      "candidates": []
+    }
+  ],
+  "edges": [],
+  "truncations": [
+    {
+      "id": "t_e8580a5026a0",
+      "kind": "maxNodes",
+      "caller": {
+        "method": {
+          "type": "app.Deep",
+          "method": "a",
+          "signature": "()"
+        },
+        "runtimeType": "app.Deep"
+      },
+      "call": {
+        "kind": "invocation",
+        "file": "src/main/java/app/Deep.java",
+        "line": 4,
+        "startByte": 56,
+        "receiver": "",
+        "methodName": "b"
+      },
+      "omitted": 1,
+      "note": ""
+    }
+  ]
+}

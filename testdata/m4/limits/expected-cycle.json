@@ -1,0 +1,74 @@
+{
+  "schemaVersion": 1,
+  "target": {
+    "method": {
+      "type": "app.Looper",
+      "method": "loop",
+      "signature": "()"
+    },
+    "runtimeType": "app.Looper"
+  },
+  "nodes": [
+    {
+      "id": "m_c6c799a96ba1",
+      "execution": {
+        "method": {
+          "type": "app.Helper",
+          "method": "step",
+          "signature": "()"
+        },
+        "runtimeType": "app.Helper"
+      },
+      "kind": "method",
+      "label": "app.Helper.step()",
+      "note": "",
+      "candidates": []
+    },
+    {
+      "id": "m_428db226b88c",
+      "execution": {
+        "method": {
+          "type": "app.Looper",
+          "method": "loop",
+          "signature": "()"
+        },
+        "runtimeType": "app.Looper"
+      },
+      "kind": "method",
+      "label": "app.Looper.loop()",
+      "note": "",
+      "candidates": []
+    }
+  ],
+  "edges": [
+    {
+      "from": "m_c6c799a96ba1",
+      "to": "m_428db226b88c",
+      "call": {
+        "kind": "invocation",
+        "file": "src/main/java/app/Helper.java",
+        "line": 11,
+        "startByte": 175,
+        "receiver": "looper",
+        "methodName": "loop"
+      },
+      "dispatchSite": null,
+      "cycle": true
+    },
+    {
+      "from": "m_428db226b88c",
+      "to": "m_c6c799a96ba1",
+      "call": {
+        "kind": "invocation",
+        "file": "src/main/java/app/Looper.java",
+        "line": 11,
+        "startByte": 175,
+        "receiver": "helper",
+        "methodName": "step"
+      },
+      "dispatchSite": null,
+      "cycle": false
+    }
+  ],
+  "truncations": []
+}

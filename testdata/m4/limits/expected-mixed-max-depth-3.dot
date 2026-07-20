@@ -1,0 +1,14 @@
+digraph fluxos {
+  "m_f13ebd89eb7a" [label="app.Mixed.go()", kind="method"];
+  "m_299dd090c15d" [label="app.Mixed.shared()", kind="method"];
+  "m_aae3366583b7" [label="app.Mixed.shortcut()", kind="method"];
+  "m_3ae5606d2895" [label="app.Mixed.step1()", kind="method"];
+  "m_8623edfb3c0c" [label="app.Mixed.step2()", kind="method"];
+  "m_e1fa84dfe61c" [label="app.Mixed.step3()", kind="method"];
+  "m_f13ebd89eb7a" -> "m_aae3366583b7";
+  "m_f13ebd89eb7a" -> "m_3ae5606d2895";
+  "m_aae3366583b7" -> "m_299dd090c15d";
+  "m_3ae5606d2895" -> "m_8623edfb3c0c";
+  "m_8623edfb3c0c" -> "m_e1fa84dfe61c";
+  "m_e1fa84dfe61c" -> "m_299dd090c15d";
+}

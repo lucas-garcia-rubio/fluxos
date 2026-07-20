@@ -1,0 +1,292 @@
+{
+  "schemaVersion": 1,
+  "target": {
+    "method": {
+      "type": "app.Workflow",
+      "method": "start",
+      "signature": "()"
+    },
+    "runtimeType": "app.Workflow"
+  },
+  "nodes": [
+    {
+      "id": "m_fb9b83697855",
+      "execution": {
+        "method": {
+          "type": "app.Startup",
+          "method": "check",
+          "signature": "()"
+        },
+        "runtimeType": "app.Startup"
+      },
+      "kind": "method",
+      "label": "app.Startup.check()",
+      "note": "",
+      "candidates": []
+    },
+    {
+      "id": "m_68915a901c1b",
+      "execution": {
+        "method": {
+          "type": "app.Workflow",
+          "method": "prepare",
+          "signature": "()"
+        },
+        "runtimeType": "app.Workflow"
+      },
+      "kind": "method",
+      "label": "app.Workflow.prepare()",
+      "note": "",
+      "candidates": []
+    },
+    {
+      "id": "m_77e2f47d906c",
+      "execution": {
+        "method": {
+          "type": "app.Workflow",
+          "method": "start",
+          "signature": "()"
+        },
+        "runtimeType": "app.Workflow"
+      },
+      "kind": "method",
+      "label": "app.Workflow.start()",
+      "note": "",
+      "candidates": []
+    },
+    {
+      "id": "m_b77d8469ea1e",
+      "execution": {
+        "method": {
+          "type": "repo.UserRepository",
+          "method": "<init>",
+          "signature": "()"
+        },
+        "runtimeType": "repo.UserRepository"
+      },
+      "kind": "method",
+      "label": "repo.UserRepository.<init>()",
+      "note": "",
+      "candidates": []
+    },
+    {
+      "id": "m_6334db893a7c",
+      "execution": {
+        "method": {
+          "type": "repo.UserRepository",
+          "method": "save",
+          "signature": "(service.User)"
+        },
+        "runtimeType": "repo.UserRepository"
+      },
+      "kind": "method",
+      "label": "repo.UserRepository.save(service.User)",
+      "note": "",
+      "candidates": []
+    },
+    {
+      "id": "m_634aaeaf9d04",
+      "execution": {
+        "method": {
+          "type": "service.User",
+          "method": "<init>",
+          "signature": "()"
+        },
+        "runtimeType": "service.User"
+      },
+      "kind": "method",
+      "label": "service.User.<init>()",
+      "note": "",
+      "candidates": []
+    },
+    {
+      "id": "m_7a0429d8e398",
+      "execution": {
+        "method": {
+          "type": "service.UserService",
+          "method": "create",
+          "signature": "(repo.UserRepository)"
+        },
+        "runtimeType": "service.UserService"
+      },
+      "kind": "method",
+      "label": "service.UserService.create(repo.UserRepository)",
+      "note": "",
+      "candidates": []
+    },
+    {
+      "id": "m_074d94e53d36",
+      "execution": {
+        "method": {
+          "type": "support.Audit",
+          "method": "log",
+          "signature": "(service.User)"
+        },
+        "runtimeType": "support.Audit"
+      },
+      "kind": "method",
+      "label": "support.Audit.log(service.User)",
+      "note": "",
+      "candidates": []
+    },
+    {
+      "id": "m_32dd22f12c28",
+      "execution": {
+        "method": {
+          "type": "support.Formatter",
+          "method": "<init>",
+          "signature": "()"
+        },
+        "runtimeType": "support.Formatter"
+      },
+      "kind": "method",
+      "label": "support.Formatter.<init>()",
+      "note": "",
+      "candidates": []
+    },
+    {
+      "id": "m_d8baf40e6ec7",
+      "execution": {
+        "method": {
+          "type": "support.Formatter",
+          "method": "format",
+          "signature": "(service.User)"
+        },
+        "runtimeType": "support.Formatter"
+      },
+      "kind": "method",
+      "label": "support.Formatter.format(service.User)",
+      "note": "",
+      "candidates": []
+    }
+  ],
+  "edges": [
+    {
+      "from": "m_68915a901c1b",
+      "to": "m_fb9b83697855",
+      "call": {
+        "kind": "invocation",
+        "file": "src/main/java/app/Workflow.java",
+        "line": 20,
+        "startByte": 400,
+        "receiver": "Startup",
+        "methodName": "check"
+      },
+      "dispatchSite": null,
+      "cycle": false
+    },
+    {
+      "from": "m_77e2f47d906c",
+      "to": "m_68915a901c1b",
+      "call": {
+        "kind": "invocation",
+        "file": "src/main/java/app/Workflow.java",
+        "line": 14,
+        "startByte": 251,
+        "receiver": "",
+        "methodName": "prepare"
+      },
+      "dispatchSite": null,
+      "cycle": false
+    },
+    {
+      "from": "m_77e2f47d906c",
+      "to": "m_b77d8469ea1e",
+      "call": {
+        "kind": "objectCreation",
+        "file": "src/main/java/app/Workflow.java",
+        "line": 15,
+        "startByte": 298,
+        "receiver": "",
+        "methodName": "<init>"
+      },
+      "dispatchSite": null,
+      "cycle": false
+    },
+    {
+      "from": "m_77e2f47d906c",
+      "to": "m_7a0429d8e398",
+      "call": {
+        "kind": "invocation",
+        "file": "src/main/java/app/Workflow.java",
+        "line": 16,
+        "startByte": 328,
+        "receiver": "service",
+        "methodName": "create"
+      },
+      "dispatchSite": null,
+      "cycle": false
+    },
+    {
+      "from": "m_6334db893a7c",
+      "to": "m_074d94e53d36",
+      "call": {
+        "kind": "invocation",
+        "file": "src/main/java/repo/UserRepository.java",
+        "line": 11,
+        "startByte": 236,
+        "receiver": "Audit",
+        "methodName": "log"
+      },
+      "dispatchSite": null,
+      "cycle": false
+    },
+    {
+      "from": "m_6334db893a7c",
+      "to": "m_32dd22f12c28",
+      "call": {
+        "kind": "objectCreation",
+        "file": "src/main/java/repo/UserRepository.java",
+        "line": 9,
+        "startByte": 179,
+        "receiver": "",
+        "methodName": "<init>"
+      },
+      "dispatchSite": null,
+      "cycle": false
+    },
+    {
+      "from": "m_6334db893a7c",
+      "to": "m_d8baf40e6ec7",
+      "call": {
+        "kind": "invocation",
+        "file": "src/main/java/repo/UserRepository.java",
+        "line": 10,
+        "startByte": 204,
+        "receiver": "formatter",
+        "methodName": "format"
+      },
+      "dispatchSite": null,
+      "cycle": false
+    },
+    {
+      "from": "m_7a0429d8e398",
+      "to": "m_6334db893a7c",
+      "call": {
+        "kind": "invocation",
+        "file": "src/main/java/service/UserService.java",
+        "line": 8,
+        "startByte": 166,
+        "receiver": "repository",
+        "methodName": "save"
+      },
+      "dispatchSite": null,
+      "cycle": false
+    },
+    {
+      "from": "m_7a0429d8e398",
+      "to": "m_634aaeaf9d04",
+      "call": {
+        "kind": "objectCreation",
+        "file": "src/main/java/service/UserService.java",
+        "line": 7,
+        "startByte": 146,
+        "receiver": "",
+        "methodName": "<init>"
+      },
+      "dispatchSite": null,
+      "cycle": false
+    }
+  ],
+  "truncations": []
+}

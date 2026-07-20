@@ -68,6 +68,7 @@ func defaultTraceOptions() TraceOptions {
 		Direction:         "TD",
 		Scope:             project.ScopeModeMain,
 		IncludeUnresolved: true,
+		MaxNodes:          1000,
 		MaxImpls:          5,
 	}
 }
@@ -286,9 +287,7 @@ func parseLimit(name, value string) (int, error) {
 
 func validateTraceSupport(opts TraceOptions) error {
 	switch {
-	case opts.Format == FormatJSON:
-		return unsupportedOption("--format=" + string(opts.Format))
-	case opts.Format != FormatMermaid && opts.Format != FormatDOT:
+	case opts.Format != FormatMermaid && opts.Format != FormatDOT && opts.Format != FormatJSON:
 		return unsupportedOption("--format=" + string(opts.Format))
 	case opts.PickImpls != "":
 		return unsupportedOption("--pick-impls")
@@ -298,10 +297,6 @@ func validateTraceSupport(opts TraceOptions) error {
 		return unsupportedOption("--no-prompt")
 	case !opts.IncludeUnresolved:
 		return unsupportedOption("--include-unresolved=false")
-	case opts.MaxDepth != 0:
-		return unsupportedOption("--max-depth")
-	case opts.MaxNodes != 0:
-		return unsupportedOption("--max-nodes")
 	case opts.MaxImpls != 5:
 		return unsupportedOption("--max-impls")
 	default:
