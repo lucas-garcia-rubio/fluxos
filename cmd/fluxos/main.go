@@ -80,12 +80,22 @@ func buildTraceSnapshot(opts TraceOptions) (render.Snapshot, error) {
 		return render.Snapshot{}, err
 	}
 
-	resolver := resolve.NewSyntacticResolver(table)
+	resolver := resolve.NewSyntacticResolverWithPolicy(table, dispatchPolicyFor(opts))
 	result := graph.Build(target.Execution, table, resolver, graph.BuildOptions{
 		MaxDepth: opts.MaxDepth,
 		MaxNodes: opts.MaxNodes,
 	})
 	return render.NewResultSnapshot(result, target.Execution), nil
+}
+
+// dispatchPolicyFor traduz TraceOptions em uma DispatchPolicy. Default mantém
+// a TerminalPolicy M3 (sem fan-out). --all-impls=true ativa AllPolicy com o
+// MaxImpls configurado.
+func dispatchPolicyFor(opts TraceOptions) resolve.DispatchPolicy {
+	if !opts.AllImpls {
+		return resolve.TerminalPolicy{}
+	}
+	return resolve.AllPolicy{MaxImpls: opts.MaxImpls}
 }
 
 func buildIndex(root string, scope project.ScopeMode) ([]*java.CompilationUnit, *index.Table, error) {

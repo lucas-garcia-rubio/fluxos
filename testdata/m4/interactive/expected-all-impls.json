@@ -1,0 +1,348 @@
+{
+  "schemaVersion": 1,
+  "target": {
+    "method": {
+      "type": "app.Workflow",
+      "method": "start",
+      "signature": "()"
+    },
+    "runtimeType": "app.Workflow"
+  },
+  "nodes": [
+    {
+      "id": "m_a88907d0277a",
+      "execution": {
+        "method": {
+          "type": "app.AlphaA",
+          "method": "run",
+          "signature": "()"
+        },
+        "runtimeType": "app.AlphaA"
+      },
+      "kind": "method",
+      "label": "app.AlphaA.run()",
+      "note": "",
+      "candidates": []
+    },
+    {
+      "id": "m_bf26fad81d0f",
+      "execution": {
+        "method": {
+          "type": "app.BetaA",
+          "method": "leaf",
+          "signature": "()"
+        },
+        "runtimeType": "app.BetaA"
+      },
+      "kind": "method",
+      "label": "app.BetaA.leaf()",
+      "note": "",
+      "candidates": []
+    },
+    {
+      "id": "m_7f596dff91cf",
+      "execution": {
+        "method": {
+          "type": "app.BetaA",
+          "method": "run",
+          "signature": "()"
+        },
+        "runtimeType": "app.BetaA"
+      },
+      "kind": "method",
+      "label": "app.BetaA.run()",
+      "note": "",
+      "candidates": []
+    },
+    {
+      "id": "m_8b4007cb0596",
+      "execution": {
+        "method": {
+          "type": "app.DeltaB",
+          "method": "work",
+          "signature": "()"
+        },
+        "runtimeType": "app.DeltaB"
+      },
+      "kind": "method",
+      "label": "app.DeltaB.work()",
+      "note": "",
+      "candidates": []
+    },
+    {
+      "id": "m_32e80f720590",
+      "execution": {
+        "method": {
+          "type": "app.GammaB",
+          "method": "work",
+          "signature": "()"
+        },
+        "runtimeType": "app.GammaB"
+      },
+      "kind": "method",
+      "label": "app.GammaB.work()",
+      "note": "",
+      "candidates": []
+    },
+    {
+      "id": "m_77e2f47d906c",
+      "execution": {
+        "method": {
+          "type": "app.Workflow",
+          "method": "start",
+          "signature": "()"
+        },
+        "runtimeType": "app.Workflow"
+      },
+      "kind": "method",
+      "label": "app.Workflow.start()",
+      "note": "",
+      "candidates": []
+    }
+  ],
+  "edges": [
+    {
+      "from": "m_a88907d0277a",
+      "to": "m_8b4007cb0596",
+      "call": {
+        "kind": "invocation",
+        "file": "src/main/java/app/AlphaA.java",
+        "line": 14,
+        "startByte": 198,
+        "receiver": "b",
+        "methodName": "work"
+      },
+      "dispatchSite": {
+        "id": "ds_72fc4c174257",
+        "caller": {
+          "method": {
+            "type": "app.AlphaA",
+            "method": "run",
+            "signature": "()"
+          },
+          "runtimeType": "app.AlphaA"
+        },
+        "receiverFQCN": "contracts.B",
+        "method": "work",
+        "signature": "()",
+        "call": {
+          "kind": "invocation",
+          "file": "src/main/java/app/AlphaA.java",
+          "line": 14,
+          "startByte": 198,
+          "receiver": "b",
+          "methodName": "work"
+        },
+        "candidates": [
+          {
+            "implementationFQCN": "app.DeltaB",
+            "target": {
+              "type": "app.DeltaB",
+              "method": "work",
+              "signature": "()"
+            },
+            "kind": "concrete",
+            "note": ""
+          },
+          {
+            "implementationFQCN": "app.GammaB",
+            "target": {
+              "type": "app.GammaB",
+              "method": "work",
+              "signature": "()"
+            },
+            "kind": "concrete",
+            "note": ""
+          }
+        ]
+      },
+      "cycle": false
+    },
+    {
+      "from": "m_a88907d0277a",
+      "to": "m_32e80f720590",
+      "call": {
+        "kind": "invocation",
+        "file": "src/main/java/app/AlphaA.java",
+        "line": 14,
+        "startByte": 198,
+        "receiver": "b",
+        "methodName": "work"
+      },
+      "dispatchSite": {
+        "id": "ds_72fc4c174257",
+        "caller": {
+          "method": {
+            "type": "app.AlphaA",
+            "method": "run",
+            "signature": "()"
+          },
+          "runtimeType": "app.AlphaA"
+        },
+        "receiverFQCN": "contracts.B",
+        "method": "work",
+        "signature": "()",
+        "call": {
+          "kind": "invocation",
+          "file": "src/main/java/app/AlphaA.java",
+          "line": 14,
+          "startByte": 198,
+          "receiver": "b",
+          "methodName": "work"
+        },
+        "candidates": [
+          {
+            "implementationFQCN": "app.DeltaB",
+            "target": {
+              "type": "app.DeltaB",
+              "method": "work",
+              "signature": "()"
+            },
+            "kind": "concrete",
+            "note": ""
+          },
+          {
+            "implementationFQCN": "app.GammaB",
+            "target": {
+              "type": "app.GammaB",
+              "method": "work",
+              "signature": "()"
+            },
+            "kind": "concrete",
+            "note": ""
+          }
+        ]
+      },
+      "cycle": false
+    },
+    {
+      "from": "m_7f596dff91cf",
+      "to": "m_bf26fad81d0f",
+      "call": {
+        "kind": "invocation",
+        "file": "src/main/java/app/BetaA.java",
+        "line": 7,
+        "startByte": 101,
+        "receiver": "",
+        "methodName": "leaf"
+      },
+      "dispatchSite": null,
+      "cycle": false
+    },
+    {
+      "from": "m_77e2f47d906c",
+      "to": "m_a88907d0277a",
+      "call": {
+        "kind": "invocation",
+        "file": "src/main/java/app/Workflow.java",
+        "line": 13,
+        "startByte": 171,
+        "receiver": "a",
+        "methodName": "run"
+      },
+      "dispatchSite": {
+        "id": "ds_fc499427b21e",
+        "caller": {
+          "method": {
+            "type": "app.Workflow",
+            "method": "start",
+            "signature": "()"
+          },
+          "runtimeType": "app.Workflow"
+        },
+        "receiverFQCN": "contracts.A",
+        "method": "run",
+        "signature": "()",
+        "call": {
+          "kind": "invocation",
+          "file": "src/main/java/app/Workflow.java",
+          "line": 13,
+          "startByte": 171,
+          "receiver": "a",
+          "methodName": "run"
+        },
+        "candidates": [
+          {
+            "implementationFQCN": "app.AlphaA",
+            "target": {
+              "type": "app.AlphaA",
+              "method": "run",
+              "signature": "()"
+            },
+            "kind": "concrete",
+            "note": ""
+          },
+          {
+            "implementationFQCN": "app.BetaA",
+            "target": {
+              "type": "app.BetaA",
+              "method": "run",
+              "signature": "()"
+            },
+            "kind": "concrete",
+            "note": ""
+          }
+        ]
+      },
+      "cycle": false
+    },
+    {
+      "from": "m_77e2f47d906c",
+      "to": "m_7f596dff91cf",
+      "call": {
+        "kind": "invocation",
+        "file": "src/main/java/app/Workflow.java",
+        "line": 13,
+        "startByte": 171,
+        "receiver": "a",
+        "methodName": "run"
+      },
+      "dispatchSite": {
+        "id": "ds_fc499427b21e",
+        "caller": {
+          "method": {
+            "type": "app.Workflow",
+            "method": "start",
+            "signature": "()"
+          },
+          "runtimeType": "app.Workflow"
+        },
+        "receiverFQCN": "contracts.A",
+        "method": "run",
+        "signature": "()",
+        "call": {
+          "kind": "invocation",
+          "file": "src/main/java/app/Workflow.java",
+          "line": 13,
+          "startByte": 171,
+          "receiver": "a",
+          "methodName": "run"
+        },
+        "candidates": [
+          {
+            "implementationFQCN": "app.AlphaA",
+            "target": {
+              "type": "app.AlphaA",
+              "method": "run",
+              "signature": "()"
+            },
+            "kind": "concrete",
+            "note": ""
+          },
+          {
+            "implementationFQCN": "app.BetaA",
+            "target": {
+              "type": "app.BetaA",
+              "method": "run",
+              "signature": "()"
+            },
+            "kind": "concrete",
+            "note": ""
+          }
+        ]
+      },
+      "cycle": false
+    }
+  ],
+  "truncations": []
+}

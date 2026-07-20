@@ -201,9 +201,9 @@ func TestValidateTraceSupportAcceptsCompatibilityValues(t *testing.T) {
 func TestValidateTraceSupportRejectsReservedFeatures(t *testing.T) {
 	tests := [][]string{
 		{"--pick-impls=x.Y", "app.Workflow.start"},
-		{"--all-impls", "app.Workflow.start"},
 		{"--no-prompt", "app.Workflow.start"},
 		{"--include-unresolved=false", "app.Workflow.start"},
+		// --max-impls sem --all-impls continua rejeitado no Passo 7
 		{"--max-impls=4", "app.Workflow.start"},
 	}
 	for _, args := range tests {
@@ -216,6 +216,24 @@ func TestValidateTraceSupportRejectsReservedFeatures(t *testing.T) {
 			t.Fatalf("validateTraceSupport(%v) error = %v", args, err)
 		}
 		requireUsageError(t, err)
+	}
+}
+
+func TestValidateTraceSupportAcceptsAllImplsAndMaxImpls(t *testing.T) {
+	tests := [][]string{
+		{"--all-impls", "app.Workflow.start"},
+		{"--all-impls=true", "app.Workflow.start"},
+		{"--all-impls=true", "--max-impls=3", "app.Workflow.start"},
+		{"--all-impls=true", "--max-impls=0", "app.Workflow.start"},
+	}
+	for _, args := range tests {
+		opts, err := parseTraceOptions(args)
+		if err != nil {
+			t.Fatalf("parseTraceOptions(%v): %v", args, err)
+		}
+		if err := validateTraceSupport(opts); err != nil {
+			t.Fatalf("validateTraceSupport(%v): %v", args, err)
+		}
 	}
 }
 

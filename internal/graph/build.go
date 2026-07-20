@@ -64,6 +64,11 @@ func Build(root resolve.ExecutionKey, table *index.Table, resolver resolve.Resol
 
 		for i := range plan.calls {
 			pc := plan.calls[i]
+			for _, pt := range pc.policyTruncations {
+				recordTruncation(truncationSet, Truncation{
+					Kind: TruncationMaxImpls, Caller: pt.Caller, Call: pt.Call, Omitted: pt.Omitted, Note: pt.Note,
+				})
+			}
 			omittedHere := 0
 			for _, target := range pc.targets {
 				if target.Kind != resolve.ResolutionConcrete {
@@ -108,9 +113,10 @@ type resolvedPlan struct {
 }
 
 type planCall struct {
-	call    java.CallSite
-	site    *resolve.DispatchSite
-	targets []resolve.ResolvedTarget
+	call             java.CallSite
+	site             *resolve.DispatchSite
+	targets          []resolve.ResolvedTarget
+	policyTruncations []resolve.PolicyTruncation
 }
 
 type terminalMarker struct {
@@ -142,9 +148,10 @@ func buildPlan(key resolve.ExecutionKey, table *index.Table, resolver resolve.Re
 	for _, call := range method.Calls {
 		resolution := resolver.Resolve(call, ctx)
 		plan.calls = append(plan.calls, planCall{
-			call:    call,
-			site:    resolution.DispatchSite,
-			targets: resolution.Targets,
+			call:              call,
+			site:              resolution.DispatchSite,
+			targets:           resolution.Targets,
+			policyTruncations: resolution.Truncations,
 		})
 	}
 	return plan

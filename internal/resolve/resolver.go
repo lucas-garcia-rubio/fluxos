@@ -78,10 +78,24 @@ func ConcreteTarget(key ExecutionKey) ResolvedTarget {
 //     em caminhos excepcionais e o Walk respeita cada target individualmente.
 //
 // Note continua existindo para os casos em que nenhum target é produzido.
+//
+// Truncations carrega omissions produzidas pela DispatchPolicy (ex: impls
+// excedentes ao MaxImpls). O Build copia essas entradas para o BuildResult.
 type Resolution struct {
 	Targets      []ResolvedTarget
 	DispatchSite *DispatchSite
 	Note         string
+	Truncations  []PolicyTruncation
+}
+
+// PolicyTruncation é a omissão reportada por uma DispatchPolicy, expressa em
+// tipos do package resolve para evitar import cycle com graph. O Build
+// converte cada entrada em graph.Truncation com Kind=maxImpls.
+type PolicyTruncation struct {
+	Caller  ExecutionKey
+	Call    java.CallSite
+	Omitted int
+	Note    string
 }
 
 // MethodContext é o que o resolver precisa saber sobre o método que faz a

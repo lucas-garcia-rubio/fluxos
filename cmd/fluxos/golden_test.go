@@ -281,8 +281,7 @@ func TestM4LimitsStabilityUnderRepeatedRuns(t *testing.T) {
 	}
 }
 
-func TestRunTraceM2M3RuntimeContextJSONGoldens(t *testing.T) {
-	tests := []struct {
+func TestRunTraceM2M3RuntimeContextJSONGoldens(t *testing.T) {	tests := []struct {
 		name    string
 		root    string
 		target  string
@@ -318,6 +317,40 @@ func TestRunTraceM2M3RuntimeContextJSONGoldens(t *testing.T) {
 			}
 			if !bytes.Equal(out.Bytes(), want) {
 				t.Fatalf("JSON golden mismatch (%s):\n%s", tt.golden, firstDiffContext(string(want), out.String()))
+			}
+		})
+	}
+}
+
+func TestM4InteractiveGoldens(t *testing.T) {
+	root := m4FixtureRoot("interactive")
+	tests := []struct {
+		name   string
+		args   []string
+		golden string
+	}{
+		{name: "terminal default mermaid", args: []string{"app.Workflow.start", root}, golden: "expected-terminal.mmd"},
+		{name: "terminal default dot", args: []string{"--format=dot", "app.Workflow.start", root}, golden: "expected-terminal.dot"},
+		{name: "terminal default json", args: []string{"--format=json", "app.Workflow.start", root}, golden: "expected-terminal.json"},
+		{name: "all impls mermaid", args: []string{"--all-impls=true", "app.Workflow.start", root}, golden: "expected-all-impls.mmd"},
+		{name: "all impls dot", args: []string{"--format=dot", "--all-impls=true", "app.Workflow.start", root}, golden: "expected-all-impls.dot"},
+		{name: "all impls json", args: []string{"--format=json", "--all-impls=true", "app.Workflow.start", root}, golden: "expected-all-impls.json"},
+		{name: "all impls max-impls=1 mermaid", args: []string{"--all-impls=true", "--max-impls=1", "app.Workflow.start", root}, golden: "expected-all-impls-max-impls-1.mmd"},
+		{name: "all impls max-impls=1 dot", args: []string{"--format=dot", "--all-impls=true", "--max-impls=1", "app.Workflow.start", root}, golden: "expected-all-impls-max-impls-1.dot"},
+		{name: "all impls max-impls=1 json", args: []string{"--format=json", "--all-impls=true", "--max-impls=1", "app.Workflow.start", root}, golden: "expected-all-impls-max-impls-1.json"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var out bytes.Buffer
+			if err := runTrace(tt.args, &out); err != nil {
+				t.Fatalf("runTrace(%v): %v", tt.args, err)
+			}
+			want, err := os.ReadFile(filepath.Join(root, tt.golden))
+			if err != nil {
+				t.Fatalf("read golden: %v", err)
+			}
+			if !bytes.Equal(out.Bytes(), want) {
+				t.Fatalf("trace output mismatch (%s):\n%s", tt.golden, firstDiffContext(string(want), out.String()))
 			}
 		})
 	}

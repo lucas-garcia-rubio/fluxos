@@ -1,0 +1,106 @@
+{
+  "schemaVersion": 1,
+  "target": {
+    "method": {
+      "type": "app.Workflow",
+      "method": "start",
+      "signature": "()"
+    },
+    "runtimeType": "app.Workflow"
+  },
+  "nodes": [
+    {
+      "id": "m_77e2f47d906c",
+      "execution": {
+        "method": {
+          "type": "app.Workflow",
+          "method": "start",
+          "signature": "()"
+        },
+        "runtimeType": "app.Workflow"
+      },
+      "kind": "method",
+      "label": "app.Workflow.start()",
+      "note": "",
+      "candidates": []
+    },
+    {
+      "id": "m_6f5dda28258b",
+      "execution": {
+        "method": {
+          "type": "contracts.A",
+          "method": "run",
+          "signature": ""
+        },
+        "runtimeType": "app.Workflow"
+      },
+      "kind": "ambiguousImplementation",
+      "label": "contracts.A.run() [ambiguous: 2 implementations]",
+      "note": "multiple concrete implementations of contracts.A",
+      "candidates": [
+        "app.AlphaA",
+        "app.BetaA"
+      ]
+    }
+  ],
+  "edges": [
+    {
+      "from": "m_77e2f47d906c",
+      "to": "m_6f5dda28258b",
+      "call": {
+        "kind": "invocation",
+        "file": "src/main/java/app/Workflow.java",
+        "line": 13,
+        "startByte": 171,
+        "receiver": "a",
+        "methodName": "run"
+      },
+      "dispatchSite": {
+        "id": "ds_fc499427b21e",
+        "caller": {
+          "method": {
+            "type": "app.Workflow",
+            "method": "start",
+            "signature": "()"
+          },
+          "runtimeType": "app.Workflow"
+        },
+        "receiverFQCN": "contracts.A",
+        "method": "run",
+        "signature": "()",
+        "call": {
+          "kind": "invocation",
+          "file": "src/main/java/app/Workflow.java",
+          "line": 13,
+          "startByte": 171,
+          "receiver": "a",
+          "methodName": "run"
+        },
+        "candidates": [
+          {
+            "implementationFQCN": "app.AlphaA",
+            "target": {
+              "type": "app.AlphaA",
+              "method": "run",
+              "signature": "()"
+            },
+            "kind": "concrete",
+            "note": ""
+          },
+          {
+            "implementationFQCN": "app.BetaA",
+            "target": {
+              "type": "app.BetaA",
+              "method": "run",
+              "signature": "()"
+            },
+            "kind": "concrete",
+            "note": ""
+          }
+        ]
+      },
+      "cycle": false
+    }
+  ],
+  "truncations": []
+}

@@ -291,14 +291,12 @@ func validateTraceSupport(opts TraceOptions) error {
 		return unsupportedOption("--format=" + string(opts.Format))
 	case opts.PickImpls != "":
 		return unsupportedOption("--pick-impls")
-	case opts.AllImpls:
-		return unsupportedOption("--all-impls")
 	case opts.NoPrompt:
 		return unsupportedOption("--no-prompt")
 	case !opts.IncludeUnresolved:
 		return unsupportedOption("--include-unresolved=false")
-	case opts.MaxImpls != 5:
-		return unsupportedOption("--max-impls")
+	case !opts.AllImpls && opts.MaxImpls != 5:
+		return unsupportedOption("--max-impls (requires --all-impls=true)")
 	default:
 		return nil
 	}

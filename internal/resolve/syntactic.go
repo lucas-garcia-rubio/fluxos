@@ -15,13 +15,38 @@ import (
 //
 // M3 Passo 5 canonicaliza receivers por package e imports, sem ainda percorrer
 // heranca cross-file.
+//
+// M4 Passo 7 adiciona Policy: quando um receiver polimórfico tem múltiplas
+// implementations, a dispatch policy decide entre terminal ambiguous (default,
+// TerminalPolicy) ou fan-out em cada impl (AllPolicy). Default TerminalPolicy
+// preserva o comportamento M3 byte-identical.
 type SyntacticResolver struct {
-	Index *index.Table
+	Index  *index.Table
+	Policy DispatchPolicy
 }
 
-// NewSyntacticResolver constrói um resolver pronto pra usar.
+// NewSyntacticResolver constrói um resolver pronto pra usar com a policy
+// default (TerminalPolicy).
 func NewSyntacticResolver(table *index.Table) *SyntacticResolver {
-	return &SyntacticResolver{Index: table}
+	return &SyntacticResolver{Index: table, Policy: TerminalPolicy{}}
+}
+
+// NewSyntacticResolverWithPolicy permite explicitar a dispatch policy. Usado
+// pelo Passo 7 para ativar AllPolicy via --all-impls.
+func NewSyntacticResolverWithPolicy(table *index.Table, policy DispatchPolicy) *SyntacticResolver {
+	if policy == nil {
+		policy = TerminalPolicy{}
+	}
+	return &SyntacticResolver{Index: table, Policy: policy}
+}
+
+// policy devolve a dispatch policy ativa, defaultando para TerminalPolicy
+// quando o resolver foi construído sem setter explícito.
+func (r *SyntacticResolver) policy() DispatchPolicy {
+	if r.Policy == nil {
+		return TerminalPolicy{}
+	}
+	return r.Policy
 }
 
 // Resolve decide qual método call aponta, baseado em call.Receiver e no
