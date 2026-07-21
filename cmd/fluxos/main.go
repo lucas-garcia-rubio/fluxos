@@ -48,7 +48,12 @@ func runTrace(args []string, out io.Writer) error {
 }
 
 func executeTrace(opts TraceOptions, streams IO) error {
-	snapshot, err := buildTraceSnapshot(opts)
+	return executeTraceWithService(opts, streams, productionTraceService())
+}
+
+func executeTraceWithService(opts TraceOptions, streams IO, service traceService) error {
+	selector := service.selectorFor(opts, streams)
+	snapshot, err := buildTraceSnapshotWithSelector(opts, selector)
 	if err != nil {
 		return err
 	}
@@ -72,6 +77,10 @@ func renderTrace(out io.Writer, snapshot render.Snapshot, opts TraceOptions) err
 }
 
 func buildTraceSnapshot(opts TraceOptions) (render.Snapshot, error) {
+	return buildTraceSnapshotWithSelector(opts, nil)
+}
+
+func buildTraceSnapshotWithSelector(opts TraceOptions, selector trace.ImplementationSelector) (render.Snapshot, error) {
 	_, table, err := buildIndex(opts.ProjectRoot, opts.Scope)
 	if err != nil {
 		return render.Snapshot{}, err
@@ -96,7 +105,7 @@ func buildTraceSnapshot(opts TraceOptions) (render.Snapshot, error) {
 		},
 		MaxImpls:   opts.MaxImpls,
 		BasePolicy: policy,
-		Selector:   nil,
+		Selector:   selector,
 	})
 	if err != nil {
 		return render.Snapshot{}, err

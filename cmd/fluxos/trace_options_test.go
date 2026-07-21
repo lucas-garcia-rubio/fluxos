@@ -200,10 +200,7 @@ func TestValidateTraceSupportAcceptsCompatibilityValues(t *testing.T) {
 
 func TestValidateTraceSupportRejectsReservedFeatures(t *testing.T) {
 	tests := [][]string{
-		{"--no-prompt", "app.Workflow.start"},
 		{"--include-unresolved=false", "app.Workflow.start"},
-		// --max-impls exige uma policy capaz de fazer fan-out.
-		{"--max-impls=4", "app.Workflow.start"},
 	}
 	for _, args := range tests {
 		opts, err := parseTraceOptions(args)
@@ -215,6 +212,21 @@ func TestValidateTraceSupportRejectsReservedFeatures(t *testing.T) {
 			t.Fatalf("validateTraceSupport(%v) error = %v", args, err)
 		}
 		requireUsageError(t, err)
+	}
+}
+
+func TestValidateTraceSupportAcceptsNoPromptAndInertMaxImpls(t *testing.T) {
+	for _, args := range [][]string{
+		{"--no-prompt", "app.Workflow.start"},
+		{"--no-prompt=false", "--max-impls=4", "app.Workflow.start"},
+	} {
+		opts, err := parseTraceOptions(args)
+		if err != nil {
+			t.Fatalf("parseTraceOptions(%v): %v", args, err)
+		}
+		if err := validateTraceSupport(opts); err != nil {
+			t.Fatalf("validateTraceSupport(%v): %v", args, err)
+		}
 	}
 }
 

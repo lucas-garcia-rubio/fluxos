@@ -28,7 +28,8 @@ compiler and intentionally leaves uncertain calls unresolved or ambiguous.
 - One concrete implementation is followed; zero implementations produce a terminal
   node. Multiple implementations produce a terminal by default.
 - `--all-impls` and `--pick-impls` can fan out or select implementations explicitly.
-- There is no automatic TTY picker yet; declarative picks are non-interactive.
+- Full-TTY runs automatically offer an implementation picker unless `--no-prompt`,
+  `--all-impls`, or declarative picks are set; non-TTY runs are non-interactive.
 - A variable's initializer does not narrow an interface or abstract declared type.
 - Sealed `permits` clauses are not used as an implementation source.
 
@@ -54,7 +55,7 @@ compiler and intentionally leaves uncertain calls unresolved or ambiguous.
 
 - Mermaid, DOT, and JSON are available. Mermaid is the default; JSON schema version 1
   exposes ordered nodes, edges, dispatch metadata, and truncations.
-- Depth, node, and implementation limits are supported, but there is no interactive
-  implementation picker or unresolved-node filter yet.
+- Depth, node, and implementation limits are supported, but there is no unresolved-node
+  filter yet.
 - CLI help, version metadata, release automation, and packaged binaries are still pending.
 - Persistent indexing caches and advanced Mermaid styling are deferred.

@@ -6,3 +6,6 @@ out.json
 
 # Planos (documentação de planejamento, mantida local)
 PLANO_*.md
+
+# Estado local do workflow deepwork
+.slim/deepwork/

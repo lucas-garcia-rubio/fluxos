@@ -83,7 +83,9 @@ Each mapping is `<receiver-fqcn>=<implementation-fqcn|all|none>`, separated by c
 `none` keeps the ambiguous terminal, `all` fans out up to `--max-impls`, and an explicit
 implementation follows only that runtime type. Unmapped receivers retain the default
 ambiguous terminal. Unknown receivers and candidates fail before graph output is written.
-Declarative picks never prompt; interactive selection is not implemented yet.
+Declarative picks, `--all-impls`, and `--no-prompt` never prompt. With stdin, stdout,
+and stderr all connected to a TTY, the CLI otherwise automatically offers the
+implementation picker; non-TTY runs never prompt.
 
 ## Terminal nodes
 

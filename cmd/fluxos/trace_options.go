@@ -293,12 +293,8 @@ func validateTraceSupport(opts TraceOptions) error {
 	switch {
 	case opts.Format != FormatMermaid && opts.Format != FormatDOT && opts.Format != FormatJSON:
 		return unsupportedOption("--format=" + string(opts.Format))
-	case opts.NoPrompt:
-		return unsupportedOption("--no-prompt")
 	case !opts.IncludeUnresolved:
 		return unsupportedOption("--include-unresolved=false")
-	case !opts.AllImpls && len(opts.PickImpls) == 0 && opts.MaxImpls != 5:
-		return unsupportedOption("--max-impls (requires --all-impls=true or --pick-impls)")
 	default:
 		return nil
 	}
