@@ -170,10 +170,20 @@
       },
       "dispatchSite": null,
       "cycle": false
-    },
+    }
+  ],
+  "truncations": [
     {
-      "from": "m_e1fa84dfe61c",
-      "to": "m_299dd090c15d",
+      "id": "t_37f392581e12",
+      "kind": "maxDepth",
+      "caller": {
+        "method": {
+          "type": "app.Mixed",
+          "method": "step3",
+          "signature": "()"
+        },
+        "runtimeType": "app.Mixed"
+      },
       "call": {
         "kind": "invocation",
         "file": "src/main/java/app/Mixed.java",
@@ -182,9 +192,8 @@
         "receiver": "",
         "methodName": "shared"
       },
-      "dispatchSite": null,
-      "cycle": false
+      "omitted": 1,
+      "note": ""
     }
-  ],
-  "truncations": []
+  ]
 }

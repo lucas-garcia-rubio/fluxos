@@ -92,6 +92,42 @@ func TestBuildMaxDepthLimitsExpansionAtBoundary(t *testing.T) {
 	}
 }
 
+func TestBuildMaxDepthSuppressesTerminalAndExternalEdgesAtBoundary(t *testing.T) {
+	terminal := resolve.TerminalTarget(
+		resolve.ResolutionUnresolved,
+		"missing.Service",
+		"missing",
+		"()",
+		mkCall("toTerminal"),
+		"unresolved",
+		nil,
+	)
+	external := resolve.ResolvedTarget{Key: mkHandle("library.Service", "run"), Kind: resolve.ResolutionExternal}
+	types := []*java.TypeDecl{
+		mkType("A", mkMethod("a", mkCall("toB"))),
+		mkType("B", mkMethod("b", mkCall("toBoundary"))),
+	}
+	resolver := stubResolver{rules: map[string]resolve.Resolution{
+		"toB":        resolution(mkHandle("B", "b")),
+		"toBoundary": {Targets: []resolve.ResolvedTarget{terminal, external}},
+	}}
+
+	result := buildWith(types, mkHandle("A", "a"), resolver, BuildOptions{MaxDepth: 1})
+	if got := keysOf(result.Graph); !reflect.DeepEqual(got, []resolve.ExecutionKey{mkHandle("A", "a"), mkHandle("B", "b")}) {
+		t.Fatalf("nodes = %+v, want only A.a and boundary B.b", got)
+	}
+	if len(result.Graph.Edges) != 1 || result.Graph.Edges[0].From != mkHandle("A", "a") || result.Graph.Edges[0].To != mkHandle("B", "b") {
+		t.Fatalf("edges = %+v, want only A.a -> B.b", result.Graph.Edges)
+	}
+	if len(result.Truncations) != 1 {
+		t.Fatalf("truncations = %+v, want one maxDepth entry", result.Truncations)
+	}
+	truncation := result.Truncations[0]
+	if truncation.Kind != TruncationMaxDepth || truncation.Caller != mkHandle("B", "b") || truncation.Omitted != 2 {
+		t.Fatalf("truncation = %+v, want B.b with two suppressed targets", truncation)
+	}
+}
+
 func TestBuildMaxNodesCountsRoot(t *testing.T) {
 	types := []*java.TypeDecl{
 		mkType("A", mkMethod("a", mkCall("toB"), mkCall("toC"))),
@@ -149,6 +185,43 @@ func TestBuildMaxNodesOneAdmitsOnlyRoot(t *testing.T) {
 		if tr.Kind != TruncationMaxNodes || tr.Omitted != 1 {
 			t.Fatalf("truncation = %+v, want maxNodes/omitted=1", tr)
 		}
+	}
+}
+
+func TestBuildMaxNodesCountsTerminalAndExternalTargets(t *testing.T) {
+	terminal := resolve.TerminalTarget(
+		resolve.ResolutionUnresolved,
+		"missing.Service",
+		"missing",
+		"()",
+		mkCall("toTerminal"),
+		"unresolved",
+		nil,
+	)
+	external := resolve.ResolvedTarget{Key: mkHandle("library.Service", "run"), Kind: resolve.ResolutionExternal}
+	types := []*java.TypeDecl{
+		mkType("A", mkMethod("a", mkCall("toTerminal"), mkCall("toExternal"))),
+	}
+	resolver := stubResolver{rules: map[string]resolve.Resolution{
+		"toTerminal": {Targets: []resolve.ResolvedTarget{terminal}},
+		"toExternal": {Targets: []resolve.ResolvedTarget{external}},
+	}}
+
+	result := buildWith(types, mkHandle("A", "a"), resolver, BuildOptions{MaxNodes: 2})
+	if len(result.Graph.Nodes) != 2 {
+		t.Fatalf("nodes = %+v, want root plus one analysis target", result.Graph.Nodes)
+	}
+	if _, ok := result.Graph.Nodes[terminal.Key]; !ok {
+		t.Fatalf("terminal target should consume a MaxNodes slot: %+v", result.Graph.Nodes)
+	}
+	if _, ok := result.Graph.Nodes[external.Key]; ok {
+		t.Fatalf("external target exceeded MaxNodes but was emitted: %+v", result.Graph.Nodes)
+	}
+	if len(result.Graph.Edges) != 1 || result.Graph.Edges[0].To != terminal.Key {
+		t.Fatalf("edges = %+v, want only the admitted terminal target", result.Graph.Edges)
+	}
+	if len(result.Truncations) != 1 || result.Truncations[0].Kind != TruncationMaxNodes || result.Truncations[0].Omitted != 1 {
+		t.Fatalf("truncations = %+v, want one omitted external target", result.Truncations)
 	}
 }
 
@@ -259,6 +332,42 @@ func TestBuildDiamondDeterministicOrdering(t *testing.T) {
 	}
 }
 
+func TestBuildLimitedOutputAndTruncationsAreDeterministic(t *testing.T) {
+	terminal := resolve.TerminalTarget(
+		resolve.ResolutionUnresolved,
+		"missing.Service",
+		"missing",
+		"()",
+		mkCall("toTerminal"),
+		"unresolved",
+		nil,
+	)
+	external := resolve.ResolvedTarget{Key: mkHandle("library.Service", "run"), Kind: resolve.ResolutionExternal}
+	types := []*java.TypeDecl{
+		mkType("A", mkMethod("a", java.CallSite{MethodName: "toB", StartByte: 10}, java.CallSite{MethodName: "toExternal", StartByte: 20})),
+		mkType("B", mkMethod("b", java.CallSite{MethodName: "toTerminal", StartByte: 30}, java.CallSite{MethodName: "toExternal", StartByte: 40})),
+	}
+	resolver := stubResolver{rules: map[string]resolve.Resolution{
+		"toB":        resolution(mkHandle("B", "b")),
+		"toTerminal": {Targets: []resolve.ResolvedTarget{terminal}},
+		"toExternal": {Targets: []resolve.ResolvedTarget{external}},
+	}}
+	opts := BuildOptions{MaxDepth: 1, MaxNodes: 2}
+	first := buildWith(types, mkHandle("A", "a"), resolver, opts)
+	for i := 0; i < 20; i++ {
+		other := buildWith(types, mkHandle("A", "a"), resolver, opts)
+		if !reflect.DeepEqual(first.Graph.Edges, other.Graph.Edges) {
+			t.Fatalf("iteration %d: edges differ: first=%+v other=%+v", i, first.Graph.Edges, other.Graph.Edges)
+		}
+		if !reflect.DeepEqual(first.Truncations, other.Truncations) {
+			t.Fatalf("iteration %d: truncations differ: first=%+v other=%+v", i, first.Truncations, other.Truncations)
+		}
+	}
+	if len(first.Truncations) != 3 || first.Truncations[0].Kind != TruncationMaxDepth || first.Truncations[1].Kind != TruncationMaxDepth || first.Truncations[2].Kind != TruncationMaxNodes {
+		t.Fatalf("truncations = %+v, want deterministic maxDepth then maxNodes order", first.Truncations)
+	}
+}
+
 func TestBuildLongChainShortcutAdmittedAtLowerDepth(t *testing.T) {
 	// Mixed: Top.go -> Long.step1 -> Long.step2 -> Long.step3 -> Long.target
 	//        Top.go -> Shortcut.jump -> Long.target (shorter path, depth 2)
@@ -273,11 +382,11 @@ func TestBuildLongChainShortcutAdmittedAtLowerDepth(t *testing.T) {
 		mkType("Shortcut", mkMethod("jump", mkCall("targetHit"))),
 	}
 	resolver := stubResolver{rules: map[string]resolve.Resolution{
-		"step1":      resolution(mkHandle("Long", "step1")),
-		"step2":      resolution(mkHandle("Long", "step2")),
-		"step3":      resolution(mkHandle("Long", "step3")),
-		"targetHit":  resolution(mkHandle("Long", "targetHit")),
-		"jump":       resolution(mkHandle("Shortcut", "jump")),
+		"step1":     resolution(mkHandle("Long", "step1")),
+		"step2":     resolution(mkHandle("Long", "step2")),
+		"step3":     resolution(mkHandle("Long", "step3")),
+		"targetHit": resolution(mkHandle("Long", "targetHit")),
+		"jump":      resolution(mkHandle("Shortcut", "jump")),
 	}}
 
 	result := buildWith(types, mkHandle("Top", "go"), resolver, BuildOptions{MaxDepth: 3})
@@ -289,6 +398,72 @@ func TestBuildLongChainShortcutAdmittedAtLowerDepth(t *testing.T) {
 	for _, tr := range result.Truncations {
 		if tr.Caller == mkHandle("Long", "targetHit") {
 			t.Fatalf("target should not be a truncation caller: %+v", tr)
+		}
+	}
+}
+
+func TestBuildShorterReplanControlsMaxDepthAndOutput(t *testing.T) {
+	types := []*java.TypeDecl{
+		// The deep route is listed first in source order. The shorter route must
+		// still determine the target's effective depth before its stale item is
+		// processed.
+		mkType("Top", mkMethod("go", mkCall("deepEntry"), mkCall("shortEntry"))),
+		mkType("Deep",
+			mkMethod("entry", mkCall("deepStep")),
+			mkMethod("step", mkCall("hit")),
+		),
+		mkType("Short", mkMethod("entry", mkCall("hit"))),
+		mkType("Target", mkMethod("hit", mkCall("leaf")), mkMethod("leaf", mkCall("beyond"))),
+		mkType("Beyond", mkMethod("end")),
+	}
+	resolver := stubResolver{rules: map[string]resolve.Resolution{
+		"deepEntry":  resolution(mkHandle("Deep", "entry")),
+		"shortEntry": resolution(mkHandle("Short", "entry")),
+		"deepStep":   resolution(mkHandle("Deep", "step")),
+		"hit":        resolution(mkHandle("Target", "hit")),
+		"leaf":       resolution(mkHandle("Target", "leaf")),
+		"beyond":     resolution(mkHandle("Beyond", "end")),
+	}}
+	opts := BuildOptions{MaxDepth: 3}
+	first := buildWith(types, mkHandle("Top", "go"), resolver, opts)
+
+	target := mkHandle("Target", "hit")
+	leaf := mkHandle("Target", "leaf")
+	if _, ok := first.Graph.Nodes[target]; !ok {
+		t.Fatalf("target must be admitted: %+v", keysOf(first.Graph))
+	}
+	if _, ok := first.Graph.Nodes[leaf]; !ok {
+		t.Fatalf("target must expand through the shorter route: %+v", keysOf(first.Graph))
+	}
+	if len(first.Graph.Nodes) != 6 {
+		t.Fatalf("nodes = %+v, want six unique admitted nodes", keysOf(first.Graph))
+	}
+	if len(first.Graph.Edges) != 6 {
+		t.Fatalf("edges = %+v, want six unique topology edges", first.Graph.Edges)
+	}
+	targetLeafEdges := 0
+	for _, edge := range first.Graph.Edges {
+		if edge.From == target && edge.To == leaf {
+			targetLeafEdges++
+		}
+	}
+	if targetLeafEdges != 1 {
+		t.Fatalf("target -> leaf edges = %d, want 1: %+v", targetLeafEdges, first.Graph.Edges)
+	}
+	if len(first.Truncations) != 1 || first.Truncations[0].Kind != TruncationMaxDepth || first.Truncations[0].Caller != leaf {
+		t.Fatalf("truncations = %+v, want one maxDepth entry for Target.leaf", first.Truncations)
+	}
+
+	for i := 0; i < 20; i++ {
+		other := buildWith(types, mkHandle("Top", "go"), resolver, opts)
+		if !reflect.DeepEqual(first.Graph.Edges, other.Graph.Edges) {
+			t.Fatalf("iteration %d: edges differ: first=%+v other=%+v", i, first.Graph.Edges, other.Graph.Edges)
+		}
+		if !reflect.DeepEqual(keysOf(first.Graph), keysOf(other.Graph)) {
+			t.Fatalf("iteration %d: nodes differ", i)
+		}
+		if !reflect.DeepEqual(first.Truncations, other.Truncations) {
+			t.Fatalf("iteration %d: truncations differ: first=%+v other=%+v", i, first.Truncations, other.Truncations)
 		}
 	}
 }

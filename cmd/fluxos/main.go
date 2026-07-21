@@ -19,6 +19,7 @@ import (
 	renderjson "github.com/lucas-garcia-rubio/fluxos/internal/render/json"
 	"github.com/lucas-garcia-rubio/fluxos/internal/render/mermaid"
 	"github.com/lucas-garcia-rubio/fluxos/internal/resolve"
+	"github.com/lucas-garcia-rubio/fluxos/internal/trace"
 	tree_sitter "github.com/tree-sitter/go-tree-sitter"
 )
 
@@ -86,11 +87,20 @@ func buildTraceSnapshot(opts TraceOptions) (render.Snapshot, error) {
 		return render.Snapshot{}, err
 	}
 
-	resolver := resolve.NewSyntacticResolverWithPolicy(table, policy)
-	result := graph.Build(target.Execution, table, resolver, graph.BuildOptions{
-		MaxDepth: opts.MaxDepth,
-		MaxNodes: opts.MaxNodes,
+	result, err := (trace.Coordinator{}).Build(trace.Request{
+		Root:  target.Execution,
+		Table: table,
+		BuildOptions: graph.BuildOptions{
+			MaxDepth: opts.MaxDepth,
+			MaxNodes: opts.MaxNodes,
+		},
+		MaxImpls:   opts.MaxImpls,
+		BasePolicy: policy,
+		Selector:   nil,
 	})
+	if err != nil {
+		return render.Snapshot{}, err
+	}
 	return render.NewResultSnapshot(result, target.Execution), nil
 }
 

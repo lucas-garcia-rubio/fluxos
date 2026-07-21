@@ -15,10 +15,6 @@ func policyCandidates() []ImplementationCandidate {
 	}
 }
 
-func receiverType(fqcn string) *java.TypeDecl {
-	return &java.TypeDecl{Kind: java.TypeKindInterface, Name: fqcn, FQCN: fqcn}
-}
-
 func policyCaller() ExecutionKey {
 	return ExecutionKey{
 		Method:          MethodHandle{TypeFQCN: "app.Workflow", Method: "start", Signature: "()"},
@@ -30,241 +26,162 @@ func policyCall() java.CallSite {
 	return java.CallSite{MethodName: "run", File: "App.java", StartByte: 100}
 }
 
+func policySite(candidates []ImplementationCandidate) *DispatchSite {
+	return NewDispatchSite(policyCaller(), "Contract", "run", "()", policyCall(), candidates)
+}
+
 func TestTerminalPolicyProducesAmbiguousTerminalWithNoFanOut(t *testing.T) {
-	policy := TerminalPolicy{}
-	decision := policy.Apply(policyCaller(), receiverType("Contract"), policyCall(), policyCandidates())
-	if len(decision.Targets) != 0 {
-		t.Fatalf("TerminalPolicy must not fan out: %+v", decision.Targets)
+	decision := (TerminalPolicy{}).Apply(policySite(policyCandidates()))
+	if len(decision.Targets) != 1 {
+		t.Fatalf("TerminalPolicy must produce one terminal: %+v", decision.Targets)
 	}
-	if decision.Terminal == nil {
-		t.Fatal("TerminalPolicy must produce a terminal")
+	terminal := decision.Targets[0]
+	if terminal.Kind != ResolutionAmbiguousImplementation {
+		t.Fatalf("kind = %v, want AmbiguousImplementation", terminal.Kind)
 	}
-	if decision.Terminal.Kind != ResolutionAmbiguousImplementation {
-		t.Fatalf("kind = %v, want AmbiguousImplementation", decision.Terminal.Kind)
-	}
-	if !strings.HasPrefix(decision.Terminal.Key.Method.TypeFQCN, "Contract#ambimpl#") {
-		t.Fatalf("terminal receiver = %q, want Contract#ambimpl# prefix", decision.Terminal.Key.Method.TypeFQCN)
+	if !strings.HasPrefix(terminal.Key.Method.TypeFQCN, "Contract#ambimpl#") {
+		t.Fatalf("terminal receiver = %q, want Contract#ambimpl# prefix", terminal.Key.Method.TypeFQCN)
 	}
 	if decision.Omitted != 0 {
 		t.Fatalf("TerminalPolicy never omits: got %d", decision.Omitted)
 	}
 }
 
-func TestAllPolicyFansOutToConcreteTargets(t *testing.T) {
-	policy := AllPolicy{}
-	decision := policy.Apply(policyCaller(), receiverType("Contract"), policyCall(), policyCandidates())
-	if len(decision.Targets) != 3 {
-		t.Fatalf("targets = %+v, want 3", decision.Targets)
-	}
-	if decision.Terminal != nil {
-		t.Fatalf("no terminal expected when all candidates are concrete: %+v", decision.Terminal)
-	}
-	for i, target := range decision.Targets {
-		if target.Kind != ResolutionConcrete {
-			t.Fatalf("target %d kind = %v, want Concrete", i, target.Kind)
-		}
-		want := ExecutionKey{
-			Method:          MethodHandle{TypeFQCN: "Contract", Method: "run", Signature: "()"},
-			RuntimeTypeFQCN: target.Key.RuntimeTypeFQCN,
-		}
-		if target.Key.Method != want.Method {
-			t.Fatalf("target %d method = %+v, want %+v", i, target.Key.Method, want.Method)
-		}
-	}
-}
-
-func TestAllPolicyPreservesRuntimeContextPerImpl(t *testing.T) {
-	policy := AllPolicy{}
-	decision := policy.Apply(policyCaller(), receiverType("Contract"), policyCall(), policyCandidates())
-	if len(decision.Targets) != 3 {
-		t.Fatalf("targets = %+v", decision.Targets)
-	}
-	runtimes := map[string]bool{}
-	for _, target := range decision.Targets {
-		runtimes[target.Key.RuntimeTypeFQCN] = true
-	}
-	for _, want := range []string{"a.Impl", "b.Impl", "c.Impl"} {
-		if !runtimes[want] {
-			t.Fatalf("missing runtime context %q in %+v", want, runtimes)
-		}
-	}
-}
-
-func TestAllPolicyAppliesMaxImplsAndReportsOmitted(t *testing.T) {
-	policy := AllPolicy{MaxImpls: 2}
-	decision := policy.Apply(policyCaller(), receiverType("Contract"), policyCall(), policyCandidates())
-	if len(decision.Targets) != 2 {
-		t.Fatalf("targets = %+v, want 2 (admitted by MaxImpls)", decision.Targets)
-	}
-	if decision.Omitted != 1 {
-		t.Fatalf("omitted = %d, want 1", decision.Omitted)
-	}
-}
-
-func TestAllPolicyMaxImplsZeroMeansUnlimited(t *testing.T) {
-	policy := AllPolicy{MaxImpls: 0}
-	decision := policy.Apply(policyCaller(), receiverType("Contract"), policyCall(), policyCandidates())
-	if len(decision.Targets) != 3 {
-		t.Fatalf("MaxImpls=0 should admit all: %+v", decision.Targets)
-	}
-	if decision.Omitted != 0 {
-		t.Fatalf("omitted = %d, want 0", decision.Omitted)
-	}
-}
-
-func TestAllPolicyAdmitsInCanonicalOrder(t *testing.T) {
-	// candidates fora de ordem canonical; AllPolicy não reordena, mas deve
-	// preservar a ordem recebida. Ordenação final é responsabilidade do
-	// Build/snapshot. Verificamos aqui a estabilidade da policy.
+func TestAllPolicyFansOutConcreteTargetsInCanonicalOrderWithRuntimeContext(t *testing.T) {
 	candidates := []ImplementationCandidate{
 		{ImplementationFQCN: "z.Impl", Target: MethodHandle{TypeFQCN: "Contract", Method: "run", Signature: "()"}, Kind: ResolutionConcrete},
 		{ImplementationFQCN: "a.Impl", Target: MethodHandle{TypeFQCN: "Contract", Method: "run", Signature: "()"}, Kind: ResolutionConcrete},
 	}
-	policy := AllPolicy{}
-	decision := policy.Apply(policyCaller(), receiverType("Contract"), policyCall(), candidates)
-	if len(decision.Targets) != 2 {
-		t.Fatalf("targets = %+v", decision.Targets)
+	decision := (AllPolicy{}).Apply(policySite(candidates))
+	if len(decision.Targets) != 2 || decision.Omitted != 0 {
+		t.Fatalf("decision = %+v", decision)
 	}
-	if decision.Targets[0].Key.RuntimeTypeFQCN != "z.Impl" {
-		t.Fatalf("order not preserved: %+v", decision.Targets)
+	for i, want := range []string{"a.Impl", "z.Impl"} {
+		target := decision.Targets[i]
+		if target.Kind != ResolutionConcrete || target.Key.RuntimeTypeFQCN != want {
+			t.Fatalf("target %d = %+v, want concrete runtime %q", i, target, want)
+		}
 	}
 }
 
-func TestAllPolicyTurnsNonConcreteCandidateIntoIsolatedTerminal(t *testing.T) {
+func TestAllPolicyMaxImplsCountsNonConcreteCandidatesAndEmitsEachAdmittedResult(t *testing.T) {
 	candidates := []ImplementationCandidate{
-		{ImplementationFQCN: "good.Impl", Target: MethodHandle{TypeFQCN: "Contract", Method: "run", Signature: "()"}, Kind: ResolutionConcrete},
-		{ImplementationFQCN: "broken.Impl", Kind: ResolutionNoImplementation, Note: "method missing"},
+		{ImplementationFQCN: "a.Broken", Kind: ResolutionNoImplementation, Note: "method missing"},
+		{ImplementationFQCN: "b.Good", Target: MethodHandle{TypeFQCN: "Contract", Method: "run", Signature: "()"}, Kind: ResolutionConcrete},
+		{ImplementationFQCN: "c.Broken", Kind: ResolutionUnresolved, Note: "not reachable"},
 	}
-	policy := AllPolicy{}
-	decision := policy.Apply(policyCaller(), receiverType("Contract"), policyCall(), candidates)
-	if len(decision.Targets) != 1 {
-		t.Fatalf("targets = %+v, want 1 concrete", decision.Targets)
+	decision := (AllPolicy{MaxImpls: 2}).Apply(policySite(candidates))
+	if len(decision.Targets) != 2 || decision.Omitted != 1 {
+		t.Fatalf("decision = %+v, want two admitted and one omitted", decision)
 	}
-	if decision.Terminal == nil || decision.Terminal.Kind != ResolutionNoImplementation {
-		t.Fatalf("terminal = %+v, want NoImplementation", decision.Terminal)
+	if decision.Targets[0].Kind != ResolutionNoImplementation || decision.Targets[1].Kind != ResolutionConcrete {
+		t.Fatalf("admitted results = %+v", decision.Targets)
+	}
+}
+
+func TestAllPolicyMaxImplsZeroMeansUnlimited(t *testing.T) {
+	decision := (AllPolicy{MaxImpls: 0}).Apply(policySite(policyCandidates()))
+	if len(decision.Targets) != 3 || decision.Omitted != 0 {
+		t.Fatalf("MaxImpls=0 decision = %+v", decision)
 	}
 }
 
 func TestAllPolicyEmptyCandidatesReturnsEmpty(t *testing.T) {
-	policy := AllPolicy{}
-	decision := policy.Apply(policyCaller(), receiverType("Contract"), policyCall(), nil)
-	if len(decision.Targets) != 0 || decision.Terminal != nil || decision.Omitted != 0 {
+	decision := (AllPolicy{}).Apply(policySite(nil))
+	if len(decision.Targets) != 0 || decision.Omitted != 0 {
 		t.Fatalf("decision = %+v, want empty", decision)
 	}
 }
 
 func TestFixedPolicyNoneKeepsAmbiguousTerminal(t *testing.T) {
 	policy := FixedPolicy{Choices: map[string]FixedChoice{"Contract": {Kind: FixedChoiceNone}}}
-	decision := policy.Apply(policyCaller(), receiverType("Contract"), policyCall(), policyCandidates())
-	if len(decision.Targets) != 0 || decision.Terminal == nil || decision.Terminal.Kind != ResolutionAmbiguousImplementation || decision.Omitted != 0 {
+	decision := policy.Apply(policySite(policyCandidates()))
+	if len(decision.Targets) != 1 || decision.Targets[0].Kind != ResolutionAmbiguousImplementation || decision.Omitted != 0 {
 		t.Fatalf("None must preserve the ambiguous terminal: %+v", decision)
 	}
 }
 
-func TestFixedPolicyAllAdmitsEveryConcreteCandidate(t *testing.T) {
-	policy := FixedPolicy{Choices: map[string]FixedChoice{"Contract": {Kind: FixedChoiceAll}}}
-	decision := policy.Apply(policyCaller(), receiverType("Contract"), policyCall(), policyCandidates())
-	if len(decision.Targets) != 3 {
-		t.Fatalf("All should fan out to all 3 concrete candidates: %+v", decision.Targets)
+func TestFixedPolicyAllAndExplicitUseOnlyTheirSelectedCandidates(t *testing.T) {
+	all := (FixedPolicy{Choices: map[string]FixedChoice{"Contract": {Kind: FixedChoiceAll}}}).Apply(policySite(policyCandidates()))
+	if len(all.Targets) != 3 {
+		t.Fatalf("All should fan out to all candidates: %+v", all.Targets)
 	}
-	if decision.Terminal != nil {
-		t.Fatalf("All should not produce terminal when all candidates are concrete: %+v", decision.Terminal)
-	}
-}
 
-func TestFixedPolicyExplicitAdmitsOnlyListedImpls(t *testing.T) {
-	policy := FixedPolicy{Choices: map[string]FixedChoice{
+	explicit := (FixedPolicy{Choices: map[string]FixedChoice{
 		"Contract": {Kind: FixedChoiceExplicit, Impls: []string{"a.Impl", "c.Impl"}},
-	}}
-	decision := policy.Apply(policyCaller(), receiverType("Contract"), policyCall(), policyCandidates())
-	if len(decision.Targets) != 2 {
-		t.Fatalf("Explicit should admit only listed impls: %+v", decision.Targets)
-	}
-	for _, target := range decision.Targets {
-		if target.Key.RuntimeTypeFQCN == "b.Impl" {
-			t.Fatalf("b.Impl should not be admitted: %+v", decision.Targets)
-		}
+	}}).Apply(policySite(policyCandidates()))
+	if len(explicit.Targets) != 2 || explicit.Targets[0].Key.RuntimeTypeFQCN != "a.Impl" || explicit.Targets[1].Key.RuntimeTypeFQCN != "c.Impl" {
+		t.Fatalf("Explicit targets = %+v", explicit.Targets)
 	}
 }
 
-func TestFixedPolicyPreservesRuntimeContextPerImpl(t *testing.T) {
-	policy := FixedPolicy{Choices: map[string]FixedChoice{"Contract": {Kind: FixedChoiceAll}}}
-	decision := policy.Apply(policyCaller(), receiverType("Contract"), policyCall(), policyCandidates())
-	runtimes := map[string]bool{}
-	for _, target := range decision.Targets {
-		runtimes[target.Key.RuntimeTypeFQCN] = true
+func TestFixedPolicyExplicitBrokenSelectedCandidateDoesNotLeakUnselectedTerminal(t *testing.T) {
+	candidates := []ImplementationCandidate{
+		{ImplementationFQCN: "a.Good", Target: MethodHandle{TypeFQCN: "Contract", Method: "run", Signature: "()"}, Kind: ResolutionConcrete},
+		{ImplementationFQCN: "b.Broken", Kind: ResolutionNoImplementation, Note: "unselected"},
+		{ImplementationFQCN: "c.Broken", Kind: ResolutionUnresolved, Note: "selected"},
 	}
-	for _, want := range []string{"a.Impl", "b.Impl", "c.Impl"} {
-		if !runtimes[want] {
-			t.Fatalf("missing runtime %q in %+v", want, runtimes)
-		}
+	policy := FixedPolicy{Choices: map[string]FixedChoice{
+		"Contract": {Kind: FixedChoiceExplicit, Impls: []string{"c.Broken"}},
+	}}
+	decision := policy.Apply(policySite(candidates))
+	if len(decision.Targets) != 1 || decision.Targets[0].Kind != ResolutionUnresolved || decision.Targets[0].Key.RuntimeTypeFQCN != "c.Broken" {
+		t.Fatalf("selected broken decision = %+v", decision)
 	}
 }
 
 func TestFixedPolicyFallsBackForUnmappedReceiver(t *testing.T) {
-	fallback := TerminalPolicy{}
 	policy := FixedPolicy{
 		Choices:  map[string]FixedChoice{"Other": {Kind: FixedChoiceAll}},
-		Fallback: fallback,
+		Fallback: TerminalPolicy{},
 	}
-	decision := policy.Apply(policyCaller(), receiverType("Contract"), policyCall(), policyCandidates())
-	if decision.Terminal == nil || decision.Terminal.Kind != ResolutionAmbiguousImplementation {
+	decision := policy.Apply(policySite(policyCandidates()))
+	if len(decision.Targets) != 1 || decision.Targets[0].Kind != ResolutionAmbiguousImplementation {
 		t.Fatalf("unmapped receiver must fall back to TerminalPolicy: %+v", decision)
 	}
 }
 
 func TestFixedPolicyDefaultsToTerminalPolicyWhenFallbackIsNil(t *testing.T) {
-	policy := FixedPolicy{Choices: map[string]FixedChoice{}}
-	decision := policy.Apply(policyCaller(), receiverType("Contract"), policyCall(), policyCandidates())
-	if decision.Terminal == nil {
+	decision := (FixedPolicy{Choices: map[string]FixedChoice{}}).Apply(policySite(policyCandidates()))
+	if len(decision.Targets) != 1 || decision.Targets[0].Kind != ResolutionAmbiguousImplementation {
 		t.Fatalf("nil Fallback must default to TerminalPolicy: %+v", decision)
 	}
 }
 
-func TestFixedPolicyExplicitAdmitsPreservingOrderFromCandidates(t *testing.T) {
-	candidates := []ImplementationCandidate{
-		{ImplementationFQCN: "z.Impl", Target: MethodHandle{TypeFQCN: "Contract", Method: "run", Signature: "()"}, Kind: ResolutionConcrete},
-		{ImplementationFQCN: "a.Impl", Target: MethodHandle{TypeFQCN: "Contract", Method: "run", Signature: "()"}, Kind: ResolutionConcrete},
-		{ImplementationFQCN: "m.Impl", Target: MethodHandle{TypeFQCN: "Contract", Method: "run", Signature: "()"}, Kind: ResolutionConcrete},
+func TestSitePolicyUsesSiteIDPrecedenceAndFallback(t *testing.T) {
+	site := policySite(policyCandidates())
+	policy := SitePolicy{
+		Choices: map[DispatchSiteID]DispatchChoice{
+			site.ID: {Mode: ChoiceModeSelected, ImplementationFQCN: "b.Impl"},
+		},
+		Fallback: AllPolicy{},
 	}
-	policy := FixedPolicy{Choices: map[string]FixedChoice{
-		"Contract": {Kind: FixedChoiceExplicit, Impls: []string{"m.Impl", "z.Impl"}},
-	}}
-	decision := policy.Apply(policyCaller(), receiverType("Contract"), policyCall(), candidates)
-	if len(decision.Targets) != 2 {
-		t.Fatalf("targets = %+v", decision.Targets)
+	decision := policy.Apply(site)
+	if len(decision.Targets) != 1 || decision.Targets[0].Key.RuntimeTypeFQCN != "b.Impl" {
+		t.Fatalf("site choice should take precedence: %+v", decision)
 	}
-	// ordem segue a do slice de candidates recebido (z, m)
-	if decision.Targets[0].Key.RuntimeTypeFQCN != "z.Impl" || decision.Targets[1].Key.RuntimeTypeFQCN != "m.Impl" {
-		t.Fatalf("order not preserved: %+v", decision.Targets)
+
+	other := policySite(policyCandidates())
+	other.ID = "other-site"
+	decision = policy.Apply(other)
+	if len(decision.Targets) != 3 {
+		t.Fatalf("unmapped site should use fallback: %+v", decision)
 	}
 }
 
-func TestFixedPolicyExplicitTurnsNonConcreteIntoTerminal(t *testing.T) {
-	candidates := []ImplementationCandidate{
-		{ImplementationFQCN: "good.Impl", Target: MethodHandle{TypeFQCN: "Contract", Method: "run", Signature: "()"}, Kind: ResolutionConcrete},
-		{ImplementationFQCN: "broken.Impl", Kind: ResolutionNoImplementation, Note: "missing"},
+func TestSitePolicySelectedBrokenCandidateDoesNotLeakUnselectedTerminal(t *testing.T) {
+	site := policySite([]ImplementationCandidate{
+		{ImplementationFQCN: "a.Broken", Kind: ResolutionNoImplementation, Note: "unselected"},
+		{ImplementationFQCN: "b.Broken", Kind: ResolutionUnresolved, Note: "selected"},
+		{ImplementationFQCN: "c.Good", Target: MethodHandle{TypeFQCN: "Contract", Method: "run", Signature: "()"}, Kind: ResolutionConcrete},
+	})
+	policy := SitePolicy{
+		Choices: map[DispatchSiteID]DispatchChoice{
+			site.ID: {Mode: ChoiceModeSelected, ImplementationFQCN: "b.Broken"},
+		},
 	}
-	policy := FixedPolicy{Choices: map[string]FixedChoice{
-		"Contract": {Kind: FixedChoiceExplicit, Impls: []string{"good.Impl"}},
-	}}
-	decision := policy.Apply(policyCaller(), receiverType("Contract"), policyCall(), candidates)
-	if len(decision.Targets) != 1 {
-		t.Fatalf("targets = %+v", decision.Targets)
-	}
-	if decision.Terminal == nil || decision.Terminal.Kind != ResolutionNoImplementation {
-		t.Fatalf("terminal = %+v, want NoImplementation", decision.Terminal)
-	}
-}
-
-func TestFixedPolicyAllAppliesMaxImpls(t *testing.T) {
-	policy := FixedPolicy{
-		Choices:  map[string]FixedChoice{"Contract": {Kind: FixedChoiceAll}},
-		Fallback: TerminalPolicy{},
-		MaxImpls: 1,
-	}
-	decision := policy.Apply(policyCaller(), receiverType("Contract"), policyCall(), policyCandidates())
-	if len(decision.Targets) != 1 || decision.Omitted != 2 {
-		t.Fatalf("mapped all must honor MaxImpls: %+v", decision)
+	decision := policy.Apply(site)
+	if len(decision.Targets) != 1 || decision.Targets[0].Kind != ResolutionUnresolved || decision.Targets[0].Key.RuntimeTypeFQCN != "b.Broken" {
+		t.Fatalf("selected site decision = %+v", decision)
 	}
 }

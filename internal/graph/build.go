@@ -32,8 +32,11 @@ func Build(root resolve.ExecutionKey, table *index.Table, resolver resolve.Resol
 	g := NewGraph()
 	result := BuildResult{Graph: g, Truncations: []Truncation{}}
 
-	// Phase 1 — planning por menor depth.
-	admitted := map[resolve.ExecutionKey]int{root: 0}
+	// Phase 1 — planning por menor depth. planned contains every analysis node
+	// that may be emitted, including terminal and external targets. concreteDepth
+	// is kept separately because only concrete targets enter the frontier.
+	planned := map[resolve.ExecutionKey]struct{}{root: {}}
+	concreteDepth := map[resolve.ExecutionKey]int{root: 0}
 	plans := map[resolve.ExecutionKey]*resolvedPlan{}
 	terminals := map[resolve.ExecutionKey]terminalMarker{}
 	truncationSet := map[string]Truncation{}
@@ -45,7 +48,7 @@ func Build(root resolve.ExecutionKey, table *index.Table, resolver resolve.Resol
 	for frontier.Len() > 0 {
 		item := heap.Pop(frontier).(*frontierItem)
 		key, depth := item.key, item.depth
-		if existing, ok := admitted[key]; ok && existing < depth {
+		if existing, ok := concreteDepth[key]; ok && existing < depth {
 			continue
 		}
 
@@ -58,7 +61,7 @@ func Build(root resolve.ExecutionKey, table *index.Table, resolver resolve.Resol
 		}
 
 		if opts.MaxDepth > 0 && depth >= opts.MaxDepth {
-			recordMaxDepthTruncations(&result, truncationSet, key, plan, admitted)
+			recordMaxDepthTruncations(truncationSet, key, plan)
 			continue
 		}
 
@@ -71,19 +74,30 @@ func Build(root resolve.ExecutionKey, table *index.Table, resolver resolve.Resol
 			}
 			omittedHere := 0
 			for _, target := range pc.targets {
-				if target.Kind != resolve.ResolutionConcrete {
-					registerTerminal(terminals, target, pc.site)
+				if _, seen := planned[target.Key]; seen {
+					if target.Kind == resolve.ResolutionConcrete {
+						candidateDepth := depth + 1
+						if existing, ok := concreteDepth[target.Key]; ok && candidateDepth < existing {
+							concreteDepth[target.Key] = candidateDepth
+							heap.Push(frontier, &frontierItem{key: target.Key, depth: candidateDepth})
+						}
+					} else {
+						registerTerminal(terminals, target, pc.site)
+					}
 					continue
 				}
-				if _, seen := admitted[target.Key]; seen {
-					continue
-				}
-				if opts.MaxNodes > 0 && len(admitted)+1 > opts.MaxNodes {
+				if opts.MaxNodes > 0 && len(planned)+1 > opts.MaxNodes {
 					omittedHere++
 					continue
 				}
-				admitted[target.Key] = depth + 1
-				heap.Push(frontier, &frontierItem{key: target.Key, depth: depth + 1})
+
+				planned[target.Key] = struct{}{}
+				if target.Kind == resolve.ResolutionConcrete {
+					concreteDepth[target.Key] = depth + 1
+					heap.Push(frontier, &frontierItem{key: target.Key, depth: depth + 1})
+				} else {
+					registerTerminal(terminals, target, pc.site)
+				}
 			}
 			if omittedHere > 0 {
 				recordTruncation(truncationSet, Truncation{
@@ -94,7 +108,7 @@ func Build(root resolve.ExecutionKey, table *index.Table, resolver resolve.Resol
 	}
 
 	// Phase 2 — emission DFS sobre keys admitidas, em ordem source.
-	emit(g, root, plans, admitted, terminals)
+	emit(g, root, plans, planned, concreteDepth, terminals, opts.MaxDepth)
 
 	result.Truncations = make([]Truncation, 0, len(truncationSet))
 	for _, t := range truncationSet {
@@ -113,9 +127,9 @@ type resolvedPlan struct {
 }
 
 type planCall struct {
-	call             java.CallSite
-	site             *resolve.DispatchSite
-	targets          []resolve.ResolvedTarget
+	call              java.CallSite
+	site              *resolve.DispatchSite
+	targets           []resolve.ResolvedTarget
 	policyTruncations []resolve.PolicyTruncation
 }
 
@@ -174,22 +188,12 @@ func registerTerminal(terminals map[resolve.ExecutionKey]terminalMarker, target 
 	}
 }
 
-func recordMaxDepthTruncations(result *BuildResult, set map[string]Truncation, caller resolve.ExecutionKey, plan *resolvedPlan, admitted map[resolve.ExecutionKey]int) {
+func recordMaxDepthTruncations(set map[string]Truncation, caller resolve.ExecutionKey, plan *resolvedPlan) {
 	for i := range plan.calls {
 		pc := plan.calls[i]
-		omitted := 0
-		for _, target := range pc.targets {
-			if target.Kind != resolve.ResolutionConcrete {
-				continue
-			}
-			if _, seen := admitted[target.Key]; seen {
-				continue
-			}
-			omitted++
-		}
-		if omitted > 0 {
+		if len(pc.targets) > 0 {
 			recordTruncation(set, Truncation{
-				Kind: TruncationMaxDepth, Caller: caller, Call: pc.call, Omitted: omitted,
+				Kind: TruncationMaxDepth, Caller: caller, Call: pc.call, Omitted: len(pc.targets),
 			})
 		}
 	}
@@ -207,7 +211,10 @@ func recordTruncation(set map[string]Truncation, t Truncation) {
 	set[id] = t
 }
 
-func emit(g *Graph, key resolve.ExecutionKey, plans map[resolve.ExecutionKey]*resolvedPlan, admitted map[resolve.ExecutionKey]int, terminals map[resolve.ExecutionKey]terminalMarker) {
+func emit(g *Graph, key resolve.ExecutionKey, plans map[resolve.ExecutionKey]*resolvedPlan, planned map[resolve.ExecutionKey]struct{}, concreteDepth map[resolve.ExecutionKey]int, terminals map[resolve.ExecutionKey]terminalMarker, maxDepth int) {
+	if _, ok := planned[key]; !ok {
+		return
+	}
 	if g.IsGray(key) || g.IsBlack(key) {
 		return
 	}
@@ -219,23 +226,33 @@ func emit(g *Graph, key resolve.ExecutionKey, plans map[resolve.ExecutionKey]*re
 		return
 	}
 	g.MarkGray(key)
+	if maxDepth > 0 && concreteDepth[key] >= maxDepth {
+		g.MarkBlack(key)
+		return
+	}
 	for i := range plan.calls {
 		pc := plan.calls[i]
 		for _, target := range pc.targets {
 			switch target.Kind {
 			case resolve.ResolutionConcrete:
-				if _, ok := admitted[target.Key]; !ok {
+				if _, ok := planned[target.Key]; !ok {
 					continue
 				}
 				cycle := g.IsGray(target.Key)
 				g.AddEdge(key, target.Key, pc.call, pc.site, cycle)
 				if !cycle {
-					emit(g, target.Key, plans, admitted, terminals)
+					emit(g, target.Key, plans, planned, concreteDepth, terminals, maxDepth)
 				}
 			case resolve.ResolutionExternal:
+				if _, ok := planned[target.Key]; !ok {
+					continue
+				}
 				g.AddEdge(key, target.Key, pc.call, pc.site, false)
 				g.MarkExternal(target.Key)
 			default:
+				if _, ok := planned[target.Key]; !ok {
+					continue
+				}
 				g.AddEdge(key, target.Key, pc.call, pc.site, false)
 				info := terminals[target.Key]
 				g.MarkTerminal(target.Key, info.kind, info.note, info.candidates)

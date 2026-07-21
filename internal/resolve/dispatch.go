@@ -147,23 +147,20 @@ func (r *SyntacticResolver) dispatchPolymorphicSelection(
 		if caller.RuntimeTypeFQCN == "" {
 			caller.RuntimeTypeFQCN = contextRuntime(ctx)
 		}
-		policy := r.policy()
-		decision := policy.Apply(caller, typ, call, candidates)
-		resolution := Resolution{DispatchSite: NewDispatchSite(caller, typ.FQCN, call.MethodName, signature, call, candidates)}
+		site := NewDispatchSite(caller, typ.FQCN, call.MethodName, signature, call, candidates)
+		decision := r.policy().Apply(site)
+		resolution := Resolution{DispatchSite: site}
 		resolution.Targets = append(resolution.Targets, decision.Targets...)
-		if decision.Terminal != nil {
-			resolution.Targets = append(resolution.Targets, *decision.Terminal)
-		}
 		if len(resolution.Targets) == 0 {
-			fallback := TerminalPolicy{}.Apply(caller, typ, call, candidates)
-			resolution.Targets = append(resolution.Targets, *fallback.Terminal)
+			fallback := TerminalPolicy{}.Apply(site)
+			resolution.Targets = append(resolution.Targets, fallback.Targets...)
 		}
 		if decision.Omitted > 0 {
 			resolution.Truncations = append(resolution.Truncations, PolicyTruncation{
-				Caller:  caller,
-				Call:    call,
+				Caller:  site.Caller,
+				Call:    site.Call,
 				Omitted: decision.Omitted,
-				Note:    fmt.Sprintf("limited by --max-impls on %s", typ.FQCN),
+				Note:    fmt.Sprintf("limited by --max-impls on %s", site.ReceiverFQCN),
 			})
 		}
 		return resolution

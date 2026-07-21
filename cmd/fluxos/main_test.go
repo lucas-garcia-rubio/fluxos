@@ -308,6 +308,29 @@ func TestBuildTraceSnapshotPreservesInheritedDeclaringTarget(t *testing.T) {
 	}
 }
 
+func TestBuildTraceSnapshotCoordinatorKeepsDefaultOutput(t *testing.T) {
+	root := traceFixtureRoot()
+	opts, err := parseTraceOptions([]string{"Workflow.start", root})
+	if err != nil {
+		t.Fatalf("parseTraceOptions: %v", err)
+	}
+	snapshot, err := buildTraceSnapshot(opts)
+	if err != nil {
+		t.Fatalf("buildTraceSnapshot: %v", err)
+	}
+	var out bytes.Buffer
+	if err := renderTrace(&out, snapshot, opts); err != nil {
+		t.Fatalf("renderTrace: %v", err)
+	}
+	want, err := os.ReadFile(filepath.Join(root, "expected.mmd"))
+	if err != nil {
+		t.Fatalf("read golden: %v", err)
+	}
+	if out.String() != string(want) {
+		t.Fatalf("coordinator changed default output:\ngot:\n%s\nwant:\n%s", out.String(), want)
+	}
+}
+
 func TestBuildIndexPolymorphismFixture(t *testing.T) {
 	_, table, err := buildIndex(m3FixtureRoot("polymorphism"), project.ScopeModeMain)
 	if err != nil {
