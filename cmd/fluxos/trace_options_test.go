@@ -171,7 +171,7 @@ func TestParseTraceOptionsRejectsConflictsBeforeSupportGate(t *testing.T) {
 		args []string
 		want string
 	}{
-		{args: []string{"--all-impls", "--pick-impls=x.Y", "app.Workflow.start"}, want: "cannot be combined"},
+		{args: []string{"--all-impls", "--pick-impls=contract.A=app.Impl", "app.Workflow.start"}, want: "cannot be combined"},
 		{args: []string{"--format=dot", "--direction=TD", "app.Workflow.start"}, want: "--direction cannot be combined"},
 	}
 	for _, tt := range tests {
@@ -200,10 +200,9 @@ func TestValidateTraceSupportAcceptsCompatibilityValues(t *testing.T) {
 
 func TestValidateTraceSupportRejectsReservedFeatures(t *testing.T) {
 	tests := [][]string{
-		{"--pick-impls=x.Y", "app.Workflow.start"},
 		{"--no-prompt", "app.Workflow.start"},
 		{"--include-unresolved=false", "app.Workflow.start"},
-		// --max-impls sem --all-impls continua rejeitado no Passo 7
+		// --max-impls exige uma policy capaz de fazer fan-out.
 		{"--max-impls=4", "app.Workflow.start"},
 	}
 	for _, args := range tests {
@@ -225,6 +224,24 @@ func TestValidateTraceSupportAcceptsAllImplsAndMaxImpls(t *testing.T) {
 		{"--all-impls=true", "app.Workflow.start"},
 		{"--all-impls=true", "--max-impls=3", "app.Workflow.start"},
 		{"--all-impls=true", "--max-impls=0", "app.Workflow.start"},
+	}
+	for _, args := range tests {
+		opts, err := parseTraceOptions(args)
+		if err != nil {
+			t.Fatalf("parseTraceOptions(%v): %v", args, err)
+		}
+		if err := validateTraceSupport(opts); err != nil {
+			t.Fatalf("validateTraceSupport(%v): %v", args, err)
+		}
+	}
+}
+
+func TestValidateTraceSupportAcceptsPickImpls(t *testing.T) {
+	tests := [][]string{
+		{"--pick-impls=contracts.A=app.Impl", "app.Workflow.start"},
+		{"--pick-impls=contracts.A=none", "app.Workflow.start"},
+		{"--pick-impls=contracts.A=all,contracts.B=app.X", "app.Workflow.start"},
+		{"--pick-impls=contracts.A=all", "--max-impls=2", "app.Workflow.start"},
 	}
 	for _, args := range tests {
 		opts, err := parseTraceOptions(args)

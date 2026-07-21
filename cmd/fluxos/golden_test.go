@@ -220,9 +220,9 @@ func TestScopeDuplicateFQCNAcceptedUnderMain(t *testing.T) {
 func TestM4LimitsGoldens(t *testing.T) {
 	root := m4FixtureRoot("limits")
 	tests := []struct {
-		name    string
-		args    []string
-		golden  string
+		name   string
+		args   []string
+		golden string
 	}{
 		{name: "deep max-depth=2 mermaid", args: []string{"--max-depth=2", "app.Deep.a", root}, golden: "expected-deep-max-depth-2.mmd"},
 		{name: "deep max-depth=2 dot", args: []string{"--format=dot", "--max-depth=2", "app.Deep.a", root}, golden: "expected-deep-max-depth-2.dot"},
@@ -281,11 +281,12 @@ func TestM4LimitsStabilityUnderRepeatedRuns(t *testing.T) {
 	}
 }
 
-func TestRunTraceM2M3RuntimeContextJSONGoldens(t *testing.T) {	tests := []struct {
-		name    string
-		root    string
-		target  string
-		golden  string
+func TestRunTraceM2M3RuntimeContextJSONGoldens(t *testing.T) {
+	tests := []struct {
+		name   string
+		root   string
+		target string
+		golden string
 	}{
 		{name: "M2 trace", root: traceFixtureRoot(), target: "Workflow.start", golden: "expected.json"},
 		{name: "M3 cross-file basic", root: m3FixtureRoot("cross-file-basic"), target: "app.Workflow.start", golden: "expected.json"},
@@ -338,6 +339,10 @@ func TestM4InteractiveGoldens(t *testing.T) {
 		{name: "all impls max-impls=1 mermaid", args: []string{"--all-impls=true", "--max-impls=1", "app.Workflow.start", root}, golden: "expected-all-impls-max-impls-1.mmd"},
 		{name: "all impls max-impls=1 dot", args: []string{"--format=dot", "--all-impls=true", "--max-impls=1", "app.Workflow.start", root}, golden: "expected-all-impls-max-impls-1.dot"},
 		{name: "all impls max-impls=1 json", args: []string{"--format=json", "--all-impls=true", "--max-impls=1", "app.Workflow.start", root}, golden: "expected-all-impls-max-impls-1.json"},
+		{name: "pick none keeps terminal", args: []string{"--pick-impls=contracts.A=none", "app.Workflow.start", root}, golden: "expected-terminal.mmd"},
+		{name: "pick explicit leaves nested ambiguity", args: []string{"--pick-impls=contracts.A=app.AlphaA", "app.Workflow.start", root}, golden: "expected-pick-alpha.mmd"},
+		{name: "pick multiple explicit mappings", args: []string{"--pick-impls=contracts.A=app.AlphaA,contracts.B=app.GammaB", "app.Workflow.start", root}, golden: "expected-pick-alpha-gamma.mmd"},
+		{name: "pick all honors max impls", args: []string{"--pick-impls=contracts.A=all", "--max-impls=1", "app.Workflow.start", root}, golden: "expected-pick-all-max-impls-1.mmd"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -351,6 +356,35 @@ func TestM4InteractiveGoldens(t *testing.T) {
 			}
 			if !bytes.Equal(out.Bytes(), want) {
 				t.Fatalf("trace output mismatch (%s):\n%s", tt.golden, firstDiffContext(string(want), out.String()))
+			}
+		})
+	}
+}
+
+func TestM4PickImplsWorksAcrossFormats(t *testing.T) {
+	root := m4FixtureRoot("interactive")
+	for _, format := range []string{"mermaid", "dot", "json"} {
+		t.Run(format, func(t *testing.T) {
+			var out bytes.Buffer
+			args := []string{"--format=" + format, "--pick-impls=contracts.A=app.AlphaA,contracts.B=app.GammaB", "app.Workflow.start", root}
+			if err := runTrace(args, &out); err != nil {
+				t.Fatalf("runTrace(%v): %v", args, err)
+			}
+			for _, want := range []string{"app.Workflow.start()", "app.AlphaA.run()", "app.GammaB.work()"} {
+				if !strings.Contains(out.String(), want) {
+					t.Fatalf("%s output missing %q:\n%s", format, want, out.String())
+				}
+			}
+			unwanted := []string{"app.BetaA", "app.DeltaB", "[ambiguous:"}
+			if format == "json" {
+				// JSON preserves every dispatch candidate as metadata; only execution
+				// nodes and ambiguous terminals must be absent from the selected graph.
+				unwanted = []string{`"runtimeType": "app.BetaA"`, `"runtimeType": "app.DeltaB"`, `"kind": "ambiguousImplementation"`}
+			}
+			for _, unwanted := range unwanted {
+				if strings.Contains(out.String(), unwanted) {
+					t.Fatalf("%s output contains unselected %q:\n%s", format, unwanted, out.String())
+				}
 			}
 		})
 	}

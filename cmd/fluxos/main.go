@@ -6,6 +6,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 
 	"github.com/lucas-garcia-rubio/fluxos/internal/extract/java"
@@ -80,7 +81,12 @@ func buildTraceSnapshot(opts TraceOptions) (render.Snapshot, error) {
 		return render.Snapshot{}, err
 	}
 
-	resolver := resolve.NewSyntacticResolverWithPolicy(table, dispatchPolicyFor(opts))
+	policy, err := dispatchPolicyFor(opts, table)
+	if err != nil {
+		return render.Snapshot{}, err
+	}
+
+	resolver := resolve.NewSyntacticResolverWithPolicy(table, policy)
 	result := graph.Build(target.Execution, table, resolver, graph.BuildOptions{
 		MaxDepth: opts.MaxDepth,
 		MaxNodes: opts.MaxNodes,
@@ -90,12 +96,67 @@ func buildTraceSnapshot(opts TraceOptions) (render.Snapshot, error) {
 
 // dispatchPolicyFor traduz TraceOptions em uma DispatchPolicy. Default mantém
 // a TerminalPolicy M3 (sem fan-out). --all-impls=true ativa AllPolicy com o
-// MaxImpls configurado.
-func dispatchPolicyFor(opts TraceOptions) resolve.DispatchPolicy {
-	if !opts.AllImpls {
-		return resolve.TerminalPolicy{}
+// MaxImpls configurado. --pick-impls ativa FixedPolicy com fallback
+// TerminalPolicy; o mapa de escolhas é pré-validado contra o index antes do
+// Build começar, para falhar cedo em scripts declarativos.
+func dispatchPolicyFor(opts TraceOptions, table *index.Table) (resolve.DispatchPolicy, error) {
+	if len(opts.PickImpls) > 0 {
+		if err := validatePickImpls(opts.PickImpls, table); err != nil {
+			return nil, err
+		}
+		return resolve.FixedPolicy{
+			Choices:  opts.PickImpls,
+			Fallback: resolve.TerminalPolicy{},
+			MaxImpls: opts.MaxImpls,
+		}, nil
 	}
-	return resolve.AllPolicy{MaxImpls: opts.MaxImpls}
+	if opts.AllImpls {
+		return resolve.AllPolicy{MaxImpls: opts.MaxImpls}, nil
+	}
+	return resolve.TerminalPolicy{}, nil
+}
+
+// validatePickImpls verifica que cada receiver mapeado é de fato ambíguo
+// (interface/abstract com >=2 impls) e que cada FQCN em Explicit é uma
+// implementation válida do receiver. Erros são deterministicamente ordenados
+// para que scripts falhem cedo com mensagens reproduzíveis.
+func validatePickImpls(choices map[string]resolve.FixedChoice, table *index.Table) error {
+	receivers := make([]string, 0, len(choices))
+	for receiver := range choices {
+		receivers = append(receivers, receiver)
+	}
+	slices.Sort(receivers)
+
+	for _, receiver := range receivers {
+		_, ok := table.TypeByFQCN(receiver)
+		if !ok {
+			return fmt.Errorf("pick-impls: receiver %q not found in project", receiver)
+		}
+		impls := table.ImplementationsOf(receiver)
+		if len(impls) < 2 {
+			return fmt.Errorf("pick-impls: receiver %q has %d implementation(s); pick-impls only applies to ambiguous dispatchers (>=2 impls)", receiver, len(impls))
+		}
+
+		choice := choices[receiver]
+		if choice.Kind != resolve.FixedChoiceExplicit {
+			continue
+		}
+		valid := make(map[string]bool, len(impls))
+		for _, impl := range impls {
+			valid[impl.FQCN] = true
+		}
+		for _, fqcn := range choice.Impls {
+			if !valid[fqcn] {
+				sorted := make([]string, 0, len(impls))
+				for _, impl := range impls {
+					sorted = append(sorted, impl.FQCN)
+				}
+				slices.Sort(sorted)
+				return fmt.Errorf("pick-impls: candidate %q not an implementation of %q; valid: %v", fqcn, receiver, sorted)
+			}
+		}
+	}
+	return nil
 }
 
 func buildIndex(root string, scope project.ScopeMode) ([]*java.CompilationUnit, *index.Table, error) {

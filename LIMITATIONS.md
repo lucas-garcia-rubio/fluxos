@@ -1,11 +1,12 @@
-# M3 limitations
+# Current limitations
 
 `fluxos` performs conservative static analysis of project Java source. It is not a Java
 compiler and intentionally leaves uncertain calls unresolved or ambiguous.
 
 ## Source discovery and classpath
 
-- Default discovery indexes `src/main/java` roots only; test sources are excluded.
+- Default discovery indexes `src/main/java` roots only; `--scope=all` also indexes
+  `src/test/java`.
 - With no conventional root, the requested path is treated as one explicit source root.
 - Dependencies, JDK symbols, bytecode, Maven/Gradle dependency resolution, annotation
   processors, Lombok, and reflection are not indexed.
@@ -24,9 +25,10 @@ compiler and intentionally leaves uncertain calls unresolved or ambiguous.
 
 ## Polymorphism
 
-- One concrete implementation is followed; zero or multiple implementations produce a
-  terminal node.
-- Multiple implementations do not fan out and cannot be selected interactively in M3.
+- One concrete implementation is followed; zero implementations produce a terminal
+  node. Multiple implementations produce a terminal by default.
+- `--all-impls` and `--pick-impls` can fan out or select implementations explicitly.
+- There is no automatic TTY picker yet; declarative picks are non-interactive.
 - A variable's initializer does not narrow an interface or abstract declared type.
 - Sealed `permits` clauses are not used as an implementation source.
 
@@ -50,7 +52,9 @@ compiler and intentionally leaves uncertain calls unresolved or ambiguous.
 
 ## Output and UX
 
-- M3 emits Mermaid only; DOT and JSON graph output are not available.
-- There is no interactive implementation picker, automatic ambiguity fan-out, depth or
-  node limit, direction control, or output-format flag.
+- Mermaid, DOT, and JSON are available. Mermaid is the default; JSON schema version 1
+  exposes ordered nodes, edges, dispatch metadata, and truncations.
+- Depth, node, and implementation limits are supported, but there is no interactive
+  implementation picker or unresolved-node filter yet.
+- CLI help, version metadata, release automation, and packaged binaries are still pending.
 - Persistent indexing caches and advanced Mermaid styling are deferred.

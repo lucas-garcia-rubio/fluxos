@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/lucas-garcia-rubio/fluxos/internal/project"
+	"github.com/lucas-garcia-rubio/fluxos/internal/resolve"
 )
 
 type OutputFormat string
@@ -23,7 +24,7 @@ type TraceOptions struct {
 	Direction         string
 	DirectionSet      bool
 	Scope             project.ScopeMode
-	PickImpls         string
+	PickImpls         map[string]resolve.FixedChoice
 	AllImpls          bool
 	NoPrompt          bool
 	IncludeUnresolved bool
@@ -100,7 +101,10 @@ func parseTraceOptions(args []string) (TraceOptions, error) {
 		}
 	}
 	if value, ok := flags["pick-impls"]; ok {
-		opts.PickImpls = value
+		opts.PickImpls, err = parsePickImpls(value)
+		if err != nil {
+			return TraceOptions{}, err
+		}
 	}
 	if value, ok := flags["all-impls"]; ok {
 		opts.AllImpls, err = parseBoolOption("all-impls", value)
@@ -153,7 +157,7 @@ func parseTraceOptions(args []string) (TraceOptions, error) {
 		opts.ProjectRoot = positionals[1]
 	}
 
-	if opts.AllImpls && opts.PickImpls != "" {
+	if opts.AllImpls && len(opts.PickImpls) > 0 {
 		return TraceOptions{}, usageErrorf("--all-impls=true cannot be combined with --pick-impls")
 	}
 	if opts.DirectionSet && opts.Format != FormatMermaid {
@@ -289,14 +293,12 @@ func validateTraceSupport(opts TraceOptions) error {
 	switch {
 	case opts.Format != FormatMermaid && opts.Format != FormatDOT && opts.Format != FormatJSON:
 		return unsupportedOption("--format=" + string(opts.Format))
-	case opts.PickImpls != "":
-		return unsupportedOption("--pick-impls")
 	case opts.NoPrompt:
 		return unsupportedOption("--no-prompt")
 	case !opts.IncludeUnresolved:
 		return unsupportedOption("--include-unresolved=false")
-	case !opts.AllImpls && opts.MaxImpls != 5:
-		return unsupportedOption("--max-impls (requires --all-impls=true)")
+	case !opts.AllImpls && len(opts.PickImpls) == 0 && opts.MaxImpls != 5:
+		return unsupportedOption("--max-impls (requires --all-impls=true or --pick-impls)")
 	default:
 		return nil
 	}

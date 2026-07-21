@@ -150,20 +150,13 @@ func (r *SyntacticResolver) dispatchPolymorphicSelection(
 		policy := r.policy()
 		decision := policy.Apply(caller, typ, call, candidates)
 		resolution := Resolution{DispatchSite: NewDispatchSite(caller, typ.FQCN, call.MethodName, signature, call, candidates)}
-		if len(decision.Targets) > 0 {
-			resolution.Targets = append(resolution.Targets, decision.Targets...)
-		}
+		resolution.Targets = append(resolution.Targets, decision.Targets...)
 		if decision.Terminal != nil {
 			resolution.Targets = append(resolution.Targets, *decision.Terminal)
 		}
 		if len(resolution.Targets) == 0 {
-			// Nenhuma policy产出: fallback para terminal ambiguous (preserva
-			// comportamento M3 mesmo se uma policy custom não decidir).
-			t := TerminalTarget(
-				ResolutionAmbiguousImplementation, typ.FQCN, call.MethodName, "", call,
-				fmt.Sprintf("multiple concrete implementations of %s", typ.FQCN), nil,
-			)
-			resolution.Targets = append(resolution.Targets, t)
+			fallback := TerminalPolicy{}.Apply(caller, typ, call, candidates)
+			resolution.Targets = append(resolution.Targets, *fallback.Terminal)
 		}
 		if decision.Omitted > 0 {
 			resolution.Truncations = append(resolution.Truncations, PolicyTruncation{

@@ -84,3 +84,77 @@ func (p AllPolicy) Apply(_ ExecutionKey, receiver *java.TypeDecl, call java.Call
 	return PolicyDecision{Targets: targets, Terminal: terminal, Omitted: omitted}
 }
 
+// FixedChoiceKind classifica a escolha declarativa para um receiver.
+type FixedChoiceKind int
+
+const (
+	// FixedChoiceNone mantém o terminal ambíguo sem fazer fan-out.
+	FixedChoiceNone FixedChoiceKind = iota
+	// FixedChoiceAll admite as impls Concrete candidates daquele receiver,
+	// respeitando MaxImpls quando configurado.
+	FixedChoiceAll
+	// FixedChoiceExplicit admite apenas as impls cujo FQCN está em Impls.
+	FixedChoiceExplicit
+)
+
+// FixedChoice é a decisão declarativa para um receiver polimórfico.
+type FixedChoice struct {
+	Kind  FixedChoiceKind
+	Impls []string // FQCNs quando Kind == FixedChoiceExplicit
+}
+
+// FixedPolicy aplica escolhas declarativas do usuário. Receivers mapeados
+// seguem a Choice correspondente; receivers não mapeados caem no Fallback
+// (default TerminalPolicy). Pré-validação (FQCNs inválidos, receivers não
+// ambíguos) é responsabilidade do CLI antes do Build começar.
+type FixedPolicy struct {
+	Choices  map[string]FixedChoice
+	Fallback DispatchPolicy
+	MaxImpls int
+}
+
+func (p FixedPolicy) Apply(caller ExecutionKey, receiver *java.TypeDecl, call java.CallSite, candidates []ImplementationCandidate) PolicyDecision {
+	if receiver == nil {
+		return p.fallback(caller, receiver, call, candidates)
+	}
+	choice, ok := p.Choices[receiver.FQCN]
+	if !ok {
+		return p.fallback(caller, receiver, call, candidates)
+	}
+	switch choice.Kind {
+	case FixedChoiceNone:
+		return TerminalPolicy{}.Apply(caller, receiver, call, candidates)
+	case FixedChoiceAll:
+		return AllPolicy{MaxImpls: p.MaxImpls}.Apply(caller, receiver, call, candidates)
+	case FixedChoiceExplicit:
+		want := make(map[string]bool, len(choice.Impls))
+		for _, fqcn := range choice.Impls {
+			want[fqcn] = true
+		}
+		targets := make([]ResolvedTarget, 0, len(choice.Impls))
+		var terminal *ResolvedTarget
+		for _, candidate := range candidates {
+			if candidate.Kind == ResolutionConcrete && candidate.Target.Method != "" && want[candidate.ImplementationFQCN] {
+				key := ExecutionKey{Method: candidate.Target, RuntimeTypeFQCN: candidate.ImplementationFQCN}
+				targets = append(targets, ConcreteTarget(key))
+				continue
+			}
+			if terminal == nil && (candidate.Kind != ResolutionConcrete || candidate.Target.Method == "") {
+				t := TerminalTarget(
+					candidate.Kind, candidate.ImplementationFQCN, call.MethodName, "",
+					call, candidate.Note, nil,
+				)
+				terminal = &t
+			}
+		}
+		return PolicyDecision{Targets: targets, Terminal: terminal}
+	}
+	return p.fallback(caller, receiver, call, candidates)
+}
+
+func (p FixedPolicy) fallback(caller ExecutionKey, receiver *java.TypeDecl, call java.CallSite, candidates []ImplementationCandidate) PolicyDecision {
+	if p.Fallback == nil {
+		return TerminalPolicy{}.Apply(caller, receiver, call, candidates)
+	}
+	return p.Fallback.Apply(caller, receiver, call, candidates)
+}

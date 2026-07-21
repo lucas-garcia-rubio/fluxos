@@ -12,6 +12,7 @@ import (
 
 	"github.com/lucas-garcia-rubio/fluxos/internal/extract/java"
 	"github.com/lucas-garcia-rubio/fluxos/internal/project"
+	"github.com/lucas-garcia-rubio/fluxos/internal/resolve"
 )
 
 var errWrite = errors.New("write failed")
@@ -210,6 +211,68 @@ func TestRunTraceErrorsDoNotWritePayload(t *testing.T) {
 				t.Fatalf("runTrace(%v) wrote payload before returning error: %q", tt.args, out.String())
 			}
 		})
+	}
+}
+
+func TestRunTraceValidatesPickImplsBeforeWritingPayload(t *testing.T) {
+	root := m4FixtureRoot("interactive")
+	tests := []struct {
+		name string
+		pick string
+		want string
+	}{
+		{name: "unknown receiver", pick: "missing.Contract=all", want: `receiver "missing.Contract" not found`},
+		{name: "non ambiguous receiver", pick: "app.Workflow=all", want: `receiver "app.Workflow" has 0 implementation(s)`},
+		{name: "invalid candidate", pick: "contracts.A=app.GammaB", want: `candidate "app.GammaB" not an implementation of "contracts.A"`},
+		{name: "errors sorted by receiver", pick: "z.Contract=all,a.Contract=all", want: `receiver "a.Contract" not found`},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var out bytes.Buffer
+			err := runTrace([]string{"--pick-impls=" + tt.pick, "app.Workflow.start", root}, &out)
+			if err == nil || !strings.Contains(err.Error(), tt.want) {
+				t.Fatalf("error = %v, want containing %q", err, tt.want)
+			}
+			if out.Len() != 0 {
+				t.Fatalf("payload written before validation failed: %q", out.String())
+			}
+		})
+	}
+}
+
+func TestDispatchPolicyForCarriesMaxImplsIntoFixedPolicy(t *testing.T) {
+	_, table, err := buildIndex(m4FixtureRoot("interactive"), project.ScopeModeMain)
+	if err != nil {
+		t.Fatalf("buildIndex: %v", err)
+	}
+	opts := defaultTraceOptions()
+	opts.MaxImpls = 1
+	opts.PickImpls = map[string]resolve.FixedChoice{
+		"contracts.A": {Kind: resolve.FixedChoiceAll},
+	}
+	policy, err := dispatchPolicyFor(opts, table)
+	if err != nil {
+		t.Fatalf("dispatchPolicyFor: %v", err)
+	}
+	fixed, ok := policy.(resolve.FixedPolicy)
+	if !ok || fixed.MaxImpls != 1 {
+		t.Fatalf("policy = %#v, want FixedPolicy with MaxImpls=1", policy)
+	}
+}
+
+func TestRunTracePickImplsCombinesWithScopeAll(t *testing.T) {
+	var out bytes.Buffer
+	args := []string{
+		"--scope=all",
+		"--pick-impls=app.Greeter=app.impl.TestGreeter",
+		"app.Workflow.start",
+		m4FixtureRoot("scope"),
+	}
+	if err := runTrace(args, &out); err != nil {
+		t.Fatalf("runTrace(%v): %v", args, err)
+	}
+	if !strings.Contains(out.String(), "app.impl.TestGreeter.greet()") || strings.Contains(out.String(), "app.impl.DefaultGreeter.greet()") {
+		t.Fatalf("scope=all did not select test implementation:\n%s", out.String())
 	}
 }
 

@@ -30,6 +30,25 @@ func TestRunCLIReturnsZeroAndSeparatesStreams(t *testing.T) {
 	}
 }
 
+func TestRunCLIPickImplsIsNonInteractiveAndSeparatesStreams(t *testing.T) {
+	var out, errOut bytes.Buffer
+	code := runCLI([]string{
+		"trace",
+		"--pick-impls=contracts.A=app.AlphaA,contracts.B=app.GammaB",
+		"app.Workflow.start",
+		m4FixtureRoot("interactive"),
+	}, IO{Out: &out, ErrOut: &errOut})
+	if code != 0 {
+		t.Fatalf("exit = %d, stderr = %q", code, errOut.String())
+	}
+	if errOut.Len() != 0 {
+		t.Fatalf("non-interactive pick wrote stderr: %q", errOut.String())
+	}
+	if !strings.Contains(out.String(), "app.GammaB.work()") {
+		t.Fatalf("stdout does not contain selected graph:\n%s", out.String())
+	}
+}
+
 func TestRunCLIClassifiesUsageErrors(t *testing.T) {
 	tests := []struct {
 		name string
@@ -39,7 +58,7 @@ func TestRunCLIClassifiesUsageErrors(t *testing.T) {
 		{name: "missing trace target", args: []string{"trace"}, want: "fluxos trace: usage:"},
 		{name: "invalid target", args: []string{"trace", "Workflow"}, want: "fluxos trace: invalid target"},
 		{name: "extra positional", args: []string{"trace", "Workflow.start", traceFixtureRoot(), "extra"}, want: "at most one project path"},
-		{name: "reserved feature", args: []string{"trace", "--pick-impls=a.B", "Workflow.start", "/missing"}, want: "not implemented yet"},
+		{name: "reserved feature", args: []string{"trace", "--no-prompt=true", "Workflow.start", "/missing"}, want: "not implemented yet"},
 		{name: "missing index root", args: []string{"index"}, want: "fluxos index: usage:"},
 	}
 	for _, tt := range tests {
