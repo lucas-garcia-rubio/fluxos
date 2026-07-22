@@ -1,0 +1,21 @@
+Usage: fluxos trace [options] <target> [project-path]
+
+Target: [FQCN.]TypeName.method[(signature)] (for example, Workflow.start or com.example.Workflow.start(java.lang.String,int)).
+The project path defaults to .; Mermaid is written to stdout by default.
+
+Options:
+  --format=mermaid|dot|json       output format (default: mermaid)
+  --direction=TD|LR|BT|RL         Mermaid direction (default: TD)
+  --scope=main|all                source scope (default: main)
+  --include-unresolved[=true|false] include unresolved terminals (default: true)
+  --max-depth=N                   depth limit; 0 means unlimited (default: 0)
+  --max-nodes=N                   node limit; 0 means unlimited (default: 1000)
+  --max-impls=N                   implementations per dispatch; 0 is unlimited (default: 5)
+  --all-impls[=true|false]        fan out to all implementations, up to --max-impls
+  --pick-impls=<receiver-fqcn>=<implementation-fqcn|all|none>[,...]
+  --no-prompt[=true|false]        never open the TTY picker
+
+Examples:
+  fluxos trace --direction=LR Workflow.start ./project
+  fluxos trace --format=dot Workflow.start ./project
+  fluxos trace --format=json --include-unresolved=false Workflow.start ./project

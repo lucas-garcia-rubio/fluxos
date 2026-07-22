@@ -1,0 +1,9 @@
+Usage: fluxos index [options] <project-path>
+
+Print indexed Java types as JSON to stdout.
+
+Options:
+  --scope=main|all  source scope (default: main)
+
+Example:
+  fluxos index --scope=all ./project

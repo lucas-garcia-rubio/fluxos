@@ -55,7 +55,11 @@ compiler and intentionally leaves uncertain calls unresolved or ambiguous.
 
 - Mermaid, DOT, and JSON are available. Mermaid is the default; JSON schema version 1
   exposes ordered nodes, edges, dispatch metadata, and truncations.
-- Depth, node, and implementation limits are supported, but there is no unresolved-node
-  filter yet.
-- CLI help, version metadata, release automation, and packaged binaries are still pending.
+- Depth, node, and implementation limits are supported. `--include-unresolved=false` omits
+  unresolved terminals and their incident edges; it does not change discovery or graph limits.
+- `--all-impls` is bounded by `--max-impls` (default 5; zero is unlimited).
+- Mermaid and DOT display truncation notes, but these are presentation only; JSON remains the
+  stable structured format. See [JSON schema v1](docs/json-schema.md).
+- CLI help is available globally and for each command. Version metadata, release automation,
+  and packaged binaries are still pending.
 - Persistent indexing caches and advanced Mermaid styling are deferred.

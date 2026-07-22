@@ -2,9 +2,11 @@ package main
 
 import (
 	"bytes"
+	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 )
@@ -104,6 +106,240 @@ func TestRunTraceM3Goldens(t *testing.T) {
 			assertTraceGolden(t, tt.fixture, tt.target, tt.golden)
 		})
 	}
+}
+
+func TestRunTraceExcludesUnresolvedAcrossFormats(t *testing.T) {
+	root := m3FixtureRoot("constructors-methodrefs")
+	wantNodes := map[string]string{
+		"m_e8df649834e2": "app.Workflow.references()",
+		"m_f9c86dc9202f": "model.BaseValue.<init>(java.lang.String)",
+		"m_84ed2044c2ed": "model.BaseValue.value() [runtime: model.BaseValue]",
+		"m_f97d577def56": "model.BaseValue.value() [runtime: refs.References]",
+		"m_77b0ebe86b3f": "model.DefaultValue.<init>()",
+		"m_bd677b62ab48": "refs.References.<init>()",
+		"m_2292119d3129": "refs.References.own()",
+		"m_6cdb9c52f7f1": "refs.References.references()",
+		"m_bc924d7eafb8": "refs.References.Nested.<init>()",
+		"m_10373ee5a41d": "refs.References.Nested.run()",
+		"m_5c65cea9be33": "refs.References.Service.run()",
+		"m_e3566a83e1a6": "support.Validator.normalize(java.lang.String)",
+		"m_f121243d1d9b": "support.Validator.require(java.lang.String)",
+	}
+	wantEdges := [][2]string{
+		{"m_e8df649834e2", "m_bd677b62ab48"},
+		{"m_e8df649834e2", "m_6cdb9c52f7f1"},
+		{"m_bd677b62ab48", "m_f9c86dc9202f"},
+		{"m_2292119d3129", "m_f121243d1d9b"},
+		{"m_6cdb9c52f7f1", "m_84ed2044c2ed"},
+		{"m_6cdb9c52f7f1", "m_f97d577def56"},
+		{"m_6cdb9c52f7f1", "m_77b0ebe86b3f"},
+		{"m_6cdb9c52f7f1", "m_2292119d3129"},
+		{"m_6cdb9c52f7f1", "m_bc924d7eafb8"},
+		{"m_6cdb9c52f7f1", "m_10373ee5a41d"},
+		{"m_6cdb9c52f7f1", "m_5c65cea9be33"},
+		{"m_6cdb9c52f7f1", "m_e3566a83e1a6"},
+		{"m_10373ee5a41d", "m_f121243d1d9b"},
+		{"m_5c65cea9be33", "m_f121243d1d9b"},
+		{"m_e3566a83e1a6", "m_f121243d1d9b"},
+	}
+	for _, format := range []string{"mermaid", "dot", "json"} {
+		t.Run(format, func(t *testing.T) {
+			args := []string{"--include-unresolved=false"}
+			if format != "mermaid" {
+				args = append(args, "--format="+format)
+			}
+			args = append(args, "app.Workflow.references", root)
+
+			var out bytes.Buffer
+			if err := runTrace(args, &out); err != nil {
+				t.Fatalf("runTrace(%v): %v", args, err)
+			}
+			got := parseFilteredCLIOutput(t, format, out.String())
+			if !reflect.DeepEqual(got.labels, wantNodes) {
+				t.Fatalf("%s node labels differ:\ngot=%v\nwant=%v", format, got.labels, wantNodes)
+			}
+			if !reflect.DeepEqual(got.edges, wantEdges) {
+				t.Fatalf("%s edges differ:\ngot=%v\nwant=%v", format, got.edges, wantEdges)
+			}
+			if format != "mermaid" {
+				for id, kind := range got.kinds {
+					if kind != "method" {
+						t.Fatalf("%s node %s kind = %q, want method", format, id, kind)
+					}
+				}
+			}
+		})
+	}
+}
+
+func TestRunTraceIncludeUnresolvedFalsePreservesDispatchTerminalsAcrossFormats(t *testing.T) {
+	root := m3FixtureRoot("dispatch")
+	for _, tt := range []struct {
+		format string
+		golden string
+	}{
+		{format: "mermaid", golden: "expected.mmd"},
+		{format: "dot"},
+		{format: "json", golden: "expected.json"},
+	} {
+		t.Run(tt.format, func(t *testing.T) {
+			args := []string{"--include-unresolved=false"}
+			if tt.format != "mermaid" {
+				args = append(args, "--format="+tt.format)
+			}
+			args = append(args, "app.Workflow.start", root)
+			var out bytes.Buffer
+			if err := runTrace(args, &out); err != nil {
+				t.Fatalf("runTrace(%v): %v", args, err)
+			}
+			var want []byte
+			if tt.golden != "" {
+				var err error
+				want, err = os.ReadFile(filepath.Join(root, tt.golden))
+				if err != nil {
+					t.Fatalf("read golden: %v", err)
+				}
+			} else {
+				defaultArgs := []string{"--format=" + tt.format, "app.Workflow.start", root}
+				var defaultOut bytes.Buffer
+				if err := runTrace(defaultArgs, &defaultOut); err != nil {
+					t.Fatalf("default runTrace(%v): %v", defaultArgs, err)
+				}
+				want = defaultOut.Bytes()
+			}
+			if !bytes.Equal(out.Bytes(), want) {
+				t.Fatalf("--include-unresolved=false changed non-unresolved %s output:\n%s", tt.format, firstDiffContext(string(want), out.String()))
+			}
+		})
+	}
+}
+
+type filteredCLIOutput struct {
+	labels map[string]string
+	kinds  map[string]string
+	edges  [][2]string
+}
+
+func parseFilteredCLIOutput(t *testing.T, format, output string) filteredCLIOutput {
+	t.Helper()
+	switch format {
+	case "mermaid":
+		return parseFilteredMermaid(t, output)
+	case "dot":
+		return parseFilteredDOT(t, output)
+	case "json":
+		return parseFilteredJSON(t, output)
+	default:
+		t.Fatalf("unknown output format %q", format)
+		return filteredCLIOutput{}
+	}
+}
+
+func parseFilteredMermaid(t *testing.T, output string) filteredCLIOutput {
+	t.Helper()
+	lines := strings.Split(strings.TrimSuffix(output, "\n"), "\n")
+	if len(lines) == 0 || lines[0] != "flowchart TD" {
+		t.Fatalf("invalid Mermaid header: %q", output)
+	}
+	got := filteredCLIOutput{labels: map[string]string{}, kinds: map[string]string{}}
+	for _, line := range lines[1:] {
+		line = strings.TrimSpace(line)
+		if line == "" {
+			continue
+		}
+		if from, to, ok := strings.Cut(line, " --> "); ok {
+			got.edges = append(got.edges, [2]string{from, to})
+			continue
+		}
+		id, label, ok := strings.Cut(line, `["`)
+		if !ok || !strings.HasSuffix(label, `"]`) || id == "" {
+			t.Fatalf("invalid Mermaid statement: %q", line)
+		}
+		if _, duplicate := got.labels[id]; duplicate {
+			t.Fatalf("duplicate Mermaid node %q", id)
+		}
+		got.labels[id] = strings.TrimSuffix(label, `"]`)
+	}
+	return got
+}
+
+func parseFilteredDOT(t *testing.T, output string) filteredCLIOutput {
+	t.Helper()
+	lines := strings.Split(strings.TrimSuffix(output, "\n"), "\n")
+	if len(lines) < 2 || lines[0] != "digraph fluxos {" || lines[len(lines)-1] != "}" {
+		t.Fatalf("invalid DOT envelope: %q", output)
+	}
+	got := filteredCLIOutput{labels: map[string]string{}, kinds: map[string]string{}}
+	for _, line := range lines[1 : len(lines)-1] {
+		line = strings.TrimSpace(line)
+		if line == "" {
+			continue
+		}
+		if strings.Contains(line, " -> ") {
+			edgeLine := strings.TrimSuffix(line, ";")
+			from, to, ok := strings.Cut(edgeLine, " -> ")
+			if !ok {
+				t.Fatalf("invalid DOT edge: %q", line)
+			}
+			from = strings.Trim(from, `"`)
+			to = strings.Trim(to, `"`)
+			got.edges = append(got.edges, [2]string{from, to})
+			continue
+		}
+		const nodeMarker = `" [label="`
+		if !strings.HasSuffix(line, `];`) {
+			t.Fatalf("invalid DOT statement: %q", line)
+		}
+		id, rest, ok := strings.Cut(strings.TrimSuffix(line, `];`), nodeMarker)
+		if !ok || !strings.HasPrefix(id, `"`) || !strings.HasSuffix(rest, `"`) {
+			t.Fatalf("invalid DOT node: %q", line)
+		}
+		id = strings.TrimPrefix(id, `"`)
+		label, kind, ok := strings.Cut(strings.TrimSuffix(rest, `"`), `", kind="`)
+		if !ok || kind == "" {
+			t.Fatalf("invalid DOT node: %q", line)
+		}
+		if _, duplicate := got.labels[id]; duplicate {
+			t.Fatalf("duplicate DOT node %q", id)
+		}
+		got.labels[id] = label
+		got.kinds[id] = kind
+	}
+	return got
+}
+
+func parseFilteredJSON(t *testing.T, output string) filteredCLIOutput {
+	t.Helper()
+	var payload struct {
+		SchemaVersion int `json:"schemaVersion"`
+		Nodes         []struct {
+			ID    string `json:"id"`
+			Kind  string `json:"kind"`
+			Label string `json:"label"`
+		} `json:"nodes"`
+		Edges []struct {
+			From string `json:"from"`
+			To   string `json:"to"`
+		} `json:"edges"`
+	}
+	if err := json.Unmarshal([]byte(output), &payload); err != nil {
+		t.Fatalf("invalid JSON: %v", err)
+	}
+	if payload.SchemaVersion != 1 {
+		t.Fatalf("schemaVersion = %d, want 1", payload.SchemaVersion)
+	}
+	got := filteredCLIOutput{labels: map[string]string{}, kinds: map[string]string{}}
+	for _, node := range payload.Nodes {
+		if _, duplicate := got.labels[node.ID]; duplicate {
+			t.Fatalf("duplicate JSON node %q", node.ID)
+		}
+		got.labels[node.ID] = node.Label
+		got.kinds[node.ID] = node.Kind
+	}
+	for _, edge := range payload.Edges {
+		got.edges = append(got.edges, [2]string{edge.From, edge.To})
+	}
+	return got
 }
 
 func TestRunTraceTerminalIDsDoNotDependOnRootSpelling(t *testing.T) {

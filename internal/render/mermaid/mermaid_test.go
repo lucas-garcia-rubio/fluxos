@@ -153,21 +153,21 @@ func TestRenderGolden(t *testing.T) {
 
 func TestRenderAppendsTruncationMarkersAfterAnalysisNodes(t *testing.T) {
 	caller := render.ExecutionView{
-		Method: render.MethodView{TypeFQCN: "app.Workflow", Method: "start", Signature: "()"},
+		Method:          render.MethodView{TypeFQCN: "app.Workflow", Method: "start", Signature: "()"},
 		RuntimeTypeFQCN: "app.Workflow",
 	}
 	snapshot := render.Snapshot{
 		SchemaVersion: render.SnapshotSchemaVersion,
-		Nodes: []render.NodeView{{ID: "m_root", Label: "app.Workflow.start()"}},
-		Edges: []render.EdgeView{},
+		Nodes:         []render.NodeView{{ID: "m_root", Label: "app.Workflow.start()"}},
+		Edges:         []render.EdgeView{},
 		Truncations: []render.TruncationView{{
 			ID: "t_abc123", Kind: "maxNodes", Caller: caller,
-			Call: render.CallView{File: "App.java", StartByte: 100, MethodName: "run"},
+			Call:    render.CallView{File: "App.java", StartByte: 100, MethodName: "run"},
 			Omitted: 3, Note: "",
 		}},
 	}
 	got := renderString(t, snapshot, DirectionTD)
-	if !strings.Contains(got, "  t_abc123[\"% truncation: maxNodes: omitted 3 at app.Workflow.start()\"]\n") {
+	if !strings.Contains(got, "  t_abc123[\"% truncation: node limit; omitted 3 while tracing app.Workflow.start()\"]\n") {
 		t.Fatalf("truncation marker missing or malformed:\n%s", got)
 	}
 	// Marker aparece após o analysis node.
@@ -179,5 +179,16 @@ func TestRenderAppendsTruncationMarkersAfterAnalysisNodes(t *testing.T) {
 	// Não participa de edges.
 	if strings.Contains(got, "t_abc123 -->") || strings.Contains(got, "--> t_abc123") {
 		t.Fatalf("truncation marker must not participate in edges:\n%s", got)
+	}
+}
+
+func TestTruncationLabelHidesSyntheticTerminalHandle(t *testing.T) {
+	snapshot := render.Snapshot{Truncations: []render.TruncationView{{
+		ID: "t_internal", Kind: "maxNodes", Omitted: 1,
+		Caller: render.ExecutionView{Method: render.MethodView{TypeFQCN: "Contract#ambimpl#abc", Method: "run"}},
+	}}}
+	got := renderString(t, snapshot, DirectionTD)
+	if strings.Contains(got, "#ambimpl#") || !strings.Contains(got, "Contract.run()") {
+		t.Fatalf("truncation label exposed synthetic handle: %s", got)
 	}
 }

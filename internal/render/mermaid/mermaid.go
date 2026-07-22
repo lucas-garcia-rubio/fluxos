@@ -35,15 +35,38 @@ func Render(out io.Writer, snapshot render.Snapshot, direction Direction) error 
 		fmt.Fprintf(&payload, "  %s --> %s\n", edge.From, edge.To)
 	}
 	for _, truncation := range snapshot.Truncations {
-		fmt.Fprintf(&payload, "  %s[\"%% truncation: %s: omitted %d at %s\"]\n",
-			truncation.ID, truncation.Kind, truncation.Omitted, escapeLabel(executionLabel(truncation.Caller)))
+		fmt.Fprintf(&payload, "  %s[\"%s\"]\n",
+			truncation.ID, escapeLabel(truncationLabel(truncation)))
 	}
 	return writeAll(out, payload.String())
+}
+
+func truncationLabel(truncation render.TruncationView) string {
+	return fmt.Sprintf("%% truncation: %s; omitted %d while tracing %s",
+		truncationKindLabel(truncation.Kind), truncation.Omitted, executionLabel(truncation.Caller))
+}
+
+func truncationKindLabel(kind string) string {
+	switch kind {
+	case "maxDepth":
+		return "depth limit"
+	case "maxNodes":
+		return "node limit"
+	case "maxImpls":
+		return "implementation limit"
+	case "discoveryLimit":
+		return "discovery limit"
+	default:
+		return kind + " limit"
+	}
 }
 
 func executionLabel(execution render.ExecutionView) string {
 	method := execution.Method
 	typeFQCN := method.TypeFQCN
+	if separator := strings.IndexByte(typeFQCN, '#'); separator >= 0 {
+		typeFQCN = typeFQCN[:separator]
+	}
 	if typeFQCN == "" {
 		typeFQCN = "<unknown>"
 	}

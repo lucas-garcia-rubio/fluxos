@@ -127,6 +127,52 @@ func TestRunCLIReportsGlobalUsageBlocks(t *testing.T) {
 	}
 }
 
+func TestRunCLIHelpUsesStdoutAndNeedsNoTarget(t *testing.T) {
+	tests := []struct {
+		name   string
+		args   []string
+		golden string
+	}{
+		{name: "global long", args: []string{"--help"}, golden: "global.txt"},
+		{name: "global short", args: []string{"-h"}, golden: "global.txt"},
+		{name: "global topic", args: []string{"help"}, golden: "global.txt"},
+		{name: "trace long", args: []string{"trace", "--help"}, golden: "trace.txt"},
+		{name: "trace short", args: []string{"trace", "-h"}, golden: "trace.txt"},
+		{name: "trace topic", args: []string{"help", "trace"}, golden: "trace.txt"},
+		{name: "index long", args: []string{"index", "--help"}, golden: "index.txt"},
+		{name: "index short", args: []string{"index", "-h"}, golden: "index.txt"},
+		{name: "index topic", args: []string{"help", "index"}, golden: "index.txt"},
+	}
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			want, err := os.ReadFile(filepath.Join("testdata", "help", tt.golden))
+			if err != nil {
+				t.Fatalf("read help fixture: %v", err)
+			}
+			var out, errOut bytes.Buffer
+			if code := runCLI(tt.args, IO{Out: &out, ErrOut: &errOut}); code != 0 {
+				t.Fatalf("runCLI(%v) exit = %d; stderr=%q", tt.args, code, errOut.String())
+			}
+			if !bytes.Equal(out.Bytes(), want) || errOut.Len() != 0 {
+				t.Fatalf("runCLI(%v) stdout=%q stderr=%q, want stdout fixture and empty stderr", tt.args, out.String(), errOut.String())
+			}
+		})
+	}
+}
+
+func TestRunCLIGlobalHelpWithArgumentsIsUsageError(t *testing.T) {
+	for _, args := range [][]string{{"--help", "extra"}, {"-h", "trace"}} {
+		var out, errOut bytes.Buffer
+		if code := runCLI(args, IO{Out: &out, ErrOut: &errOut}); code != 2 {
+			t.Fatalf("runCLI(%v) exit = %d, want 2", args, code)
+		}
+		if out.Len() != 0 || errOut.String() != "fluxos: --help does not accept arguments\n" {
+			t.Fatalf("runCLI(%v) stdout=%q stderr=%q", args, out.String(), errOut.String())
+		}
+	}
+}
+
 func TestRunCLIIndexUsesInjectedOutput(t *testing.T) {
 	root := traceFixtureRoot()
 	units, _, err := buildIndex(root, project.ScopeModeMain)

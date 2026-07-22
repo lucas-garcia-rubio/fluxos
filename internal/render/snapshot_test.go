@@ -43,6 +43,189 @@ func TestNewSnapshotPreservesLegacyMethodIDs(t *testing.T) {
 	}
 }
 
+func TestNewResultSnapshotIncludesUnresolvedByDefault(t *testing.T) {
+	caller := testHandle("Caller", "run", "()")
+	unresolved := testHandle("Missing", "work", "()")
+	g := graph.NewGraph()
+	g.AddEdge(caller, unresolved, java.CallSite{File: "Caller.java", Line: 10}, nil, false)
+	g.MarkTerminal(unresolved, graph.NodeTerminalUnresolved, "missing", nil)
+
+	snapshot := NewResultSnapshot(graph.BuildResult{Graph: g}, caller)
+	node := findNode(t, snapshot, methodView(unresolved.Method, true))
+	if node.Kind != NodeUnresolved || len(snapshot.Edges) != 1 {
+		t.Fatalf("default snapshot = %+v, want unresolved node and edge", snapshot)
+	}
+}
+
+func TestNewResultSnapshotCanExcludeUnresolvedNodesAndIncidentEdges(t *testing.T) {
+	caller := testHandle("Caller", "run", "()")
+	unresolved := testHandle("Missing", "work", "()")
+	retained := testHandle("Retained", "done", "()")
+	g := graph.NewGraph()
+	g.AddEdge(caller, unresolved, java.CallSite{File: "Caller.java", Line: 10}, nil, false)
+	g.AddEdge(unresolved, retained, java.CallSite{File: "Missing.java", Line: 20}, nil, false)
+	g.AddEdge(caller, retained, java.CallSite{File: "Caller.java", Line: 30}, nil, false)
+	g.MarkTerminal(unresolved, graph.NodeTerminalUnresolved, "missing", nil)
+	g.MarkTerminal(retained, graph.NodeTerminalNoImplementation, "terminal", nil)
+
+	snapshot := NewResultSnapshotWithIncludeUnresolved(graph.BuildResult{Graph: g}, caller, false)
+	if len(snapshot.Nodes) != 2 {
+		t.Fatalf("filtered nodes = %+v, want caller and retained terminal", snapshot.Nodes)
+	}
+	if _, found := func() (NodeView, bool) {
+		for _, node := range snapshot.Nodes {
+			if node.Kind == NodeUnresolved {
+				return node, true
+			}
+		}
+		return NodeView{}, false
+	}(); found {
+		t.Fatal("filtered snapshot retained unresolved node")
+	}
+	if findNode(t, snapshot, methodView(retained.Method, true)).Kind != NodeNoImplementation {
+		t.Fatal("filtered snapshot removed a non-unresolved terminal")
+	}
+	if len(snapshot.Edges) != 1 || snapshot.Edges[0].From != stableNodeID(caller.Method) || snapshot.Edges[0].To != stableNodeID(retained.Method) {
+		t.Fatalf("filtered edges = %+v, want only caller -> retained", snapshot.Edges)
+	}
+}
+
+func TestNewResultSnapshotFilteringPreservesTruncationForExcludedCaller(t *testing.T) {
+	root := testHandle("Root", "run", "()")
+	unresolved := testHandle("Missing", "work", "()")
+	retained := testHandle("Retained", "done", "()")
+	g := graph.NewGraph()
+	g.AddEdge(root, unresolved, java.CallSite{File: "Root.java", Line: 10}, nil, false)
+	g.AddEdge(unresolved, retained, java.CallSite{File: "Missing.java", Line: 20}, nil, false)
+	g.AddEdge(root, retained, java.CallSite{File: "Root.java", Line: 30}, nil, false)
+	g.MarkTerminal(unresolved, graph.NodeTerminalUnresolved, "missing", nil)
+	truncation := graph.Truncation{
+		Kind:    graph.TruncationMaxNodes,
+		Caller:  unresolved,
+		Call:    java.CallSite{File: "Missing.java", Line: 20, StartByte: 200, MethodName: "work"},
+		Omitted: 2,
+		Note:    "excluded caller",
+	}
+	result := graph.BuildResult{Graph: g, Truncations: []graph.Truncation{truncation}}
+
+	defaultSnapshot := NewResultSnapshot(result, root)
+	defaultExplicit := NewResultSnapshotWithIncludeUnresolved(result, root, true)
+	if !reflect.DeepEqual(defaultSnapshot, defaultExplicit) {
+		t.Fatalf("default snapshot changed when includeUnresolved=true:\ndefault=%+v\nexplicit=%+v", defaultSnapshot, defaultExplicit)
+	}
+	if len(defaultSnapshot.Nodes) != 3 || len(defaultSnapshot.Edges) != 3 || len(defaultSnapshot.Truncations) != 1 {
+		t.Fatalf("default snapshot = %+v, want unresolved graph and truncation", defaultSnapshot)
+	}
+
+	filtered := NewResultSnapshotWithIncludeUnresolved(result, root, false)
+	if len(filtered.Nodes) != 2 || len(filtered.Edges) != 1 || len(filtered.Truncations) != 1 {
+		t.Fatalf("filtered snapshot = %+v, want retained graph and truncation", filtered)
+	}
+	if filtered.Edges[0].From != stableNodeID(root.Method) || filtered.Edges[0].To != stableNodeID(retained.Method) {
+		t.Fatalf("filtered edge = %+v, want root -> retained", filtered.Edges[0])
+	}
+	for _, node := range filtered.Nodes {
+		if node.Kind == NodeUnresolved {
+			t.Fatal("filtered snapshot retained unresolved node")
+		}
+	}
+
+	view := filtered.Truncations[0]
+	if view.ID != truncation.ID() || view.Caller != executionView(unresolved, false) || view.Call != callView(truncation.Call) || view.Omitted != truncation.Omitted || view.Note != truncation.Note {
+		t.Fatalf("filtered truncation = %+v, want preserved caller metadata without node ID reference", view)
+	}
+	if !reflect.DeepEqual(filtered.Truncations, defaultSnapshot.Truncations) {
+		t.Fatalf("filter changed truncation projection: default=%+v filtered=%+v", defaultSnapshot.Truncations, filtered.Truncations)
+	}
+}
+
+func TestNewResultSnapshotFilteringPreservesAllNonUnresolvedKinds(t *testing.T) {
+	root := testHandle("Root", "run", "()")
+	unresolved := testHandle("Missing", "work", "()")
+	retained := []struct {
+		name      string
+		graphKind graph.NodeKind
+		snapKind  NodeKind
+	}{
+		{name: "external", graphKind: graph.NodeExternal, snapKind: NodeExternal},
+		{name: "no implementation", graphKind: graph.NodeTerminalNoImplementation, snapKind: NodeNoImplementation},
+		{name: "ambiguous type", graphKind: graph.NodeTerminalAmbiguousType, snapKind: NodeAmbiguousType},
+		{name: "ambiguous overload", graphKind: graph.NodeTerminalAmbiguousOverload, snapKind: NodeAmbiguousOverload},
+		{name: "ambiguous implementation", graphKind: graph.NodeTerminalAmbiguousImplementation, snapKind: NodeAmbiguousImplementation},
+	}
+	g := graph.NewGraph()
+	g.AddEdge(root, unresolved, java.CallSite{Line: 1}, nil, false)
+	g.MarkTerminal(unresolved, graph.NodeTerminalUnresolved, "missing", nil)
+	for i, tt := range retained {
+		key := testHandle("Retained"+tt.name, "run", "()")
+		if tt.graphKind == graph.NodeExternal {
+			g.MarkExternal(key)
+		} else {
+			g.MarkTerminal(key, tt.graphKind, tt.name, nil)
+		}
+		g.AddEdge(root, key, java.CallSite{Line: i + 2}, nil, false)
+	}
+
+	snapshot := NewResultSnapshotWithIncludeUnresolved(graph.BuildResult{Graph: g}, root, false)
+	if len(snapshot.Nodes) != len(retained)+1 || len(snapshot.Edges) != len(retained) {
+		t.Fatalf("filtered graph size = nodes %d edges %d, want nodes %d edges %d", len(snapshot.Nodes), len(snapshot.Edges), len(retained)+1, len(retained))
+	}
+	wantKinds := map[NodeKind]bool{NodeMethod: true}
+	for _, tt := range retained {
+		wantKinds[tt.snapKind] = true
+	}
+	gotKinds := make(map[NodeKind]bool, len(snapshot.Nodes))
+	for _, node := range snapshot.Nodes {
+		gotKinds[node.Kind] = true
+		if node.Kind == NodeUnresolved {
+			t.Fatal("filtered snapshot retained unresolved kind")
+		}
+	}
+	if !reflect.DeepEqual(gotKinds, wantKinds) {
+		t.Fatalf("filtered node kinds = %v, want %v", gotKinds, wantKinds)
+	}
+	nodeIDs := make(map[string]bool, len(snapshot.Nodes))
+	for _, node := range snapshot.Nodes {
+		nodeIDs[node.ID] = true
+	}
+	for _, edge := range snapshot.Edges {
+		if !nodeIDs[edge.From] || !nodeIDs[edge.To] {
+			t.Fatalf("filtered edge has dangling endpoint: %+v", edge)
+		}
+	}
+}
+
+func TestNewResultSnapshotFilteringPrecedesContextIDsAndIsStable(t *testing.T) {
+	method := resolve.MethodHandle{TypeFQCN: "base.Base", Method: "run", Signature: "()"}
+	kept := resolve.ExecutionKey{Method: method, RuntimeTypeFQCN: "app.Kept"}
+	unresolved := resolve.ExecutionKey{Method: method, RuntimeTypeFQCN: "app.Missing"}
+
+	makeGraph := func(reverse bool) *graph.Graph {
+		g := graph.NewGraph()
+		if reverse {
+			g.MarkTerminal(unresolved, graph.NodeTerminalUnresolved, "missing", nil)
+			g.GetOrCreate(kept)
+		} else {
+			g.GetOrCreate(kept)
+			g.MarkTerminal(unresolved, graph.NodeTerminalUnresolved, "missing", nil)
+		}
+		g.AddEdge(kept, unresolved, java.CallSite{File: "Kept.java", Line: 10}, nil, false)
+		return g
+	}
+
+	first := NewResultSnapshotWithIncludeUnresolved(graph.BuildResult{Graph: makeGraph(false)}, kept, false)
+	second := NewResultSnapshotWithIncludeUnresolved(graph.BuildResult{Graph: makeGraph(true)}, kept, false)
+	if !reflect.DeepEqual(first, second) {
+		t.Fatalf("filtered snapshots differ by insertion order:\nfirst=%+v\nsecond=%+v", first, second)
+	}
+	if len(first.Nodes) != 1 || first.Nodes[0].ID != stableNodeID(method) || first.Nodes[0].Label != "base.Base.run()" {
+		t.Fatalf("filtered context presentation = %+v, want one legacy-context node", first.Nodes)
+	}
+	if len(first.Edges) != 0 {
+		t.Fatalf("filtered incident edge remained: %+v", first.Edges)
+	}
+}
+
 func TestNewSnapshotQualifiesCoexistingRuntimeContexts(t *testing.T) {
 	handle := resolve.MethodHandle{TypeFQCN: "base.Base", Method: "run", Signature: "()"}
 	first := resolve.ExecutionKey{Method: handle, RuntimeTypeFQCN: "app.First"}

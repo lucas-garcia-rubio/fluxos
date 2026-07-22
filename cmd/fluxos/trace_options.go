@@ -293,8 +293,6 @@ func validateTraceSupport(opts TraceOptions) error {
 	switch {
 	case opts.Format != FormatMermaid && opts.Format != FormatDOT && opts.Format != FormatJSON:
 		return unsupportedOption("--format=" + string(opts.Format))
-	case !opts.IncludeUnresolved:
-		return unsupportedOption("--include-unresolved=false")
 	default:
 		return nil
 	}

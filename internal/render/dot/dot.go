@@ -23,16 +23,39 @@ func Render(out io.Writer, snapshot render.Snapshot) error {
 		payload.WriteString(";\n")
 	}
 	for _, truncation := range snapshot.Truncations {
-		fmt.Fprintf(&payload, "  %s [shape=note, label=\"truncation: %s: omitted %d at %s\"];\n",
-			quote(truncation.ID), truncation.Kind, truncation.Omitted, escapeValue(executionLabel(truncation.Caller)))
+		fmt.Fprintf(&payload, "  %s [shape=note, label=%s];\n",
+			quote(truncation.ID), quote(truncationLabel(truncation)))
 	}
 	payload.WriteString("}\n")
 	return writeAll(out, payload.String())
 }
 
+func truncationLabel(truncation render.TruncationView) string {
+	return fmt.Sprintf("truncation: %s; omitted %d while tracing %s",
+		truncationKindLabel(truncation.Kind), truncation.Omitted, executionLabel(truncation.Caller))
+}
+
+func truncationKindLabel(kind string) string {
+	switch kind {
+	case "maxDepth":
+		return "depth limit"
+	case "maxNodes":
+		return "node limit"
+	case "maxImpls":
+		return "implementation limit"
+	case "discoveryLimit":
+		return "discovery limit"
+	default:
+		return kind + " limit"
+	}
+}
+
 func executionLabel(execution render.ExecutionView) string {
 	method := execution.Method
 	typeFQCN := method.TypeFQCN
+	if separator := strings.IndexByte(typeFQCN, '#'); separator >= 0 {
+		typeFQCN = typeFQCN[:separator]
+	}
 	if typeFQCN == "" {
 		typeFQCN = "<unknown>"
 	}

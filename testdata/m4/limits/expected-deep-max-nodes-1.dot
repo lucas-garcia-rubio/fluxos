@@ -1,4 +1,4 @@
 digraph fluxos {
   "m_1b9028fe90a6" [label="app.Deep.a()", kind="method"];
-  "t_e8580a5026a0" [shape=note, label="truncation: maxNodes: omitted 1 at app.Deep.a()"];
+  "t_e8580a5026a0" [shape=note, label="truncation: node limit; omitted 1 while tracing app.Deep.a()"];
 }

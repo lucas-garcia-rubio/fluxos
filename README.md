@@ -34,6 +34,10 @@ as an explicit source root.
 ./fluxos trace com.example.Workflow.start ./path/to/java-project
 ```
 
+Use `./fluxos --help`, `./fluxos -h`, or `./fluxos help` for the global overview. Each
+command also has help: `./fluxos trace --help` and `./fluxos index --help`. Help is printed
+to stdout and does not require a project or target.
+
 Targets may use a unique simple type name, a fully qualified class name, or an exact
 method signature:
 
@@ -62,6 +66,20 @@ only to Mermaid. `--max-depth=0` means unlimited, `--max-nodes` defaults to 1000
 explicit `--max-nodes=0` disables that limit. Limits produce visible truncation metadata
 instead of silently dropping analysis results.
 
+Truncations are readable note nodes in Mermaid and DOT, for example
+`% truncation: node limit; omitted 3 while tracing com.example.Workflow.start()`.
+Internal node and dispatch IDs are not placed in the human-readable label. JSON retains the
+structured truncation record.
+
+Unresolved terminals are included by default. To omit unresolved nodes and their incident
+edges while keeping other terminal outcomes and truncation metadata, use:
+
+```bash
+./fluxos trace --include-unresolved=false Workflow.start ./project
+```
+
+For the complete machine-readable contract, see [JSON schema v1](docs/json-schema.md).
+
 ### Polymorphic implementations
 
 The default remains conservative: a receiver with multiple concrete implementations
@@ -79,7 +97,7 @@ Or select implementations declaratively by receiver FQCN:
   com.example.Workflow.start ./project
 ```
 
-Each mapping is `<receiver-fqcn>=<implementation-fqcn|all|none>`, separated by commas.
+The grammar is `--pick-impls=<receiver-fqcn>=<implementation-fqcn|all|none>[,...]`.
 `none` keeps the ambiguous terminal, `all` fans out up to `--max-impls`, and an explicit
 implementation follows only that runtime type. Unmapped receivers retain the default
 ambiguous terminal. Unknown receivers and candidates fail before graph output is written.

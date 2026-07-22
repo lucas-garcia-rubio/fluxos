@@ -1,0 +1,16 @@
+fluxos — deterministic Java call graphs
+
+Usage:
+  fluxos <command> [options]
+  fluxos help [trace|index]
+
+Commands:
+  trace  trace a method and render Mermaid, DOT, or JSON
+  index  print the indexed Java types as JSON
+
+Examples:
+  fluxos trace com.example.Workflow.start ./project
+  fluxos trace --format=dot com.example.Workflow.start ./project
+  fluxos trace --format=json com.example.Workflow.start ./project
+
+Use fluxos trace --help or fluxos index --help for options.

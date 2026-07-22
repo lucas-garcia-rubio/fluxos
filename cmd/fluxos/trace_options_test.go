@@ -198,20 +198,16 @@ func TestValidateTraceSupportAcceptsCompatibilityValues(t *testing.T) {
 	}
 }
 
-func TestValidateTraceSupportRejectsReservedFeatures(t *testing.T) {
-	tests := [][]string{
-		{"--include-unresolved=false", "app.Workflow.start"},
+func TestValidateTraceSupportAcceptsIncludeUnresolvedFalse(t *testing.T) {
+	opts, err := parseTraceOptions([]string{"--include-unresolved=false", "app.Workflow.start"})
+	if err != nil {
+		t.Fatalf("parseTraceOptions: %v", err)
 	}
-	for _, args := range tests {
-		opts, err := parseTraceOptions(args)
-		if err != nil {
-			t.Fatalf("parseTraceOptions(%v): %v", args, err)
-		}
-		err = validateTraceSupport(opts)
-		if err == nil || !strings.Contains(err.Error(), "not implemented yet") {
-			t.Fatalf("validateTraceSupport(%v) error = %v", args, err)
-		}
-		requireUsageError(t, err)
+	if opts.IncludeUnresolved {
+		t.Fatal("--include-unresolved=false did not disable unresolved nodes")
+	}
+	if err := validateTraceSupport(opts); err != nil {
+		t.Fatalf("validateTraceSupport: %v", err)
 	}
 }
 

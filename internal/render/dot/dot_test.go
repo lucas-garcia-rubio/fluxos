@@ -158,12 +158,12 @@ func TestRenderAppendsTruncationMarkersAfterAnalysisNodes(t *testing.T) {
 		Edges:         []render.EdgeView{},
 		Truncations: []render.TruncationView{{
 			ID: "t_abc123", Kind: "maxNodes", Caller: caller,
-			Call:   render.CallView{File: "App.java", StartByte: 100, MethodName: "run"},
+			Call:    render.CallView{File: "App.java", StartByte: 100, MethodName: "run"},
 			Omitted: 3, Note: "",
 		}},
 	}
 	got := renderString(t, snapshot)
-	if !strings.Contains(got, `"t_abc123" [shape=note, label="truncation: maxNodes: omitted 3 at app.Workflow.start()"];`) {
+	if !strings.Contains(got, `"t_abc123" [shape=note, label="truncation: node limit; omitted 3 while tracing app.Workflow.start()"];`) {
 		t.Fatalf("truncation marker missing or malformed:\n%s", got)
 	}
 	rootIdx := strings.Index(got, `"m_root"`)
@@ -173,5 +173,16 @@ func TestRenderAppendsTruncationMarkersAfterAnalysisNodes(t *testing.T) {
 	}
 	if strings.Contains(got, `"t_abc123" ->`) || strings.Contains(got, `-> "t_abc123"`) {
 		t.Fatalf("truncation marker must not participate in edges:\n%s", got)
+	}
+}
+
+func TestTruncationLabelHidesSyntheticTerminalHandle(t *testing.T) {
+	snapshot := render.Snapshot{Truncations: []render.TruncationView{{
+		ID: "t_internal", Kind: "maxNodes", Omitted: 1,
+		Caller: render.ExecutionView{Method: render.MethodView{TypeFQCN: "Contract#ambimpl#abc", Method: "run"}},
+	}}}
+	got := renderString(t, snapshot)
+	if strings.Contains(got, "#ambimpl#") || !strings.Contains(got, "Contract.run()") {
+		t.Fatalf("truncation label exposed synthetic handle: %s", got)
 	}
 }

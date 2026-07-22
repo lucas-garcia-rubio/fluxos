@@ -105,6 +105,14 @@ func NewSnapshot(g *graph.Graph, target resolve.ExecutionKey) Snapshot {
 }
 
 func NewResultSnapshot(result graph.BuildResult, target resolve.ExecutionKey) Snapshot {
+	return NewResultSnapshotWithIncludeUnresolved(result, target, true)
+}
+
+// NewResultSnapshotWithIncludeUnresolved projects a build result into the
+// renderer-neutral view. Existing callers use NewResultSnapshot and retain
+// unresolved terminals; false removes those nodes and every incident edge
+// before context-sensitive IDs and ordering are computed.
+func NewResultSnapshotWithIncludeUnresolved(result graph.BuildResult, target resolve.ExecutionKey, includeUnresolved bool) Snapshot {
 	snapshot := Snapshot{
 		SchemaVersion: SnapshotSchemaVersion,
 		Target:        executionView(target, false),
@@ -117,10 +125,17 @@ func NewResultSnapshot(result graph.BuildResult, target resolve.ExecutionKey) Sn
 		return snapshot
 	}
 
-	contextCounts := make(map[resolve.MethodHandle]int, len(g.Nodes))
+	excluded := make(map[resolve.ExecutionKey]struct{})
 	nodes := make([]*graph.Node, 0, len(g.Nodes))
 	for _, node := range g.Nodes {
+		if !includeUnresolved && node.Kind == graph.NodeTerminalUnresolved {
+			excluded[node.Key] = struct{}{}
+			continue
+		}
 		nodes = append(nodes, node)
+	}
+	contextCounts := make(map[resolve.MethodHandle]int, len(nodes))
+	for _, node := range nodes {
 		contextCounts[node.Key.Method]++
 	}
 	sort.Slice(nodes, func(i, j int) bool {
@@ -143,6 +158,19 @@ func NewResultSnapshot(result graph.BuildResult, target resolve.ExecutionKey) Sn
 	}
 
 	edges := append([]graph.Edge{}, g.Edges...)
+	if !includeUnresolved {
+		filtered := edges[:0]
+		for _, edge := range edges {
+			if _, excludedFrom := excluded[edge.From]; excludedFrom {
+				continue
+			}
+			if _, excludedTo := excluded[edge.To]; excludedTo {
+				continue
+			}
+			filtered = append(filtered, edge)
+		}
+		edges = filtered
+	}
 	sort.SliceStable(edges, func(i, j int) bool {
 		return compareEdges(edges[i], edges[j]) < 0
 	})

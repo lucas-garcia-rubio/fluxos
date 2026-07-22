@@ -110,7 +110,7 @@ func buildTraceSnapshotWithSelector(opts TraceOptions, selector trace.Implementa
 	if err != nil {
 		return render.Snapshot{}, err
 	}
-	return render.NewResultSnapshot(result, target.Execution), nil
+	return render.NewResultSnapshotWithIncludeUnresolved(result, target.Execution, opts.IncludeUnresolved), nil
 }
 
 // dispatchPolicyFor traduz TraceOptions em uma DispatchPolicy. Default mantém
