@@ -52,6 +52,21 @@ Matching binaries prove repeatability on the same clean host and toolchain; they
 reproducibility between different installations or different toolchains. A diagnostic proof is
 never an official release qualification.
 
+Release-candidate history is recorded in the [changelog](CHANGELOG.md), with the
+[v1.0.0-rc1 release notes](docs/release-notes/v1.0.0-rc1.md) covering the artifact evidence and
+remaining qualification limits. To promote one verified Linux/amd64 artifact and its metadata
+outside the checkout, use a new or empty directory outside the Git worktree:
+
+```bash
+./scripts/verify-reproducible-build.sh \
+  --output-dir /tmp/fluxos-v1.0.0-rc1 \
+  v1.0.0-rc1
+```
+
+This produces `fluxos-v1.0.0-rc1-linux-amd64`, `SHA256SUMS`, and `BUILD_INFO.txt` only after
+the two builds match and both version checks pass. Add `--diagnostic` on a non-baseline host;
+that output is never an official qualification.
+
 The current release-candidate policy qualifies only native `linux/amd64`.
 Ubuntu 24.04 x64 with GCC is the build and validation baseline; it is not a guarantee of
 broad compatibility across distributions. Release builds use `CGO_ENABLED=1` on a native
@@ -62,7 +77,34 @@ those targets are best-effort, not a compatibility promise. Generic cross-compil
 setting only `GOOS` and `GOARCH` is unsupported. A target gains support only after a native
 build, the test suite and `go vet`, inspection, and a runtime smoke test.
 
-There are not yet any distributed binaries or release/CI automation.
+There are not yet any distributed binaries or publication automation. The CI workflow exists, but
+no remote green execution has been observed.
+
+Smoke a promoted bundle without Maven:
+
+```bash
+./scripts/smoke-release-candidate.sh \
+  v1.0.0-rc1 \
+  /tmp/fluxos-v1.0.0-rc1
+```
+
+The smoke verifies `SHA256SUMS`, `BUILD_INFO.txt`, and `--version`, then checks the M3
+`Workflow.start` golden, non-interactive M4 options, JSON/DOT runtime-context goldens, and the
+Spring Petclinic target `org.springframework.samples.petclinic.owner.OwnerController.processFindForm`
+at commit `c36452a2c34443ae26b4ecbba4f149906af14717` from the pinned repository URL.
+
+The local release-candidate gate runs tests, race, vet, the reproducible build, and this smoke:
+
+```bash
+./scripts/verify-release-candidate.sh \
+  --diagnostic \
+  v1.0.0-rc1 \
+  /tmp/fluxos-v1.0.0-rc1
+```
+
+It reports `local gate: passed` only when those checks pass, then reports
+`remote CI: pending` and exits with status 3 (`result: pending-remote-ci`). A pending gate is
+not RC approval or publication.
 
 ## Index a project
 
