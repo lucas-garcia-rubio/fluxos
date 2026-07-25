@@ -7,6 +7,7 @@ Usage:
 Commands:
   trace  trace a method and render Mermaid, DOT, or JSON
   index  print the indexed Java types as JSON
+  version  print the CLI version
 
 Examples:
   fluxos trace com.example.Workflow.start ./project

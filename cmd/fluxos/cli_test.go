@@ -33,6 +33,37 @@ func TestRunCLIReturnsZeroAndSeparatesStreams(t *testing.T) {
 	}
 }
 
+func TestRunCLIVersionForms(t *testing.T) {
+	for _, args := range [][]string{{"version"}, {"--version"}} {
+		var out, errOut bytes.Buffer
+		if code := runCLI(args, IO{Out: &out, ErrOut: &errOut}); code != 0 {
+			t.Fatalf("runCLI(%v) exit = %d, want 0; stdout=%q stderr=%q", args, code, out.String(), errOut.String())
+		}
+		if out.String() != "fluxos dev\n" {
+			t.Fatalf("runCLI(%v) stdout = %q, want %q", args, out.String(), "fluxos dev\n")
+		}
+		if errOut.Len() != 0 {
+			t.Fatalf("runCLI(%v) stderr = %q, want empty", args, errOut.String())
+		}
+	}
+}
+
+func TestRunCLIVersionFormsRejectArguments(t *testing.T) {
+	for _, args := range [][]string{{"version", "extra"}, {"--version", "extra"}} {
+		var out, errOut bytes.Buffer
+		if code := runCLI(args, IO{Out: &out, ErrOut: &errOut}); code != 2 {
+			t.Fatalf("runCLI(%v) exit = %d, want 2; stdout=%q stderr=%q", args, code, out.String(), errOut.String())
+		}
+		if out.Len() != 0 {
+			t.Fatalf("runCLI(%v) stdout = %q, want empty", args, out.String())
+		}
+		wantErr := "fluxos: " + args[0] + " does not accept arguments\n"
+		if errOut.String() != wantErr {
+			t.Fatalf("runCLI(%v) stderr = %q, want %q", args, errOut.String(), wantErr)
+		}
+	}
+}
+
 func TestRunCLIPickImplsIsNonInteractiveAndSeparatesStreams(t *testing.T) {
 	var out, errOut bytes.Buffer
 	code := runCLI([]string{
@@ -111,8 +142,8 @@ func TestRunCLIReportsGlobalUsageBlocks(t *testing.T) {
 		args []string
 		want string
 	}{
-		{name: "missing command", want: "usage: fluxos <command>\ncommands: index, trace\n"},
-		{name: "unknown command", args: []string{"unknown"}, want: "fluxos: unknown command \"unknown\"\nusage: fluxos <command>\ncommands: index, trace\n"},
+		{name: "missing command", want: "usage: fluxos <command>\ncommands: index, trace, version\n"},
+		{name: "unknown command", args: []string{"unknown"}, want: "fluxos: unknown command \"unknown\"\nusage: fluxos <command>\ncommands: index, trace, version\n"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

@@ -71,6 +71,14 @@ func runCLIWithService(args []string, streams IO, service traceService) int {
 		writeUsage(streams.ErrOut)
 		return 2
 	}
+	if args[0] == "version" || args[0] == "--version" {
+		if len(args) != 1 {
+			fmt.Fprintf(streams.ErrOut, "fluxos: %s does not accept arguments\n", args[0])
+			return 2
+		}
+		fmt.Fprintf(streams.Out, "fluxos %s\n", version)
+		return 0
+	}
 	if args[0] == "--help" || args[0] == "-h" {
 		if len(args) != 1 {
 			fmt.Fprintln(streams.ErrOut, "fluxos: --help does not accept arguments")
@@ -144,7 +152,7 @@ func normalizeIO(streams IO) IO {
 
 func writeUsage(out io.Writer) {
 	fmt.Fprintln(out, "usage: fluxos <command>")
-	fmt.Fprintln(out, "commands: index, trace")
+	fmt.Fprintln(out, "commands: index, trace, version")
 }
 
 func writeGlobalHelp(out io.Writer) {
@@ -157,6 +165,7 @@ func writeGlobalHelp(out io.Writer) {
 	fmt.Fprintln(out, "Commands:")
 	fmt.Fprintln(out, "  trace  trace a method and render Mermaid, DOT, or JSON")
 	fmt.Fprintln(out, "  index  print the indexed Java types as JSON")
+	fmt.Fprintln(out, "  version  print the CLI version")
 	fmt.Fprintln(out, "")
 	fmt.Fprintln(out, "Examples:")
 	fmt.Fprintln(out, "  fluxos trace com.example.Workflow.start ./project")
