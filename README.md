@@ -15,6 +15,20 @@ go build ./cmd/fluxos
 
 The resulting executable is `./fluxos` when built from the repository root.
 
+A local build uses the default version:
+
+```bash
+go build -o fluxos ./cmd/fluxos
+./fluxos --version  # fluxos dev
+```
+
+A release-like build can inject a version with `-ldflags`:
+
+```bash
+go build -ldflags="-X main.version=v1.0.0-rc1" -o fluxos ./cmd/fluxos
+./fluxos --version  # fluxos v1.0.0-rc1
+```
+
 ## Index a project
 
 ```bash
