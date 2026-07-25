@@ -29,6 +29,29 @@ CGO_ENABLED=1 go build -ldflags="-X main.version=v1.0.0-rc1" -o fluxos ./cmd/flu
 ./fluxos --version  # fluxos v1.0.0-rc1
 ```
 
+To verify a release-like build reproducibly, start from a clean Git checkout and run:
+
+```bash
+./scripts/verify-reproducible-build.sh v1.0.0
+```
+
+The verification requires a native Ubuntu 24.04 `linux/amd64` host by default. A host such as
+Arch Linux can run a diagnostic-only proof with `--diagnostic`:
+
+```bash
+./scripts/verify-reproducible-build.sh --diagnostic v1.0.0
+```
+
+The script uses `GOENV=off`, `CGO_ENABLED=1`, `CC=gcc`, `GOOS=linux`, `GOARCH=amd64`,
+`GOAMD64=v1`, clean `GOFLAGS`/`GOEXPERIMENT`/`SOURCE_DATE_EPOCH`/`CGO_*FLAGS`, and two
+temporary `GOCACHE` directories. Each build uses `-a -trimpath -buildvcs=false -mod=readonly`
+and `-ldflags "-s -w -X main.version=<version>"`. `-buildvcs=false` means the commit is
+recorded in the verification log, not embedded in the binary.
+
+Matching binaries prove repeatability on the same clean host and toolchain; they do not prove
+reproducibility between different installations or different toolchains. A diagnostic proof is
+never an official release qualification.
+
 The current release-candidate policy qualifies only native `linux/amd64`.
 Ubuntu 24.04 x64 with GCC is the build and validation baseline; it is not a guarantee of
 broad compatibility across distributions. Release builds use `CGO_ENABLED=1` on a native
