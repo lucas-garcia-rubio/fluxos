@@ -60,6 +60,14 @@ compiler and intentionally leaves uncertain calls unresolved or ambiguous.
 - `--all-impls` is bounded by `--max-impls` (default 5; zero is unlimited).
 - Mermaid and DOT display truncation notes, but these are presentation only; JSON remains the
   stable structured format. See [JSON schema v1](docs/json-schema.md).
-- CLI help is available globally and for each command. Version metadata, release automation,
-  and packaged binaries are still pending.
+- CLI help is available globally and for each command. tree-sitter requires CGO and a C
+  toolchain; `CGO_ENABLED=0` is unsupported and has no fallback.
+- The current release-candidate policy qualifies only native `linux/amd64`, with Ubuntu 24.04 x64
+  and GCC as the build/validation baseline. This baseline does not guarantee broad distro
+  compatibility. ARM, macOS, and Windows are not release-qualified; source builds there
+  are best-effort rather than a compatibility promise.
+- Generic cross-compilation using only `GOOS` and `GOARCH` is unsupported. A target is
+  supported only after a native build, the test suite and `go vet`, inspection, and a runtime
+  smoke test.
+- No distributed binaries or release/CI automation exist yet.
 - Persistent indexing caches and advanced Mermaid styling are deferred.

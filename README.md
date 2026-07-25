@@ -7,7 +7,7 @@ packages, inheritance, constructors, method references, and polymorphic receiver
 ## Build
 
 The project requires the Go version declared in `go.mod`, CGO, and a C toolchain because
-the tree-sitter runtime is native code.
+tree-sitter uses native code. `CGO_ENABLED=0` is not supported; there is no fallback.
 
 ```bash
 go build ./cmd/fluxos
@@ -25,9 +25,21 @@ go build -o fluxos ./cmd/fluxos
 A release-like build can inject a version with `-ldflags`:
 
 ```bash
-go build -ldflags="-X main.version=v1.0.0-rc1" -o fluxos ./cmd/fluxos
+CGO_ENABLED=1 go build -ldflags="-X main.version=v1.0.0-rc1" -o fluxos ./cmd/fluxos
 ./fluxos --version  # fluxos v1.0.0-rc1
 ```
+
+The current release-candidate policy qualifies only native `linux/amd64`.
+Ubuntu 24.04 x64 with GCC is the build and validation baseline; it is not a guarantee of
+broad compatibility across distributions. Release builds use `CGO_ENABLED=1` on a native
+`linux/amd64` host.
+
+ARM, macOS, and Windows targets are not release-qualified in this RC. Source builds on
+those targets are best-effort, not a compatibility promise. Generic cross-compilation by
+setting only `GOOS` and `GOARCH` is unsupported. A target gains support only after a native
+build, the test suite and `go vet`, inspection, and a runtime smoke test.
+
+There are not yet any distributed binaries or release/CI automation.
 
 ## Index a project
 
