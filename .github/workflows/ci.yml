@@ -1,0 +1,48 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  ci:
+    runs-on: ubuntu-24.04
+    env:
+      CGO_ENABLED: "1"
+      CC: gcc
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Set up Go
+        uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+          cache: false
+
+      - name: Verify toolchain
+        shell: bash
+        run: |
+          set -euo pipefail
+          go version
+          go env GOVERSION GOOS GOARCH CGO_ENABLED CC
+          gcc --version
+          [[ "$(go env GOOS)" == "linux" ]]
+          [[ "$(go env GOARCH)" == "amd64" ]]
+          [[ "$(go env CGO_ENABLED)" == "1" ]]
+          [[ "$(go env CC)" == "gcc" ]]
+
+      - name: Download Go modules
+        run: go mod download
+
+      - name: Run tests and goldens
+        run: go test ./...
+
+      - name: Run go vet
+        run: go vet ./...
+
+      - name: Build
+        run: go build ./...
