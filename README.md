@@ -145,3 +145,7 @@ visible instead of guessing:
   implementations and no explicit `--all-impls` or `--pick-impls` selection applies.
 
 See [LIMITATIONS.md](LIMITATIONS.md) for the supported analysis boundary.
+
+## License
+
+MIT License. See [LICENSE](LICENSE).
