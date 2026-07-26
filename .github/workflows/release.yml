@@ -1,0 +1,669 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Strict SemVer tag to release
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    permissions:
+      contents: read
+    env:
+      CGO_ENABLED: "1"
+      CC: gcc
+    outputs:
+      tag: ${{ steps.release_ref.outputs.tag }}
+      tag_object: ${{ steps.release_ref.outputs.tag_object }}
+      commit: ${{ steps.release_ref.outputs.commit }}
+      artifact_name: ${{ steps.release_ref.outputs.artifact_name }}
+    steps:
+      # The read-only token is needed here for a private repository's initial fetch.
+      # It is removed from the local Git configuration before the tag checkout.
+      - name: Checkout triggering ref
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          ref: ${{ github.ref }}
+          fetch-depth: 0
+          persist-credentials: true
+          token: ${{ github.token }}
+
+      - name: Resolve and validate release identity
+        id: release_ref
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          INPUT_TAG: ${{ inputs.tag }}
+          TRIGGER_REF: ${{ github.ref }}
+          EVENT_SHA: ${{ github.sha }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          die() {
+            printf 'error: %s\n' "$*" >&2
+            exit 1
+          }
+
+          [[ "$EVENT_SHA" =~ ^[0-9a-f]{40}$ ]] || die 'github.sha is not a SHA-1 commit'
+          if [[ "$EVENT_NAME" == 'workflow_dispatch' ]]; then
+            [[ "$TRIGGER_REF" == 'refs/heads/main' ]] || \
+              die 'workflow_dispatch is allowed only from refs/heads/main'
+            TAG=$INPUT_TAG
+          elif [[ "$EVENT_NAME" == 'push' ]]; then
+            TAG=$GITHUB_REF_NAME
+            [[ "$TRIGGER_REF" == "refs/tags/$TAG" ]] || \
+              die 'push event ref is not the observed release tag'
+          else
+            die "unsupported event: $EVENT_NAME"
+          fi
+
+          [[ "$TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]] || \
+            die "invalid release tag (expected ^v[0-9]+\\.[0-9]+\\.[0-9]+$): $TAG"
+
+          checked_out_sha=$(git rev-parse --verify HEAD)
+          [[ "$checked_out_sha" == "$EVENT_SHA" ]] || \
+            die "checkout does not match the event commit: $checked_out_sha"
+
+          remote_tag_listing=$(git ls-remote --exit-code --refs origin "refs/tags/$TAG") || \
+            die "could not verify that remote tag exists: $TAG"
+          mapfile -t remote_tag_lines <<< "$remote_tag_listing"
+          ((${#remote_tag_lines[@]} == 1)) || \
+            die "remote tag lookup was not unique: $TAG"
+          read -r remote_tag_oid remote_tag_ref <<< "${remote_tag_lines[0]}"
+          [[ "$remote_tag_ref" == "refs/tags/$TAG" ]] || \
+            die "remote lookup returned an unexpected ref for $TAG"
+          [[ "$remote_tag_oid" =~ ^[0-9a-f]{40}$ ]] || \
+            die "remote tag lookup returned an invalid object ID for $TAG"
+
+          git fetch --force --no-tags origin \
+            "+refs/tags/$TAG:refs/tags/$TAG"
+          git fetch --force --no-tags origin \
+            '+refs/heads/main:refs/remotes/origin/main'
+
+          local_tag_oid=$(git rev-parse --verify "refs/tags/$TAG")
+          [[ "$local_tag_oid" == "$remote_tag_oid" ]] || \
+            die "remote tag changed while it was being fetched: $TAG"
+          [[ "$(git cat-file -t "refs/tags/$TAG")" == 'tag' ]] || \
+            die "release tag is not annotated: $TAG"
+
+          tag_commit=$(git rev-parse --verify "refs/tags/$TAG^{commit}")
+          [[ "$tag_commit" =~ ^[0-9a-f]{40}$ ]] || \
+            die "release tag does not resolve to a commit: $TAG"
+          git merge-base --is-ancestor "$tag_commit" \
+            refs/remotes/origin/main || \
+            die "tag commit is not an ancestor of origin/main: $TAG"
+
+          artifact_name="fluxos-release-$GITHUB_RUN_ID"
+          printf 'tag=%s\n' "$TAG" >> "$GITHUB_OUTPUT"
+          printf 'tag_object=%s\n' "$remote_tag_oid" >> "$GITHUB_OUTPUT"
+          printf 'commit=%s\n' "$tag_commit" >> "$GITHUB_OUTPUT"
+          printf 'artifact_name=%s\n' "$artifact_name" >> "$GITHUB_OUTPUT"
+          printf 'release tag: %s\n' "$TAG"
+          printf 'release tag object: %s\n' "$remote_tag_oid"
+          printf 'release commit: %s\n' "$tag_commit"
+
+      - name: Remove Git credentials before tag checkout
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          mapfile -t extraheader_keys < <(
+            git config --local --name-only --get-regexp '^http\..*\.extraheader$' || true
+          )
+          for key in "${extraheader_keys[@]}"; do
+            git config --local --unset-all "$key" || true
+          done
+          git config --local --unset-all credential.helper || true
+
+          remaining_extraheaders=$(git config --local --name-only \
+            --get-regexp '^http\..*\.extraheader$' || true)
+          [[ -z "$remaining_extraheaders" ]] || \
+            { printf 'error: Git extraheader credentials remain\n' >&2; exit 1; }
+          remaining_helpers=$(git config --local --name-only \
+            --get-regexp '^credential\.helper$' || true)
+          [[ -z "$remaining_helpers" ]] || \
+            { printf 'error: Git credential helpers remain\n' >&2; exit 1; }
+
+      - name: Checkout resolved tag commit without credentials
+        env:
+          TAG_COMMIT: ${{ steps.release_ref.outputs.commit }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          git checkout --detach "$TAG_COMMIT"
+          actual_head=$(git rev-parse --verify HEAD)
+          [[ "$actual_head" == "$TAG_COMMIT" ]] || {
+            printf 'error: detached checkout does not match the tag commit\n' >&2
+            exit 1
+          }
+
+      - name: Set up Go
+        uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6
+        with:
+          go-version-file: go.mod
+          cache: false
+
+      - name: Verify native release toolchain
+        shell: bash
+        run: |
+          set -euo pipefail
+          go version
+          go env GOVERSION GOOS GOARCH CGO_ENABLED CC
+          gcc --version
+          [[ "$(go env GOOS)" == 'linux' ]] || {
+            printf 'error: GOOS is not linux\n' >&2
+            exit 1
+          }
+          [[ "$(go env GOARCH)" == 'amd64' ]] || {
+            printf 'error: GOARCH is not amd64\n' >&2
+            exit 1
+          }
+          [[ "$(go env CGO_ENABLED)" == '1' ]] || {
+            printf 'error: CGO_ENABLED is not 1\n' >&2
+            exit 1
+          }
+          [[ "$(go env CC)" == 'gcc' ]] || {
+            printf 'error: CC is not gcc\n' >&2
+            exit 1
+          }
+
+      - name: Download Go modules
+        shell: bash
+        run: |
+          set -euo pipefail
+          go mod download
+
+      - name: Run Go tests and vet
+        shell: bash
+        run: |
+          set -euo pipefail
+          go test ./...
+          go test -race ./...
+          go vet ./...
+
+      - name: Set up Java
+        uses: actions/setup-java@c1e323688fd81a25caa38c78aa6df2d33d3e20d9 # v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Compile Java fixtures
+        shell: bash
+        run: |
+          set -euo pipefail
+          for fixture in runtime-context interactive limits formats; do
+            source_root="testdata/m4/$fixture/src/main/java"
+            [ -d "$source_root" ] || continue
+            classes="$(mktemp -d)"
+            javac -Xlint:all -Werror -d "$classes" \
+              $(find "$source_root" -name '*.java' -print)
+            rm -rf "$classes"
+          done
+
+          if [ -d testdata/m4/scope/src/main/java ]; then
+            main_classes="$(mktemp -d)"
+            test_classes="$(mktemp -d)"
+            javac -Xlint:all -Werror -d "$main_classes" \
+              $(find testdata/m4/scope/src/main/java -name '*.java' -print)
+            javac -Xlint:all -Werror -cp "$main_classes" -d "$test_classes" \
+              $(find testdata/m4/scope/src/test/java -name '*.java' -print)
+            rm -rf "$main_classes" "$test_classes"
+          fi
+
+      - name: Build and smoke-test release bundle
+        id: bundle
+        env:
+          TAG: ${{ steps.release_ref.outputs.tag }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          die() {
+            printf 'error: %s\n' "$*" >&2
+            exit 1
+          }
+
+          bundle_dir="$(mktemp -d "$RUNNER_TEMP/fluxos-release-bundle.XXXXXXXX")"
+          scripts/verify-reproducible-build.sh \
+            --output-dir "$bundle_dir" "$TAG"
+          scripts/smoke-release-candidate.sh "$TAG" "$bundle_dir"
+
+          binary_name="fluxos-$TAG-linux-amd64"
+          mapfile -d '' bundle_entries < <(
+            find "$bundle_dir" -mindepth 1 -maxdepth 1 -printf '%f\0'
+          )
+          ((${#bundle_entries[@]} == 3)) || die 'bundle must contain exactly three files'
+          for entry in "${bundle_entries[@]}"; do
+            case "$entry" in
+              "$binary_name"|SHA256SUMS|BUILD_INFO.txt) ;;
+              *) die "bundle contains an unexpected file: $entry" ;;
+            esac
+          done
+          [[ -x "$bundle_dir/$binary_name" ]] || die 'bundle binary is not executable'
+          printf 'dir=%s\n' "$bundle_dir" >> "$GITHUB_OUTPUT"
+
+      - name: Upload reproducible release bundle
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: ${{ steps.release_ref.outputs.artifact_name }}
+          if-no-files-found: error
+          # A rerun keeps the deterministic run name and replaces only that run's artifact.
+          overwrite: true
+          retention-days: 2
+          path: |
+            ${{ steps.bundle.outputs.dir }}/fluxos-${{ steps.release_ref.outputs.tag }}-linux-amd64
+            ${{ steps.bundle.outputs.dir }}/SHA256SUMS
+            ${{ steps.bundle.outputs.dir }}/BUILD_INFO.txt
+
+  validate_renderers:
+    needs: build
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    permissions:
+      contents: read
+      actions: read
+    steps:
+      - name: Download original build artifact
+        uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v5
+        with:
+          name: ${{ needs.build.outputs.artifact_name }}
+          path: ${{ runner.temp }}/fluxos-release-bundle
+
+      # Bootstrap v1.0.0 from the workflow commit: its tag commit predates this lockfile.
+      - name: Checkout validator files from workflow commit
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          ref: ${{ github.sha }}
+          path: workflow-source
+          fetch-depth: 1
+          persist-credentials: false
+
+      # Fixture code and goldens must come from the exact commit compiled by build.
+      - name: Checkout tag fixture commit separately
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          ref: ${{ needs.build.outputs.commit }}
+          path: fixture-source
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+        with:
+          node-version: '24.8.0'
+
+      - name: Install locked Mermaid validator
+        working-directory: workflow-source/.github/release-validator
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -f package-lock.json
+          npm ci
+
+      - name: Install renderer validators
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install --no-install-recommends -y jq graphviz
+
+      - name: Validate release renderers against runtime goldens
+        env:
+          BUNDLE_DIR: ${{ runner.temp }}/fluxos-release-bundle
+          FIXTURE_DIR: ${{ github.workspace }}/fixture-source/testdata/m4/runtime-context
+          WORKFLOW_DIR: ${{ github.workspace }}/workflow-source
+          TAG: ${{ needs.build.outputs.tag }}
+          COMMIT: ${{ needs.build.outputs.commit }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          die() {
+            printf 'error: %s\n' "$*" >&2
+            exit 1
+          }
+
+          [[ -d "$FIXTURE_DIR" ]] || die "missing fixture directory: $FIXTURE_DIR"
+          fixture_repo=${FIXTURE_DIR%/testdata/m4/runtime-context}
+          fixture_head=$(git -C "$fixture_repo" rev-parse --verify HEAD)
+          [[ "$fixture_head" == "$COMMIT" ]] || \
+            die "fixture checkout is not the build commit: $fixture_head"
+
+          binary_name="fluxos-$TAG-linux-amd64"
+          binary="$BUNDLE_DIR/$binary_name"
+          expected_files=("$binary_name" 'SHA256SUMS' 'BUILD_INFO.txt')
+          mapfile -d '' entries < <(
+            find "$BUNDLE_DIR" -mindepth 1 -maxdepth 1 -printf '%f\0'
+          )
+          ((${#entries[@]} == 3)) || die 'renderer input artifact is not exactly three files'
+          for entry in "${entries[@]}"; do
+            case "$entry" in
+              "$binary_name"|SHA256SUMS|BUILD_INFO.txt) ;;
+              *) die "renderer input artifact has an unexpected file: $entry" ;;
+            esac
+          done
+          for file_name in "${expected_files[@]}"; do
+            [[ -f "$BUNDLE_DIR/$file_name" && ! -L "$BUNDLE_DIR/$file_name" ]] || \
+              die "renderer input artifact is missing: $file_name"
+          done
+          chmod +x "$binary"
+          (cd "$BUNDLE_DIR" && sha256sum -c -- SHA256SUMS) || \
+            die 'renderer input artifact checksum failed'
+
+          target='app.Workflow.start(app.First,app.Second)'
+          json_candidate="$RUNNER_TEMP/fluxos-runtime-context.json.raw"
+          dot_candidate="$RUNNER_TEMP/fluxos-runtime-context.dot.raw"
+          mermaid_candidate="$RUNNER_TEMP/fluxos-runtime-context.mmd.raw"
+
+          "$binary" trace --format=json "$target" "$FIXTURE_DIR" > "$json_candidate"
+          cmp -- "$FIXTURE_DIR/expected-start.json" "$json_candidate" || \
+            die 'JSON renderer output differs from expected-start.json'
+          "$binary" trace --format=dot "$target" "$FIXTURE_DIR" > "$dot_candidate"
+          cmp -- "$FIXTURE_DIR/expected-start.dot" "$dot_candidate" || \
+            die 'DOT renderer output differs from expected-start.dot'
+          "$binary" trace --format=mermaid "$target" "$FIXTURE_DIR" > "$mermaid_candidate"
+          cmp -- "$FIXTURE_DIR/expected-start.mmd" "$mermaid_candidate" || \
+            die 'Mermaid renderer output differs from expected-start.mmd'
+
+          jq . "$json_candidate" > "$RUNNER_TEMP/fluxos-runtime-context-validated.json"
+          test -s "$RUNNER_TEMP/fluxos-runtime-context-validated.json"
+          dot -Tsvg "$dot_candidate" -o "$RUNNER_TEMP/fluxos-runtime-context.svg"
+          test -s "$RUNNER_TEMP/fluxos-runtime-context.svg"
+          pushd "$WORKFLOW_DIR/.github/release-validator" >/dev/null
+          ./node_modules/.bin/mmdc -i - -o "$RUNNER_TEMP/fluxos-runtime-context-mermaid.svg" \
+            < "$mermaid_candidate"
+          popd >/dev/null
+          test -s "$RUNNER_TEMP/fluxos-runtime-context-mermaid.svg"
+
+  publish:
+    needs: [build, validate_renderers]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    # Configure this environment in GitHub with a required reviewer. This YAML
+    # does not create protection rules; also protect v* with a ruleset and/or
+    # immutable releases so a release tag cannot be moved out of band.
+    environment:
+      name: release
+    permissions:
+      contents: write
+      actions: read
+    steps:
+      - name: Download original build artifact
+        uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v5
+        with:
+          name: ${{ needs.build.outputs.artifact_name }}
+          path: ${{ runner.temp }}/fluxos-release-bundle
+
+      - name: Publish release safely
+        env:
+          TAG: ${{ needs.build.outputs.tag }}
+          TAG_OBJECT: ${{ needs.build.outputs.tag_object }}
+          COMMIT: ${{ needs.build.outputs.commit }}
+          BUNDLE_DIR: ${{ runner.temp }}/fluxos-release-bundle
+          REPOSITORY: ${{ github.repository }}
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          die() {
+            printf 'error: %s\n' "$*" >&2
+            exit 1
+          }
+
+          [[ "$TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]] || die "invalid build tag: $TAG"
+          [[ "$TAG_OBJECT" =~ ^[0-9a-f]{40}$ ]] || die 'invalid tag object output'
+          [[ "$COMMIT" =~ ^[0-9a-f]{40}$ ]] || die 'invalid commit output'
+
+          binary_name="fluxos-$TAG-linux-amd64"
+          expected_files=("$binary_name" 'SHA256SUMS' 'BUILD_INFO.txt')
+          mapfile -d '' entries < <(
+            find "$BUNDLE_DIR" -mindepth 1 -maxdepth 1 -printf '%f\0'
+          )
+          ((${#entries[@]} == 3)) || die 'downloaded artifact is not exactly three files'
+          for entry in "${entries[@]}"; do
+            case "$entry" in
+              "$binary_name"|SHA256SUMS|BUILD_INFO.txt) ;;
+              *) die "downloaded artifact has an unexpected file: $entry" ;;
+            esac
+          done
+          for file_name in "${expected_files[@]}"; do
+            [[ -f "$BUNDLE_DIR/$file_name" && ! -L "$BUNDLE_DIR/$file_name" ]] || \
+              die "downloaded artifact is missing: $file_name"
+          done
+
+          checksum_line="$(<"$BUNDLE_DIR/SHA256SUMS")"
+          read -r checksum_hash checksum_file checksum_extra <<< "$checksum_line"
+          [[ "$checksum_hash" =~ ^[0-9a-f]{64}$ ]] || die 'invalid SHA256SUMS digest'
+          [[ "$checksum_file" == "$binary_name" ]] || die 'unexpected SHA256SUMS filename'
+          [[ -z "$checksum_extra" && "$checksum_line" == \
+            "$checksum_hash  $checksum_file" ]] || die 'invalid SHA256SUMS format'
+          (cd "$BUNDLE_DIR" && sha256sum -c -- SHA256SUMS) || \
+            die 'SHA256SUMS verification failed'
+
+          require_build_info_line() {
+            local expected_line=$1
+            local count
+            count=$(grep -Fxc -- "$expected_line" "$BUNDLE_DIR/BUILD_INFO.txt" || true)
+            [[ "$count" == '1' ]] || \
+              die "BUILD_INFO.txt is missing or duplicated: $expected_line"
+          }
+
+          artifact_sha_line="$(sha256sum -- "$BUNDLE_DIR/$binary_name")"
+          artifact_sha=${artifact_sha_line%% *}
+          require_build_info_line "artifact: $binary_name"
+          require_build_info_line "version: $TAG"
+          require_build_info_line "commit: $COMMIT"
+          require_build_info_line "sha256: $artifact_sha"
+
+          # This helper accepts absence only as an authenticated HTTP 404. Any
+          # network, authentication, or other API failure stops the workflow.
+          api_request() {
+            local endpoint=$1
+            local allow_missing=$2
+            local response_file error_file api_rc http_status response_line
+            local response_protocol response_code response_text
+            response_file="$(mktemp "$RUNNER_TEMP/fluxos-api-response.XXXXXXXX")"
+            error_file="$(mktemp "$RUNNER_TEMP/fluxos-api-error.XXXXXXXX")"
+            set +e
+            gh api --include "$endpoint" > "$response_file" 2> "$error_file"
+            api_rc=$?
+            set -e
+
+            http_status=''
+            while IFS= read -r response_line; do
+              if [[ "$response_line" == HTTP/* ]]; then
+                read -r response_protocol response_code response_text <<< "$response_line"
+                http_status=$response_code
+              fi
+            done < "$response_file"
+
+            if [[ "$http_status" == '200' && "$api_rc" -eq 0 ]]; then
+              API_RESPONSE_FILE=$response_file
+              rm -f -- "$error_file"
+              return 0
+            fi
+            if [[ "$allow_missing" == true && "$http_status" == '404' && "$api_rc" -ne 0 ]]; then
+              rm -f -- "$response_file" "$error_file"
+              return 1
+            fi
+            rm -f -- "$response_file" "$error_file"
+            die "GitHub API request failed (HTTP ${http_status:-unknown})"
+          }
+
+          api_jq() {
+            local endpoint=$1
+            local filter=$2
+            gh api "$endpoint" --jq "$filter"
+          }
+
+          TAG_REF_ENDPOINT="repos/$REPOSITORY/git/ref/tags/$TAG"
+          TAG_OBJECT_ENDPOINT="repos/$REPOSITORY/git/tags/$TAG_OBJECT"
+          RELEASE_ENDPOINT="repos/$REPOSITORY/releases/tags/$TAG"
+
+          assert_tag_identity() {
+            local ref_fields object_fields ref_type ref_sha ref_extra object_type object_sha object_extra
+            api_request "$TAG_REF_ENDPOINT" false || die 'tag ref identity API check failed'
+            ref_fields=$(api_jq "$TAG_REF_ENDPOINT" '[.object.type, .object.sha] | @tsv') || \
+              die 'could not read remote tag ref identity'
+            read -r ref_type ref_sha ref_extra <<< "$ref_fields"
+            [[ -z "$ref_extra" && "$ref_type" == 'tag' && "$ref_sha" == "$TAG_OBJECT" ]] || \
+              die 'remote tag is not the expected annotated tag object'
+
+            api_request "$TAG_OBJECT_ENDPOINT" false || die 'tag object API check failed'
+            object_fields=$(api_jq "$TAG_OBJECT_ENDPOINT" '[.object.type, .object.sha] | @tsv') || \
+              die 'could not read peeled tag commit identity'
+            read -r object_type object_sha object_extra <<< "$object_fields"
+            [[ -z "$object_extra" && "$object_type" == 'commit' && "$object_sha" == "$COMMIT" ]] || \
+              die 'remote tag object does not resolve to the build commit'
+          }
+
+          load_release() {
+            RELEASE_EXISTS=0
+            RELEASE_DRAFT=''
+            RELEASE_ASSETS=()
+            if ! api_request "$RELEASE_ENDPOINT" true; then
+              return 0
+            fi
+            RELEASE_EXISTS=1
+            RELEASE_DRAFT=$(api_jq "$RELEASE_ENDPOINT" '.draft') || \
+              die 'could not read release draft state'
+            asset_listing=$(api_jq "$RELEASE_ENDPOINT" '.assets[].name') || \
+              die 'could not read release asset list'
+            if [[ -n "$asset_listing" ]]; then
+              mapfile -t RELEASE_ASSETS <<< "$asset_listing"
+            fi
+          }
+
+          validate_asset_names() {
+            local mode=$1
+            local has_binary=0
+            local has_checksums=0
+            local has_build_info=0
+            for asset in "${RELEASE_ASSETS[@]}"; do
+              case "$asset" in
+                "$binary_name")
+                  ((has_binary == 0)) || die 'release contains a duplicate binary asset'
+                  has_binary=1
+                  ;;
+                SHA256SUMS)
+                  ((has_checksums == 0)) || die 'release contains duplicate SHA256SUMS assets'
+                  has_checksums=1
+                  ;;
+                BUILD_INFO.txt)
+                  ((has_build_info == 0)) || die 'release contains duplicate BUILD_INFO assets'
+                  has_build_info=1
+                  ;;
+                *) die "release contains an unexpected asset: $asset" ;;
+              esac
+            done
+            if [[ "$mode" == exact ]]; then
+              ((${#RELEASE_ASSETS[@]} == 3 && has_binary == 1 && \
+                has_checksums == 1 && has_build_info == 1)) || \
+                die 'release does not contain exactly the three expected assets'
+            fi
+            PRESENT_BINARY=$has_binary
+            PRESENT_CHECKSUMS=$has_checksums
+            PRESENT_BUILD_INFO=$has_build_info
+          }
+
+          verify_existing_assets() {
+            local asset remote_dir remote_file
+            for asset in "${RELEASE_ASSETS[@]}"; do
+              remote_dir="$(mktemp -d "$RUNNER_TEMP/fluxos-release-asset.XXXXXXXX")"
+              gh release download "$TAG" \
+                --repo "$REPOSITORY" \
+                --pattern "$asset" \
+                --dir "$remote_dir"
+              remote_file="$remote_dir/$asset"
+              [[ -f "$remote_file" && ! -L "$remote_file" ]] || \
+                die "release asset could not be downloaded: $asset"
+              cmp -- "$BUNDLE_DIR/$asset" "$remote_file" || \
+                die "release asset differs from the build artifact: $asset"
+            done
+          }
+
+          verify_release_assets() {
+            local mode=$1
+            load_release
+            [[ "$RELEASE_EXISTS" == 1 ]] || die 'release disappeared during validation'
+            validate_asset_names "$mode"
+            verify_existing_assets
+          }
+
+          # Establish repository access first so a private-repository 404 cannot
+          # be mistaken for an absent release.
+          api_request "repos/$REPOSITORY" false || die 'repository access check failed'
+          gh api "repos/$REPOSITORY" --jq '.full_name' >/dev/null || \
+            die 'repository access could not be authenticated'
+
+          assert_tag_identity
+          load_release
+          release_created=0
+          if [[ "$RELEASE_EXISTS" == 0 ]]; then
+            printf 'release %s is absent; creating a draft\n' "$TAG"
+            gh release create "$TAG" \
+              --repo "$REPOSITORY" \
+              --draft \
+              --verify-tag \
+              --title "fluxos $TAG" \
+              --generate-notes
+            release_created=1
+          else
+            case "$RELEASE_DRAFT" in
+              true|false) ;;
+              *) die 'release API returned an invalid draft state' ;;
+            esac
+          fi
+
+          if [[ "$release_created" == 1 || "$RELEASE_DRAFT" == true ]]; then
+            # Existing draft assets must be a matching subset before any upload.
+            assert_tag_identity
+            verify_release_assets subset
+            [[ "$RELEASE_DRAFT" == true ]] || die 'release is not a draft before upload'
+
+            missing_paths=()
+            if ((PRESENT_BINARY == 0)); then
+              missing_paths+=("$BUNDLE_DIR/$binary_name")
+            fi
+            if ((PRESENT_CHECKSUMS == 0)); then
+              missing_paths+=("$BUNDLE_DIR/SHA256SUMS")
+            fi
+            if ((PRESENT_BUILD_INFO == 0)); then
+              missing_paths+=("$BUNDLE_DIR/BUILD_INFO.txt")
+            fi
+            if ((${#missing_paths[@]} > 0)); then
+              gh release upload "$TAG" \
+                --repo "$REPOSITORY" \
+                "${missing_paths[@]}"
+            fi
+
+            # Revalidate tag, draft state, exact assets, and bytes immediately
+            # before the only publication mutation.
+            assert_tag_identity
+            verify_release_assets exact
+            [[ "$RELEASE_DRAFT" == true ]] || \
+              die 'release changed state before publication'
+            gh release edit "$TAG" --repo "$REPOSITORY" --draft=false
+            printf 'published release %s\n' "$TAG"
+          else
+            # A published release is never modified: it must already be exact.
+            verify_release_assets exact
+            [[ "$RELEASE_DRAFT" == false ]] || die 'release state is unexpected'
+            printf 'published release %s already matches the verified bundle\n' "$TAG"
+          fi

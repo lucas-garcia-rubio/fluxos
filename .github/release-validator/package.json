@@ -1,0 +1,10 @@
+{
+  "name": "fluxos-release-validator",
+  "private": true,
+  "engines": {
+    "node": "24.8.0"
+  },
+  "dependencies": {
+    "@mermaid-js/mermaid-cli": "11.16.0"
+  }
+}
