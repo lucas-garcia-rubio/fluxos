@@ -7,7 +7,6 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
-	"strings"
 
 	"github.com/lucas-garcia-rubio/fluxos/internal/extract/java"
 	"github.com/lucas-garcia-rubio/fluxos/internal/graph"
@@ -20,7 +19,6 @@ import (
 	"github.com/lucas-garcia-rubio/fluxos/internal/render/mermaid"
 	"github.com/lucas-garcia-rubio/fluxos/internal/resolve"
 	"github.com/lucas-garcia-rubio/fluxos/internal/trace"
-	tree_sitter "github.com/tree-sitter/go-tree-sitter"
 )
 
 func main() {
@@ -45,10 +43,6 @@ func executeIndex(opts IndexOptions, streams IO) error {
 
 func runTrace(args []string, out io.Writer) error {
 	return runTraceCommand(args, IO{Out: out})
-}
-
-func executeTrace(opts TraceOptions, streams IO) error {
-	return executeTraceWithService(opts, streams, productionTraceService())
 }
 
 func executeTraceWithService(opts TraceOptions, streams IO, service traceService) error {
@@ -222,21 +216,4 @@ func flattenTypes(units []*java.CompilationUnit) []*java.TypeDecl {
 		allTypes = append(allTypes, unit.Types...)
 	}
 	return allTypes
-}
-
-func walk(node *tree_sitter.Node, depth int, currentFieldName string) {
-	indent := strings.Repeat("   ", depth)
-	if currentFieldName != "" {
-		fmt.Printf("%s%s: %s\n", indent, currentFieldName, node.Kind())
-	} else {
-		fmt.Printf("%s%s\n", indent, node.Kind())
-	}
-
-	for i := 0; i < int(node.ChildCount()); i++ {
-		child := node.Child(uint(i))
-		if child.IsNamed() {
-			childFieldName := node.FieldNameForChild(uint32(i))
-			walk(child, depth+1, childFieldName)
-		}
-	}
 }

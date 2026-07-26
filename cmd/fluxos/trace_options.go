@@ -1,7 +1,6 @@
 package main
 
 import (
-	"fmt"
 	"strconv"
 	"strings"
 
@@ -291,8 +290,4 @@ func parseLimit(name, value string) (int, error) {
 
 func validateIndexSupport(opts IndexOptions) error {
 	return nil
-}
-
-func unsupportedOption(option string) error {
-	return &UsageError{Err: fmt.Errorf("option %s is not implemented yet", option)}
 }
