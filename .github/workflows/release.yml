@@ -488,7 +488,7 @@ jobs:
 
           TAG_REF_ENDPOINT="repos/$REPOSITORY/git/ref/tags/$TAG"
           TAG_OBJECT_ENDPOINT="repos/$REPOSITORY/git/tags/$TAG_OBJECT"
-          RELEASE_ENDPOINT="repos/$REPOSITORY/releases/tags/$TAG"
+          RELEASE_TAG_ENDPOINT="repos/$REPOSITORY/releases/tags/$TAG"
 
           assert_tag_identity() {
             local ref_fields object_fields ref_type ref_sha ref_extra object_type object_sha object_extra
@@ -507,21 +507,86 @@ jobs:
               die 'remote tag object does not resolve to the build commit'
           }
 
-          load_release() {
+          set_release_id() {
+            local release_id=$1
+            [[ "$release_id" =~ ^[1-9][0-9]*$ ]] || \
+              die "release API returned an invalid release ID: $release_id"
+            RELEASE_ID=$release_id
+            RELEASE_ENDPOINT="repos/$REPOSITORY/releases/$RELEASE_ID"
+          }
+
+          load_release_by_id() {
+            [[ "$RELEASE_ID" =~ ^[1-9][0-9]*$ ]] || \
+              die 'release ID is not pinned before loading release state'
+            [[ "$RELEASE_ENDPOINT" == "repos/$REPOSITORY/releases/$RELEASE_ID" ]] || \
+              die 'release endpoint is inconsistent with release ID'
+            api_request "$RELEASE_ENDPOINT" false || \
+              die "could not load release $RELEASE_ID by ID"
             RELEASE_EXISTS=0
             RELEASE_DRAFT=''
             RELEASE_ASSETS=()
-            if ! api_request "$RELEASE_ENDPOINT" true; then
-              return 0
-            fi
+            RELEASE_ASSET_IDS=()
             RELEASE_EXISTS=1
             RELEASE_DRAFT=$(api_jq "$RELEASE_ENDPOINT" '.draft') || \
               die 'could not read release draft state'
-            asset_listing=$(api_jq "$RELEASE_ENDPOINT" '.assets[].name') || \
+            asset_listing=$(api_jq "$RELEASE_ENDPOINT" \
+              '.assets[] | [.name, (.id | tostring)] | @tsv') || \
               die 'could not read release asset list'
             if [[ -n "$asset_listing" ]]; then
-              mapfile -t RELEASE_ASSETS <<< "$asset_listing"
+              mapfile -t asset_lines <<< "$asset_listing"
+              for asset_line in "${asset_lines[@]}"; do
+                IFS=$'\t' read -r asset_name asset_id asset_extra <<< "$asset_line"
+                [[ -n "$asset_name" && "$asset_id" =~ ^[1-9][0-9]*$ && \
+                  -z "$asset_extra" ]] || \
+                  die 'release API returned an invalid asset entry'
+                RELEASE_ASSETS+=("$asset_name")
+                RELEASE_ASSET_IDS+=("$asset_id")
+              done
             fi
+          }
+
+          discover_release() {
+            RELEASE_EXISTS=0
+            RELEASE_DRAFT=''
+            RELEASE_ID=''
+            RELEASE_ENDPOINT=''
+            RELEASE_ASSETS=()
+            RELEASE_ASSET_IDS=()
+
+            # A 200 here identifies the published release (and gives its ID).
+            if api_request "$RELEASE_TAG_ENDPOINT" true; then
+              release_id=$(api_jq "$RELEASE_TAG_ENDPOINT" '.id') || \
+                die 'could not read release ID from tag lookup'
+              set_release_id "$release_id"
+              load_release_by_id
+              return 0
+            fi
+
+            # Draft releases are absent from the tag endpoint. This command is
+            # intentionally a direct assignment so pagination failures cannot
+            # disappear inside process substitution.
+            draft_ids=$(gh api --paginate --jq \
+              ".[] | select(.tag_name == \"$TAG\" and .draft == true) | .id" \
+              "repos/$REPOSITORY/releases?per_page=100") || \
+              die 'could not list releases while looking for a draft'
+            draft_id_lines=()
+            if [[ -n "$draft_ids" ]]; then
+              mapfile -t draft_id_lines <<< "$draft_ids"
+            fi
+            case "${#draft_id_lines[@]}" in
+              0)
+                return 0
+                ;;
+              1)
+                [[ "${draft_id_lines[0]}" =~ ^[1-9][0-9]*$ ]] || \
+                  die 'draft release listing returned an invalid release ID'
+                set_release_id "${draft_id_lines[0]}"
+                load_release_by_id
+                ;;
+              *)
+                die "more than one draft release exists for tag $TAG"
+                ;;
+            esac
           }
 
           validate_asset_names() {
@@ -557,14 +622,15 @@ jobs:
           }
 
           verify_existing_assets() {
-            local asset remote_dir remote_file
-            for asset in "${RELEASE_ASSETS[@]}"; do
+            local index asset remote_dir remote_file
+            for index in "${!RELEASE_ASSETS[@]}"; do
+              asset=${RELEASE_ASSETS[$index]}
               remote_dir="$(mktemp -d "$RUNNER_TEMP/fluxos-release-asset.XXXXXXXX")"
+              remote_file="$remote_dir/$asset"
               gh release download "$TAG" \
                 --repo "$REPOSITORY" \
                 --pattern "$asset" \
                 --dir "$remote_dir"
-              remote_file="$remote_dir/$asset"
               [[ -f "$remote_file" && ! -L "$remote_file" ]] || \
                 die "release asset could not be downloaded: $asset"
               cmp -- "$BUNDLE_DIR/$asset" "$remote_file" || \
@@ -574,10 +640,19 @@ jobs:
 
           verify_release_assets() {
             local mode=$1
-            load_release
+            load_release_by_id
             [[ "$RELEASE_EXISTS" == 1 ]] || die 'release disappeared during validation'
             validate_asset_names "$mode"
             verify_existing_assets
+          }
+
+          upload_asset() {
+            local asset_path=$1
+            [[ "$RELEASE_ID" =~ ^[1-9][0-9]*$ ]] || \
+              die 'release ID is not pinned before asset upload'
+            gh release upload "$TAG" \
+              --repo "$REPOSITORY" \
+              "$asset_path"
           }
 
           # Establish repository access first so a private-repository 404 cannot
@@ -587,7 +662,7 @@ jobs:
             die 'repository access could not be authenticated'
 
           assert_tag_identity
-          load_release
+          discover_release
           release_created=0
           if [[ "$RELEASE_EXISTS" == 0 ]]; then
             printf 'release %s is absent; creating a draft\n' "$TAG"
@@ -598,6 +673,11 @@ jobs:
               --title "fluxos $TAG" \
               --generate-notes
             release_created=1
+            # Drafts are not returned by the tag lookup; immediately discover
+            # and pin the newly created draft before touching any assets.
+            discover_release
+            [[ "$RELEASE_EXISTS" == 1 && "$RELEASE_DRAFT" == true ]] || \
+              die 'newly created draft could not be rediscovered by ID'
           else
             case "$RELEASE_DRAFT" in
               true|false) ;;
@@ -611,20 +691,14 @@ jobs:
             verify_release_assets subset
             [[ "$RELEASE_DRAFT" == true ]] || die 'release is not a draft before upload'
 
-            missing_paths=()
             if ((PRESENT_BINARY == 0)); then
-              missing_paths+=("$BUNDLE_DIR/$binary_name")
+              upload_asset "$BUNDLE_DIR/$binary_name"
             fi
             if ((PRESENT_CHECKSUMS == 0)); then
-              missing_paths+=("$BUNDLE_DIR/SHA256SUMS")
+              upload_asset "$BUNDLE_DIR/SHA256SUMS"
             fi
             if ((PRESENT_BUILD_INFO == 0)); then
-              missing_paths+=("$BUNDLE_DIR/BUILD_INFO.txt")
-            fi
-            if ((${#missing_paths[@]} > 0)); then
-              gh release upload "$TAG" \
-                --repo "$REPOSITORY" \
-                "${missing_paths[@]}"
+              upload_asset "$BUNDLE_DIR/BUILD_INFO.txt"
             fi
 
             # Revalidate tag, draft state, exact assets, and bytes immediately
@@ -633,7 +707,11 @@ jobs:
             verify_release_assets exact
             [[ "$RELEASE_DRAFT" == true ]] || \
               die 'release changed state before publication'
-            gh release edit "$TAG" --repo "$REPOSITORY" --draft=false
+            gh api --method PATCH \
+              --header 'Accept: application/vnd.github+json' \
+              --field draft=false \
+              "$RELEASE_ENDPOINT" \
+              >/dev/null
             printf 'published release %s\n' "$TAG"
           else
             # A published release is never modified: it must already be exact.
