@@ -133,8 +133,7 @@ func runCLIWithService(args []string, streams IO, service traceService) int {
 	}
 
 	fmt.Fprintf(streams.ErrOut, "fluxos %s: %v\n", command, err)
-	var usageErr *UsageError
-	if errors.As(err, &usageErr) {
+	if _, ok := errors.AsType[*UsageError](err); ok {
 		return 2
 	}
 	return 1
