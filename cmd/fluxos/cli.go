@@ -220,9 +220,6 @@ func runTraceCommandWithService(args []string, streams IO, service traceService)
 	if err != nil {
 		return err
 	}
-	if err := validateTraceSupport(opts); err != nil {
-		return err
-	}
 	return executeTraceWithService(opts, streams, service)
 }
 

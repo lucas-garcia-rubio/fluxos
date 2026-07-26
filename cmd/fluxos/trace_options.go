@@ -289,15 +289,6 @@ func parseLimit(name, value string) (int, error) {
 	return parsed, nil
 }
 
-func validateTraceSupport(opts TraceOptions) error {
-	switch {
-	case opts.Format != FormatMermaid && opts.Format != FormatDOT && opts.Format != FormatJSON:
-		return unsupportedOption("--format=" + string(opts.Format))
-	default:
-		return nil
-	}
-}
-
 func validateIndexSupport(opts IndexOptions) error {
 	return nil
 }
