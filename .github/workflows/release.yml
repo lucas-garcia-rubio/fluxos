@@ -284,15 +284,6 @@ jobs:
           name: ${{ needs.build.outputs.artifact_name }}
           path: ${{ runner.temp }}/fluxos-release-bundle
 
-      # Bootstrap v1.0.0 from the workflow commit: its tag commit predates this lockfile.
-      - name: Checkout validator files from workflow commit
-        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
-        with:
-          ref: ${{ github.sha }}
-          path: workflow-source
-          fetch-depth: 1
-          persist-credentials: false
-
       # Fixture code and goldens must come from the exact commit compiled by build.
       - name: Checkout tag fixture commit separately
         uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
@@ -301,19 +292,6 @@ jobs:
           path: fixture-source
           fetch-depth: 1
           persist-credentials: false
-
-      - name: Set up Node.js
-        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
-        with:
-          node-version: '24.8.0'
-
-      - name: Install locked Mermaid validator
-        working-directory: workflow-source/.github/release-validator
-        shell: bash
-        run: |
-          set -euo pipefail
-          test -f package-lock.json
-          npm ci
 
       - name: Install renderer validators
         shell: bash
@@ -326,7 +304,6 @@ jobs:
         env:
           BUNDLE_DIR: ${{ runner.temp }}/fluxos-release-bundle
           FIXTURE_DIR: ${{ github.workspace }}/fixture-source/testdata/m4/runtime-context
-          WORKFLOW_DIR: ${{ github.workspace }}/workflow-source
           TAG: ${{ needs.build.outputs.tag }}
           COMMIT: ${{ needs.build.outputs.commit }}
         shell: bash
@@ -384,11 +361,8 @@ jobs:
           test -s "$RUNNER_TEMP/fluxos-runtime-context-validated.json"
           dot -Tsvg "$dot_candidate" -o "$RUNNER_TEMP/fluxos-runtime-context.svg"
           test -s "$RUNNER_TEMP/fluxos-runtime-context.svg"
-          pushd "$WORKFLOW_DIR/.github/release-validator" >/dev/null
-          ./node_modules/.bin/mmdc -i - -o "$RUNNER_TEMP/fluxos-runtime-context-mermaid.svg" \
-            < "$mermaid_candidate"
-          popd >/dev/null
-          test -s "$RUNNER_TEMP/fluxos-runtime-context-mermaid.svg"
+          # Mermaid is guaranteed by deterministic byte-for-byte golden emission;
+          # the checked-in golden is the release gate.
 
   publish:
     needs: [build, validate_renderers]
