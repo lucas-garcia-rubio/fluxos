@@ -35,6 +35,9 @@ func TestParseTraceOptionsDefaults(t *testing.T) {
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("options = %+v, want %+v", got, want)
 	}
+	if got.ShowFQCN {
+		t.Fatal("ShowFQCN defaulted to true")
+	}
 }
 
 func TestParseIndexOptionsDefaults(t *testing.T) {
@@ -88,13 +91,14 @@ func TestParseTraceOptionsParsesBooleanForms(t *testing.T) {
 	got, err := parseTraceOptions([]string{
 		"--all-impls=false",
 		"--no-prompt=false",
+		"--show-fqcn=false",
 		"--include-unresolved",
 		"app.Workflow.start",
 	})
 	if err != nil {
 		t.Fatalf("parseTraceOptions: %v", err)
 	}
-	if got.AllImpls || got.NoPrompt || !got.IncludeUnresolved {
+	if got.AllImpls || got.NoPrompt || got.ShowFQCN || !got.IncludeUnresolved {
 		t.Fatalf("options = %+v", got)
 	}
 
@@ -104,6 +108,14 @@ func TestParseTraceOptionsParsesBooleanForms(t *testing.T) {
 	}
 	if !got.AllImpls {
 		t.Fatal("bare --all-impls did not set true")
+	}
+
+	got, err = parseTraceOptions([]string{"--show-fqcn", "app.Workflow.start"})
+	if err != nil {
+		t.Fatalf("parse bare --show-fqcn: %v", err)
+	}
+	if !got.ShowFQCN {
+		t.Fatal("bare --show-fqcn did not set true")
 	}
 }
 
@@ -133,6 +145,7 @@ func TestParseTraceOptionsRejectsInvalidFlagsAndValues(t *testing.T) {
 		{name: "invalid direction", args: []string{"--direction=down", "app.Workflow.start"}, want: "invalid --direction"},
 		{name: "invalid scope", args: []string{"--scope=tests", "app.Workflow.start"}, want: "invalid --scope"},
 		{name: "invalid boolean", args: []string{"--no-prompt=yes", "app.Workflow.start"}, want: "invalid --no-prompt"},
+		{name: "invalid show-fqcn", args: []string{"--show-fqcn=yes", "app.Workflow.start"}, want: "invalid --show-fqcn"},
 		{name: "invalid integer", args: []string{"--max-depth=many", "app.Workflow.start"}, want: "non-negative integer"},
 		{name: "negative integer", args: []string{"--max-depth", "-1", "app.Workflow.start"}, want: "must not be negative"},
 		{name: "missing target", args: nil, want: "usage"},

@@ -16,7 +16,7 @@ import (
 
 func TestRunCLIReturnsZeroAndSeparatesStreams(t *testing.T) {
 	root := traceFixtureRoot()
-	want, err := os.ReadFile(filepath.Join(root, "expected.mmd"))
+	want, err := os.ReadFile(filepath.Join(root, "expected.short.mmd"))
 	if err != nil {
 		t.Fatalf("read golden: %v", err)
 	}
@@ -78,7 +78,7 @@ func TestRunCLIPickImplsIsNonInteractiveAndSeparatesStreams(t *testing.T) {
 	if errOut.Len() != 0 {
 		t.Fatalf("non-interactive pick wrote stderr: %q", errOut.String())
 	}
-	if !strings.Contains(out.String(), "app.GammaB.work()") {
+	if !strings.Contains(out.String(), "GammaB.work()") {
 		t.Fatalf("stdout does not contain selected graph:\n%s", out.String())
 	}
 }
@@ -295,7 +295,7 @@ func TestRunCLIInteractivePickerUsesStderrAndRendersOnce(t *testing.T) {
 	if code != 0 {
 		t.Fatalf("interactive exit = %d, stderr = %q", code, errOut.String())
 	}
-	if !strings.Contains(out.String(), "app.AlphaA.run()") || !strings.Contains(out.String(), "app.GammaB.work()") {
+	if !strings.Contains(out.String(), "AlphaA.run()") || !strings.Contains(out.String(), "GammaB.work()") {
 		t.Fatalf("selected graph missing implementations:\n%s", out.String())
 	}
 	if strings.Contains(out.String(), "fluxos:") || !strings.Contains(errOut.String(), "fluxos:") {
@@ -353,7 +353,7 @@ func TestRunCLIExplicitFalseBooleansStillPromptOnFullTTY(t *testing.T) {
 			code := runCLIWithService([]string{"trace", flag, "app.Workflow.start", root}, IO{
 				In: strings.NewReader("1=1\n1=2\n"), Out: &out, ErrOut: &errOut,
 			}, service)
-			if code != 0 || !strings.Contains(out.String(), "app.GammaB.work()") {
+			if code != 0 || !strings.Contains(out.String(), "GammaB.work()") {
 				t.Fatalf("exit=%d stdout=%q stderr=%q", code, out.String(), errOut.String())
 			}
 			if errOut.Len() == 0 {
@@ -378,7 +378,7 @@ func TestRunCLIInteractiveAllHonorsMaxImplsAcrossRounds(t *testing.T) {
 	if code != 0 {
 		t.Fatalf("interactive all exit = %d, stderr = %q", code, errOut.String())
 	}
-	if !strings.Contains(out.String(), "app.DeltaB.work()") || strings.Contains(out.String(), "app.GammaB.work()") {
+	if !strings.Contains(out.String(), "DeltaB.work()") || strings.Contains(out.String(), "GammaB.work()") {
 		t.Fatalf("max-impls was not applied across rounds:\n%s", out.String())
 	}
 }

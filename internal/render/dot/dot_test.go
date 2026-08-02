@@ -26,10 +26,11 @@ func (shortWriter) Write(p []byte) (int, error) {
 	return len(p) - 1, nil
 }
 
-func renderString(t *testing.T, snapshot render.Snapshot) string {
+func renderString(t *testing.T, snapshot render.Snapshot, showFQCN ...bool) string {
 	t.Helper()
 	var out bytes.Buffer
-	if err := Render(&out, snapshot); err != nil {
+	show := len(showFQCN) > 0 && showFQCN[0]
+	if err := Render(&out, snapshot, show); err != nil {
 		t.Fatalf("Render: %v", err)
 	}
 	return out.String()
@@ -97,10 +98,10 @@ func TestQuoteEscapesDOTStrings(t *testing.T) {
 }
 
 func TestRenderPropagatesWriterErrors(t *testing.T) {
-	if err := Render(failingWriter{}, render.Snapshot{}); !errors.Is(err, errDOTWrite) {
+	if err := Render(failingWriter{}, render.Snapshot{}, false); !errors.Is(err, errDOTWrite) {
 		t.Fatalf("Render writer error = %v", err)
 	}
-	if err := Render(shortWriter{}, render.Snapshot{}); !errors.Is(err, io.ErrShortWrite) {
+	if err := Render(shortWriter{}, render.Snapshot{}, false); !errors.Is(err, io.ErrShortWrite) {
 		t.Fatalf("Render short write error = %v, want io.ErrShortWrite", err)
 	}
 }
@@ -108,8 +109,8 @@ func TestRenderPropagatesWriterErrors(t *testing.T) {
 func TestRenderGolden(t *testing.T) {
 	snapshot := render.Snapshot{
 		Nodes: []render.NodeView{
-			{ID: "m_a", Label: "A.start()", Kind: render.NodeMethod},
-			{ID: "m_b", Label: "B.run() [ambiguous: 2 implementations]", Kind: render.NodeAmbiguousImplementation},
+			{ID: "m_a", Label: "com.example.A.start()", Kind: render.NodeMethod},
+			{ID: "m_b", Label: "com.example.B.run() [ambiguous: 2 implementations]", Kind: render.NodeAmbiguousImplementation},
 			{ID: "m_escape", Label: "Escaped \"quote\" \\path\nnext\rreturn\t\\N", Kind: render.NodeExternal},
 		},
 		Edges: []render.EdgeView{
@@ -118,12 +119,23 @@ func TestRenderGolden(t *testing.T) {
 			{From: "m_b", To: "m_a", Cycle: true},
 		},
 	}
-	want, err := os.ReadFile("testdata/callgraph.golden")
-	if err != nil {
-		t.Fatalf("read golden: %v", err)
-	}
-	if got := renderString(t, snapshot); got != string(want) {
-		t.Fatalf("golden mismatch:\ngot:\n%s\nwant:\n%s", got, want)
+	for _, mode := range []struct {
+		name     string
+		showFQCN bool
+		golden   string
+	}{
+		{name: "default compact", golden: "testdata/callgraph.short.golden"},
+		{name: "show-fqcn", showFQCN: true, golden: "testdata/callgraph.fqcn.golden"},
+	} {
+		t.Run(mode.name, func(t *testing.T) {
+			want, err := os.ReadFile(mode.golden)
+			if err != nil {
+				t.Fatalf("read golden: %v", err)
+			}
+			if got := renderString(t, snapshot, mode.showFQCN); got != string(want) {
+				t.Fatalf("golden mismatch:\ngot:\n%s\nwant:\n%s", got, want)
+			}
+		})
 	}
 }
 
@@ -163,7 +175,7 @@ func TestRenderAppendsTruncationMarkersAfterAnalysisNodes(t *testing.T) {
 		}},
 	}
 	got := renderString(t, snapshot)
-	if !strings.Contains(got, `"t_abc123" [shape=note, label="truncation: node limit; omitted 3 while tracing app.Workflow.start()"];`) {
+	if !strings.Contains(got, `"t_abc123" [shape=note, label="truncation: node limit; omitted 3 while tracing Workflow.start()"];`) {
 		t.Fatalf("truncation marker missing or malformed:\n%s", got)
 	}
 	rootIdx := strings.Index(got, `"m_root"`)
@@ -173,6 +185,24 @@ func TestRenderAppendsTruncationMarkersAfterAnalysisNodes(t *testing.T) {
 	}
 	if strings.Contains(got, `"t_abc123" ->`) || strings.Contains(got, `-> "t_abc123"`) {
 		t.Fatalf("truncation marker must not participate in edges:\n%s", got)
+	}
+}
+
+func TestRenderShowFQCNRestoresFullNodeAndTruncationLabels(t *testing.T) {
+	caller := render.ExecutionView{Method: render.MethodView{TypeFQCN: "refs.References.Nested", Method: "run", Signature: "()"}, RuntimeTypeFQCN: "app.First"}
+	snapshot := render.Snapshot{
+		Nodes: []render.NodeView{{
+			ID: "m_nested", Label: "refs.References.Nested.run() [runtime: app.First]",
+			Execution: caller,
+		}},
+		Truncations: []render.TruncationView{{ID: "t_nested", Kind: "maxNodes", Caller: caller, Omitted: 1}},
+	}
+	got := renderString(t, snapshot, true)
+	if !strings.Contains(got, `"m_nested" [label="refs.References.Nested.run() [runtime: app.First]"`) {
+		t.Fatalf("full node label missing:\n%s", got)
+	}
+	if !strings.Contains(got, `"t_nested" [shape=note, label="truncation: node limit; omitted 1 while tracing refs.References.Nested.run()"]`) {
+		t.Fatalf("full truncation label missing:\n%s", got)
 	}
 }
 

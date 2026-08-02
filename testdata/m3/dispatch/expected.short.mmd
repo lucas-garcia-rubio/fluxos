@@ -1,0 +1,14 @@
+flowchart TD
+  m_77e2f47d906c["Workflow.start()"]
+  m_dee7e245606d["Workflow.value()"]
+  m_5a5979b57b85["DefaultedService.run()"]
+  m_399cc96a5877["EmptyService.run() [no implementation]"]
+  m_6b52f88d91f1["MultiService.run() [ambiguous: 2 implementations]"]
+  m_8121c82751e4["OverloadContract.run() [ambiguous overload]"]
+  m_6c3f86819d18["SingleServiceImpl.run()"]
+  m_77e2f47d906c --> m_dee7e245606d
+  m_77e2f47d906c --> m_5a5979b57b85
+  m_77e2f47d906c --> m_399cc96a5877
+  m_77e2f47d906c --> m_6b52f88d91f1
+  m_77e2f47d906c --> m_8121c82751e4
+  m_77e2f47d906c --> m_6c3f86819d18

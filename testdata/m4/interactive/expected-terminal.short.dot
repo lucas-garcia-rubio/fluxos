@@ -1,0 +1,5 @@
+digraph fluxos {
+  "m_77e2f47d906c" [label="Workflow.start()", kind="method"];
+  "m_6f5dda28258b" [label="A.run() [ambiguous: 2 implementations]", kind="ambiguousImplementation"];
+  "m_77e2f47d906c" -> "m_6f5dda28258b";
+}

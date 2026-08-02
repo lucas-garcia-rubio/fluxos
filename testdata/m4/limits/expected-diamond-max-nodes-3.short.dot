@@ -1,0 +1,9 @@
+digraph fluxos {
+  "m_64e44623e8e3" [label="Diamond.left()", kind="method"];
+  "m_e5f12553687a" [label="Diamond.right()", kind="method"];
+  "m_cad4b9f8169d" [label="Diamond.top()", kind="method"];
+  "m_cad4b9f8169d" -> "m_64e44623e8e3";
+  "m_cad4b9f8169d" -> "m_e5f12553687a";
+  "t_9752a85babdf" [shape=note, label="truncation: node limit; omitted 1 while tracing Diamond.left()"];
+  "t_a6c5d9fe884b" [shape=note, label="truncation: node limit; omitted 1 while tracing Diamond.right()"];
+}

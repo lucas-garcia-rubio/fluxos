@@ -14,21 +14,50 @@ import (
 func assertTraceGolden(t *testing.T, fixture, target, golden string) {
 	t.Helper()
 	root := m3FixtureRoot(fixture)
-	assertTraceGoldenAtRoot(t, root, target, golden)
+	assertTraceGoldenPair(t, root, target, golden, "")
 }
 
-func assertTraceGoldenAtRoot(t *testing.T, root, target, golden string) {
+func shortGoldenPath(golden string) string {
+	extension := filepath.Ext(golden)
+	return strings.TrimSuffix(golden, extension) + ".short" + extension
+}
+
+func assertTraceGoldenPair(t *testing.T, root, target, golden, format string) {
 	t.Helper()
-	var out bytes.Buffer
-	if err := runTrace([]string{target, root}, &out); err != nil {
-		t.Fatalf("runTrace(%q, %q): %v", target, root, err)
+	baseArgs := []string{target, root}
+	if format != "" {
+		baseArgs = []string{"--format=" + format, target, root}
 	}
-	want, err := os.ReadFile(filepath.Join(root, golden))
-	if err != nil {
-		t.Fatalf("read golden %s/%s: %v", root, golden, err)
-	}
-	if !bytes.Equal(out.Bytes(), want) {
-		t.Fatalf("trace output mismatch for %s target %s (%s):\n%s", root, target, golden, firstDiffContext(string(want), out.String()))
+	assertTraceArgsGoldenPair(t, root, baseArgs, golden)
+}
+
+func assertTraceArgsGoldenPair(t *testing.T, root string, baseArgs []string, golden string) {
+	t.Helper()
+	for _, mode := range []struct {
+		name     string
+		showFQCN bool
+		golden   string
+	}{
+		{name: "default compact", golden: shortGoldenPath(golden)},
+		{name: "show-fqcn", showFQCN: true, golden: golden},
+	} {
+		t.Run(mode.name, func(t *testing.T) {
+			args := append([]string{}, baseArgs...)
+			if mode.showFQCN {
+				args = append([]string{"--show-fqcn=true"}, args...)
+			}
+			var out bytes.Buffer
+			if err := runTrace(args, &out); err != nil {
+				t.Fatalf("runTrace(%v): %v", args, err)
+			}
+			want, err := os.ReadFile(filepath.Join(root, mode.golden))
+			if err != nil {
+				t.Fatalf("read golden %s/%s: %v", root, mode.golden, err)
+			}
+			if !bytes.Equal(out.Bytes(), want) {
+				t.Fatalf("trace output mismatch for %s (%v, %s):\n%s", root, args, mode.golden, firstDiffContext(string(want), out.String()))
+			}
+		})
 	}
 }
 
@@ -63,20 +92,10 @@ func TestRuntimeContextGoldens(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			if tt.format == "" {
-				assertTraceGoldenAtRoot(t, root, tt.target, tt.golden)
+				assertTraceGoldenPair(t, root, tt.target, tt.golden, "")
 				return
 			}
-			var out bytes.Buffer
-			if err := runTrace([]string{"--format=" + tt.format, tt.target, root}, &out); err != nil {
-				t.Fatalf("runTrace(%q, %q): %v", tt.target, root, err)
-			}
-			want, err := os.ReadFile(filepath.Join(root, tt.golden))
-			if err != nil {
-				t.Fatalf("read golden: %v", err)
-			}
-			if !bytes.Equal(out.Bytes(), want) {
-				t.Fatalf("trace output mismatch:\n%s", firstDiffContext(string(want), out.String()))
-			}
+			assertTraceGoldenPair(t, root, tt.target, tt.golden, tt.format)
 		})
 	}
 }
@@ -125,6 +144,21 @@ func TestRunTraceExcludesUnresolvedAcrossFormats(t *testing.T) {
 		"m_e3566a83e1a6": "support.Validator.normalize(java.lang.String)",
 		"m_f121243d1d9b": "support.Validator.require(java.lang.String)",
 	}
+	wantDiagramNodes := map[string]string{
+		"m_e8df649834e2": "Workflow.references()",
+		"m_f9c86dc9202f": "BaseValue.<init>(java.lang.String)",
+		"m_84ed2044c2ed": "BaseValue.value() [runtime: BaseValue]",
+		"m_f97d577def56": "BaseValue.value() [runtime: References]",
+		"m_77b0ebe86b3f": "DefaultValue.<init>()",
+		"m_bd677b62ab48": "References.<init>()",
+		"m_2292119d3129": "References.own()",
+		"m_6cdb9c52f7f1": "References.references()",
+		"m_bc924d7eafb8": "References.Nested.<init>()",
+		"m_10373ee5a41d": "References.Nested.run()",
+		"m_5c65cea9be33": "References.Service.run()",
+		"m_e3566a83e1a6": "Validator.normalize(java.lang.String)",
+		"m_f121243d1d9b": "Validator.require(java.lang.String)",
+	}
 	wantEdges := [][2]string{
 		{"m_e8df649834e2", "m_bd677b62ab48"},
 		{"m_e8df649834e2", "m_6cdb9c52f7f1"},
@@ -155,8 +189,12 @@ func TestRunTraceExcludesUnresolvedAcrossFormats(t *testing.T) {
 				t.Fatalf("runTrace(%v): %v", args, err)
 			}
 			got := parseFilteredCLIOutput(t, format, out.String())
-			if !reflect.DeepEqual(got.labels, wantNodes) {
-				t.Fatalf("%s node labels differ:\ngot=%v\nwant=%v", format, got.labels, wantNodes)
+			wantLabels := wantDiagramNodes
+			if format == "json" {
+				wantLabels = wantNodes
+			}
+			if !reflect.DeepEqual(got.labels, wantLabels) {
+				t.Fatalf("%s node labels differ:\ngot=%v\nwant=%v", format, got.labels, wantLabels)
 			}
 			if !reflect.DeepEqual(got.edges, wantEdges) {
 				t.Fatalf("%s edges differ:\ngot=%v\nwant=%v", format, got.edges, wantEdges)
@@ -178,7 +216,7 @@ func TestRunTraceIncludeUnresolvedFalsePreservesDispatchTerminalsAcrossFormats(t
 		format string
 		golden string
 	}{
-		{format: "mermaid", golden: "expected.mmd"},
+		{format: "mermaid", golden: "expected.short.mmd"},
 		{format: "dot"},
 		{format: "json", golden: "expected.json"},
 	} {
@@ -211,6 +249,26 @@ func TestRunTraceIncludeUnresolvedFalsePreservesDispatchTerminalsAcrossFormats(t
 				t.Fatalf("--include-unresolved=false changed non-unresolved %s output:\n%s", tt.format, firstDiffContext(string(want), out.String()))
 			}
 		})
+	}
+}
+
+func TestRunTraceShowFQCNDoesNotChangeJSON(t *testing.T) {
+	root := m4FixtureRoot("runtime-context")
+	outputs := make([]string, 2)
+	for i, showFQCN := range []bool{false, true} {
+		args := []string{"--format=json"}
+		if showFQCN {
+			args = append(args, "--show-fqcn=true")
+		}
+		args = append(args, "app.Workflow.start", root)
+		var out bytes.Buffer
+		if err := runTrace(args, &out); err != nil {
+			t.Fatalf("runTrace(%v): %v", args, err)
+		}
+		outputs[i] = out.String()
+	}
+	if outputs[0] != outputs[1] {
+		t.Fatalf("--show-fqcn changed JSON output:\ndefault=%s\nshow-fqcn=%s", outputs[0], outputs[1])
 	}
 }
 
@@ -384,37 +442,38 @@ func TestScopeMainTraceGolden(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			args := []string{tt.target, root}
-			if tt.format != "" {
-				args = []string{"--format=" + tt.format, tt.target, root}
-			}
-			var out bytes.Buffer
-			if err := runTrace(args, &out); err != nil {
-				t.Fatalf("runTrace(%v): %v", args, err)
-			}
-			want, err := os.ReadFile(filepath.Join(root, tt.golden))
-			if err != nil {
-				t.Fatalf("read golden: %v", err)
-			}
-			if !bytes.Equal(out.Bytes(), want) {
-				t.Fatalf("scope main trace mismatch (%s):\n%s", tt.golden, firstDiffContext(string(want), out.String()))
-			}
+			assertTraceGoldenPair(t, root, tt.target, tt.golden, tt.format)
 		})
 	}
 }
 
 func TestScopeAllTraceGolden(t *testing.T) {
 	root := m4FixtureRoot("scope")
-	var out bytes.Buffer
-	if err := runTrace([]string{"--scope=all", "app.Workflow.start", root}, &out); err != nil {
-		t.Fatalf("runTrace scope=all: %v", err)
-	}
-	want, err := os.ReadFile(filepath.Join(root, "expected-start-all.mmd"))
-	if err != nil {
-		t.Fatalf("read golden: %v", err)
-	}
-	if !bytes.Equal(out.Bytes(), want) {
-		t.Fatalf("scope all trace mismatch:\n%s", firstDiffContext(string(want), out.String()))
+	for _, mode := range []struct {
+		name     string
+		showFQCN bool
+		golden   string
+	}{
+		{name: "default compact", golden: "expected-start-all.short.mmd"},
+		{name: "show-fqcn", showFQCN: true, golden: "expected-start-all.mmd"},
+	} {
+		t.Run(mode.name, func(t *testing.T) {
+			args := []string{"--scope=all", "app.Workflow.start", root}
+			if mode.showFQCN {
+				args = append([]string{"--show-fqcn=true"}, args...)
+			}
+			var out bytes.Buffer
+			if err := runTrace(args, &out); err != nil {
+				t.Fatalf("runTrace(%v): %v", args, err)
+			}
+			want, err := os.ReadFile(filepath.Join(root, mode.golden))
+			if err != nil {
+				t.Fatalf("read golden: %v", err)
+			}
+			if !bytes.Equal(out.Bytes(), want) {
+				t.Fatalf("scope all trace mismatch (%s):\n%s", mode.golden, firstDiffContext(string(want), out.String()))
+			}
+		})
 	}
 }
 
@@ -484,6 +543,10 @@ func TestM4LimitsGoldens(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			if filepath.Ext(tt.golden) != ".json" {
+				assertTraceArgsGoldenPair(t, root, tt.args, tt.golden)
+				return
+			}
 			var out bytes.Buffer
 			if err := runTrace(tt.args, &out); err != nil {
 				t.Fatalf("runTrace(%v): %v", tt.args, err)
@@ -582,6 +645,10 @@ func TestM4InteractiveGoldens(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			if filepath.Ext(tt.golden) != ".json" {
+				assertTraceArgsGoldenPair(t, root, tt.args, tt.golden)
+				return
+			}
 			var out bytes.Buffer
 			if err := runTrace(tt.args, &out); err != nil {
 				t.Fatalf("runTrace(%v): %v", tt.args, err)
@@ -606,7 +673,11 @@ func TestM4PickImplsWorksAcrossFormats(t *testing.T) {
 			if err := runTrace(args, &out); err != nil {
 				t.Fatalf("runTrace(%v): %v", args, err)
 			}
-			for _, want := range []string{"app.Workflow.start()", "app.AlphaA.run()", "app.GammaB.work()"} {
+			wants := []string{"Workflow.start()", "AlphaA.run()", "GammaB.work()"}
+			if format == "json" {
+				wants = []string{"app.Workflow.start()", "app.AlphaA.run()", "app.GammaB.work()"}
+			}
+			for _, want := range wants {
 				if !strings.Contains(out.String(), want) {
 					t.Fatalf("%s output missing %q:\n%s", format, want, out.String())
 				}

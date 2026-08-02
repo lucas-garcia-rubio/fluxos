@@ -1,0 +1,9 @@
+flowchart TD
+  m_781a6647a8f6["A.start()"]
+  m_63b0c6a2071b["B.work()"]
+  m_e4b43a1f4923["C.finish()"]
+  m_781a6647a8f6 --> m_63b0c6a2071b
+  m_781a6647a8f6 --> m_63b0c6a2071b
+  m_63b0c6a2071b --> m_e4b43a1f4923
+  %% cycle
+  m_e4b43a1f4923 --> m_781a6647a8f6

@@ -1,0 +1,6 @@
+digraph fluxos {
+  "m_c6c799a96ba1" [label="Helper.step()", kind="method"];
+  "m_428db226b88c" [label="Looper.loop()", kind="method"];
+  "m_c6c799a96ba1" -> "m_428db226b88c" [color="red", style="dashed"];
+  "m_428db226b88c" -> "m_c6c799a96ba1";
+}

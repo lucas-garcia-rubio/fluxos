@@ -35,10 +35,11 @@ func handle(typeFQCN, method string) resolve.ExecutionKey {
 	}
 }
 
-func renderString(t *testing.T, snapshot render.Snapshot, direction Direction) string {
+func renderString(t *testing.T, snapshot render.Snapshot, direction Direction, showFQCN ...bool) string {
 	t.Helper()
 	var out bytes.Buffer
-	if err := Render(&out, snapshot, direction); err != nil {
+	show := len(showFQCN) > 0 && showFQCN[0]
+	if err := Render(&out, snapshot, direction, show); err != nil {
 		t.Fatalf("Render: %v", err)
 	}
 	return out.String()
@@ -53,10 +54,10 @@ func TestRenderSnapshotEmpty(t *testing.T) {
 
 func TestRenderSnapshotIsolatedNode(t *testing.T) {
 	snapshot := render.Snapshot{
-		Nodes: []render.NodeView{{ID: "m_worker", Label: "com.example.Worker.run()"}},
+		Nodes: []render.NodeView{{ID: "m_worker", Label: "com.example.Worker.run()", Execution: render.ExecutionView{Method: render.MethodView{TypeFQCN: "com.example.Worker"}}}},
 		Edges: []render.EdgeView{},
 	}
-	want := "flowchart TD\n  m_worker[\"com.example.Worker.run()\"]\n"
+	want := "flowchart TD\n  m_worker[\"Worker.run()\"]\n"
 	if got := renderString(t, snapshot, DirectionTD); got != want {
 		t.Fatalf("Render(isolated):\n%s\nwant:\n%s", got, want)
 	}
@@ -79,7 +80,7 @@ func TestRenderDirectionsChangeOnlyHeader(t *testing.T) {
 
 func TestRenderRejectsInvalidDirectionBeforeWrite(t *testing.T) {
 	var out bytes.Buffer
-	err := Render(&out, render.Snapshot{}, Direction("DOWN"))
+	err := Render(&out, render.Snapshot{}, Direction("DOWN"), false)
 	if err == nil || !strings.Contains(err.Error(), "invalid Mermaid direction") {
 		t.Fatalf("Render invalid direction error = %v", err)
 	}
@@ -121,10 +122,10 @@ func TestRenderSnapshotPreservesCyclesAndMultiedges(t *testing.T) {
 }
 
 func TestRenderPropagatesWriterErrors(t *testing.T) {
-	if err := Render(failingWriter{}, render.Snapshot{}, DirectionTD); !errors.Is(err, errMermaidWrite) {
+	if err := Render(failingWriter{}, render.Snapshot{}, DirectionTD, false); !errors.Is(err, errMermaidWrite) {
 		t.Fatalf("Render writer error = %v", err)
 	}
-	if err := Render(shortWriter{}, render.Snapshot{}, DirectionTD); !errors.Is(err, io.ErrShortWrite) {
+	if err := Render(shortWriter{}, render.Snapshot{}, DirectionTD, false); !errors.Is(err, io.ErrShortWrite) {
 		t.Fatalf("Render short write error = %v, want io.ErrShortWrite", err)
 	}
 }
@@ -142,12 +143,24 @@ func TestRenderGolden(t *testing.T) {
 	g.AddEdge(b, c, java.CallSite{File: "B.java", Line: 30}, nil, false)
 	g.AddEdge(a, b, java.CallSite{File: "A.java", Line: 10}, nil, false)
 
-	want, err := os.ReadFile("testdata/callgraph.golden")
-	if err != nil {
-		t.Fatalf("read golden: %v", err)
-	}
-	if got := renderString(t, render.NewSnapshot(g, a), DirectionTD); got != string(want) {
-		t.Fatalf("golden mismatch:\ngot:\n%s\nwant:\n%s", got, want)
+	snapshot := render.NewSnapshot(g, a)
+	for _, mode := range []struct {
+		name     string
+		showFQCN bool
+		golden   string
+	}{
+		{name: "default compact", golden: "testdata/callgraph.short.golden"},
+		{name: "show-fqcn", showFQCN: true, golden: "testdata/callgraph.golden"},
+	} {
+		t.Run(mode.name, func(t *testing.T) {
+			want, err := os.ReadFile(mode.golden)
+			if err != nil {
+				t.Fatalf("read golden: %v", err)
+			}
+			if got := renderString(t, snapshot, DirectionTD, mode.showFQCN); got != string(want) {
+				t.Fatalf("golden mismatch:\ngot:\n%s\nwant:\n%s", got, want)
+			}
+		})
 	}
 }
 
@@ -167,7 +180,7 @@ func TestRenderAppendsTruncationMarkersAfterAnalysisNodes(t *testing.T) {
 		}},
 	}
 	got := renderString(t, snapshot, DirectionTD)
-	if !strings.Contains(got, "  t_abc123[\"% truncation: node limit; omitted 3 while tracing app.Workflow.start()\"]\n") {
+	if !strings.Contains(got, "  t_abc123[\"% truncation: node limit; omitted 3 while tracing Workflow.start()\"]\n") {
 		t.Fatalf("truncation marker missing or malformed:\n%s", got)
 	}
 	// Marker aparece após o analysis node.
@@ -179,6 +192,24 @@ func TestRenderAppendsTruncationMarkersAfterAnalysisNodes(t *testing.T) {
 	// Não participa de edges.
 	if strings.Contains(got, "t_abc123 -->") || strings.Contains(got, "--> t_abc123") {
 		t.Fatalf("truncation marker must not participate in edges:\n%s", got)
+	}
+}
+
+func TestRenderShowFQCNRestoresFullNodeAndTruncationLabels(t *testing.T) {
+	caller := render.ExecutionView{Method: render.MethodView{TypeFQCN: "refs.References.Nested", Method: "run", Signature: "()"}, RuntimeTypeFQCN: "app.First"}
+	snapshot := render.Snapshot{
+		Nodes: []render.NodeView{{
+			ID: "m_nested", Label: "refs.References.Nested.run() [runtime: app.First]",
+			Execution: caller,
+		}},
+		Truncations: []render.TruncationView{{ID: "t_nested", Kind: "maxNodes", Caller: caller, Omitted: 1}},
+	}
+	got := renderString(t, snapshot, DirectionTD, true)
+	if !strings.Contains(got, `m_nested["refs.References.Nested.run() [runtime: app.First]"]`) {
+		t.Fatalf("full node label missing:\n%s", got)
+	}
+	if !strings.Contains(got, `t_nested["% truncation: node limit; omitted 1 while tracing refs.References.Nested.run()"]`) {
+		t.Fatalf("full truncation label missing:\n%s", got)
 	}
 }
 

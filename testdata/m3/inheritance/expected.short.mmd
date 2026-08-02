@@ -1,0 +1,31 @@
+flowchart TD
+  m_3a0a94b6b4da["ChildService.callDefaultMethod()"]
+  m_79dd5f9be016["ChildService.callGrandparent()"]
+  m_a6f9a5b28b13["ChildService.callInheritedOverload()"]
+  m_bb9661afc920["ChildService.callParent()"]
+  m_6d16be02321c["ChildService.overriddenMethod()"]
+  m_e7f2dae64d2c["ChildService.useInheritedField()"]
+  m_77e2f47d906c["Workflow.start()"]
+  m_1fc12b6d0a6c["BaseService.inheritedMethod()"]
+  m_9ad14f8a4a25["GrandparentService.grandparentMethod()"]
+  m_80a5652b25e9["GrandparentService.overloaded()"]
+  m_5adbd033d83c["ChildContract.childDefault()"]
+  m_05621927eb72["RootContract.rootDefault()"]
+  m_66dc99145f35["Helper.work()"]
+  m_3a0a94b6b4da --> m_5adbd033d83c
+  m_79dd5f9be016 --> m_9ad14f8a4a25
+  m_a6f9a5b28b13 --> m_80a5652b25e9
+  m_bb9661afc920 --> m_1fc12b6d0a6c
+  m_6d16be02321c --> m_66dc99145f35
+  m_e7f2dae64d2c --> m_66dc99145f35
+  m_77e2f47d906c --> m_3a0a94b6b4da
+  m_77e2f47d906c --> m_79dd5f9be016
+  m_77e2f47d906c --> m_a6f9a5b28b13
+  m_77e2f47d906c --> m_bb9661afc920
+  m_77e2f47d906c --> m_6d16be02321c
+  m_77e2f47d906c --> m_e7f2dae64d2c
+  m_77e2f47d906c --> m_1fc12b6d0a6c
+  m_1fc12b6d0a6c --> m_66dc99145f35
+  m_9ad14f8a4a25 --> m_66dc99145f35
+  m_80a5652b25e9 --> m_66dc99145f35
+  m_5adbd033d83c --> m_05621927eb72

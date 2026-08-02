@@ -18,7 +18,7 @@ const (
 	DirectionRL Direction = "RL"
 )
 
-func Render(out io.Writer, snapshot render.Snapshot, direction Direction) error {
+func Render(out io.Writer, snapshot render.Snapshot, direction Direction, showFQCN bool) error {
 	if !direction.valid() {
 		return fmt.Errorf("invalid Mermaid direction %q", direction)
 	}
@@ -26,7 +26,7 @@ func Render(out io.Writer, snapshot render.Snapshot, direction Direction) error 
 	var payload strings.Builder
 	fmt.Fprintf(&payload, "flowchart %s\n", direction)
 	for _, node := range snapshot.Nodes {
-		fmt.Fprintf(&payload, "  %s[\"%s\"]\n", node.ID, escapeLabel(node.Label))
+		fmt.Fprintf(&payload, "  %s[\"%s\"]\n", node.ID, escapeLabel(render.DiagramNodeLabel(node, showFQCN)))
 	}
 	for _, edge := range snapshot.Edges {
 		if edge.Cycle {
@@ -36,45 +36,9 @@ func Render(out io.Writer, snapshot render.Snapshot, direction Direction) error 
 	}
 	for _, truncation := range snapshot.Truncations {
 		fmt.Fprintf(&payload, "  %s[\"%s\"]\n",
-			truncation.ID, escapeLabel(truncationLabel(truncation)))
+			truncation.ID, escapeLabel("% "+render.DiagramTruncationLabel(truncation, showFQCN)))
 	}
 	return writeAll(out, payload.String())
-}
-
-func truncationLabel(truncation render.TruncationView) string {
-	return fmt.Sprintf("%% truncation: %s; omitted %d while tracing %s",
-		truncationKindLabel(truncation.Kind), truncation.Omitted, executionLabel(truncation.Caller))
-}
-
-func truncationKindLabel(kind string) string {
-	switch kind {
-	case "maxDepth":
-		return "depth limit"
-	case "maxNodes":
-		return "node limit"
-	case "maxImpls":
-		return "implementation limit"
-	case "discoveryLimit":
-		return "discovery limit"
-	default:
-		return kind + " limit"
-	}
-}
-
-func executionLabel(execution render.ExecutionView) string {
-	method := execution.Method
-	typeFQCN := method.TypeFQCN
-	if separator := strings.IndexByte(typeFQCN, '#'); separator >= 0 {
-		typeFQCN = typeFQCN[:separator]
-	}
-	if typeFQCN == "" {
-		typeFQCN = "<unknown>"
-	}
-	signature := method.Signature
-	if signature == "" {
-		signature = "()"
-	}
-	return typeFQCN + "." + method.Method + signature
 }
 
 func (d Direction) valid() bool {

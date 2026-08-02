@@ -5,6 +5,7 @@ The project path defaults to .; Mermaid is written to stdout by default.
 
 Options:
   --format=mermaid|dot|json       output format (default: mermaid)
+  --show-fqcn[=true|false]        show full FQCNs in Mermaid/DOT diagram labels
   --direction=TD|LR|BT|RL         Mermaid direction (default: TD)
   --scope=main|all                source scope (default: main)
   --include-unresolved[=true|false] include unresolved terminals (default: true)

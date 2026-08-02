@@ -1,0 +1,8 @@
+digraph fluxos {
+  "m_a" [label="A.start()", kind="method"];
+  "m_b" [label="B.run() [ambiguous: 2 implementations]", kind="ambiguousImplementation"];
+  "m_escape" [label="Escaped \"quote\" \\path\nnext\rreturn	\\N", kind="external"];
+  "m_a" -> "m_b";
+  "m_a" -> "m_b";
+  "m_b" -> "m_a" [color="red", style="dashed"];
+}

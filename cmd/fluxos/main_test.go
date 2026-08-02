@@ -43,7 +43,7 @@ func TestRunTraceMermaidGolden(t *testing.T) {
 		t.Fatalf("runTrace: %v", err)
 	}
 
-	want, err := os.ReadFile(filepath.Join(root, "expected.mmd"))
+	want, err := os.ReadFile(filepath.Join(root, "expected.short.mmd"))
 	if err != nil {
 		t.Fatalf("read golden: %v", err)
 	}
@@ -58,7 +58,7 @@ func TestRunTraceDOTGolden(t *testing.T) {
 	if err := runTrace([]string{"--format=dot", "Workflow.start", root}, &out); err != nil {
 		t.Fatalf("runTrace DOT: %v", err)
 	}
-	want, err := os.ReadFile(filepath.Join(root, "expected.dot"))
+	want, err := os.ReadFile(filepath.Join(root, "expected.short.dot"))
 	if err != nil {
 		t.Fatalf("read DOT golden: %v", err)
 	}
@@ -67,9 +67,22 @@ func TestRunTraceDOTGolden(t *testing.T) {
 	}
 }
 
+func TestRunTraceShowFQCNControlsDiagramLabels(t *testing.T) {
+	root := traceFixtureRoot()
+	for _, format := range []string{"mermaid", "dot"} {
+		t.Run(format, func(t *testing.T) {
+			golden := "expected.mmd"
+			if format == "dot" {
+				golden = "expected.dot"
+			}
+			assertTraceGoldenPair(t, root, "Workflow.start", golden, format)
+		})
+	}
+}
+
 func TestRunTraceMermaidDirectionChangesOnlyHeader(t *testing.T) {
 	root := traceFixtureRoot()
-	wantTD, err := os.ReadFile(filepath.Join(root, "expected.mmd"))
+	wantTD, err := os.ReadFile(filepath.Join(root, "expected.short.mmd"))
 	if err != nil {
 		t.Fatalf("read Mermaid golden: %v", err)
 	}
@@ -94,7 +107,7 @@ func TestRunTraceAcceptsFQCNTarget(t *testing.T) {
 	if err := runTrace([]string{"com.foo.Workflow.start", root}, &out); err != nil {
 		t.Fatalf("runTrace FQCN: %v", err)
 	}
-	want, err := os.ReadFile(filepath.Join(root, "expected.mmd"))
+	want, err := os.ReadFile(filepath.Join(root, "expected.short.mmd"))
 	if err != nil {
 		t.Fatalf("read golden: %v", err)
 	}
@@ -110,7 +123,7 @@ func TestRunTraceAcceptsSignatureTarget(t *testing.T) {
 	if err := runTrace([]string{"com.foo.Workflow.start()", root}, &out); err != nil {
 		t.Fatalf("runTrace signature: %v", err)
 	}
-	want, err := os.ReadFile(filepath.Join(root, "expected.mmd"))
+	want, err := os.ReadFile(filepath.Join(root, "expected.short.mmd"))
 	if err != nil {
 		t.Fatalf("read golden: %v", err)
 	}
@@ -121,7 +134,7 @@ func TestRunTraceAcceptsSignatureTarget(t *testing.T) {
 
 func TestRunTraceDefaultsProjectRootToWorkingDirectory(t *testing.T) {
 	root := traceFixtureRoot()
-	want, err := os.ReadFile(filepath.Join(root, "expected.mmd"))
+	want, err := os.ReadFile(filepath.Join(root, "expected.short.mmd"))
 	if err != nil {
 		t.Fatalf("read golden: %v", err)
 	}
@@ -271,7 +284,7 @@ func TestRunTracePickImplsCombinesWithScopeAll(t *testing.T) {
 	if err := runTrace(args, &out); err != nil {
 		t.Fatalf("runTrace(%v): %v", args, err)
 	}
-	if !strings.Contains(out.String(), "app.impl.TestGreeter.greet()") || strings.Contains(out.String(), "app.impl.DefaultGreeter.greet()") {
+	if !strings.Contains(out.String(), "TestGreeter.greet()") || strings.Contains(out.String(), "DefaultGreeter.greet()") {
 		t.Fatalf("scope=all did not select test implementation:\n%s", out.String())
 	}
 }
@@ -322,7 +335,7 @@ func TestBuildTraceSnapshotCoordinatorKeepsDefaultOutput(t *testing.T) {
 	if err := renderTrace(&out, snapshot, opts); err != nil {
 		t.Fatalf("renderTrace: %v", err)
 	}
-	want, err := os.ReadFile(filepath.Join(root, "expected.mmd"))
+	want, err := os.ReadFile(filepath.Join(root, "expected.short.mmd"))
 	if err != nil {
 		t.Fatalf("read golden: %v", err)
 	}

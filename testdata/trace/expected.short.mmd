@@ -1,0 +1,18 @@
+flowchart TD
+  m_f178eb338fce["Audit.record()"]
+  m_d476e84e6bdb["BaseWorkflow.initialize()"]
+  m_eabd356c3532["Helper.<init>()"]
+  m_6e6e7d2457b4["Helper.work()"]
+  m_e12e5f041264["Workflow.finish()"]
+  m_6c09a7835283["Workflow.prepare()"]
+  m_45ad6583a724["Workflow.start()"]
+  m_6e6e7d2457b4 --> m_f178eb338fce
+  %% cycle
+  m_e12e5f041264 --> m_6c09a7835283
+  m_6c09a7835283 --> m_e12e5f041264
+  m_45ad6583a724 --> m_f178eb338fce
+  m_45ad6583a724 --> m_d476e84e6bdb
+  m_45ad6583a724 --> m_eabd356c3532
+  m_45ad6583a724 --> m_6e6e7d2457b4
+  m_45ad6583a724 --> m_6e6e7d2457b4
+  m_45ad6583a724 --> m_6c09a7835283
