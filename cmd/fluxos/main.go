@@ -60,9 +60,9 @@ func executeTraceWithService(opts TraceOptions, streams IO, service traceService
 func renderTrace(out io.Writer, snapshot render.Snapshot, opts TraceOptions) error {
 	switch opts.Format {
 	case FormatMermaid:
-		return mermaid.Render(out, snapshot, mermaid.Direction(opts.Direction), opts.ShowFQCN)
+		return mermaid.Render(out, snapshot, mermaid.Direction(opts.Direction), opts.ShowFQCN, opts.ShowFQCNParams)
 	case FormatDOT:
-		return dot.Render(out, snapshot, opts.ShowFQCN)
+		return dot.Render(out, snapshot, opts.ShowFQCN, opts.ShowFQCNParams)
 	case FormatJSON:
 		return renderjson.Render(out, snapshot)
 	default:

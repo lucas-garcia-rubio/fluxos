@@ -18,7 +18,7 @@ const (
 	DirectionRL Direction = "RL"
 )
 
-func Render(out io.Writer, snapshot render.Snapshot, direction Direction, showFQCN bool) error {
+func Render(out io.Writer, snapshot render.Snapshot, direction Direction, showFQCN, showFQCNParams bool) error {
 	if !direction.valid() {
 		return fmt.Errorf("invalid Mermaid direction %q", direction)
 	}
@@ -26,7 +26,7 @@ func Render(out io.Writer, snapshot render.Snapshot, direction Direction, showFQ
 	var payload strings.Builder
 	fmt.Fprintf(&payload, "flowchart %s\n", direction)
 	for _, node := range snapshot.Nodes {
-		fmt.Fprintf(&payload, "  %s[\"%s\"]\n", node.ID, escapeLabel(render.DiagramNodeLabel(node, showFQCN)))
+		fmt.Fprintf(&payload, "  %s[\"%s\"]\n", node.ID, escapeLabel(render.DiagramNodeLabel(node, showFQCN, showFQCNParams)))
 	}
 	for _, edge := range snapshot.Edges {
 		if edge.Cycle {
@@ -36,7 +36,7 @@ func Render(out io.Writer, snapshot render.Snapshot, direction Direction, showFQ
 	}
 	for _, truncation := range snapshot.Truncations {
 		fmt.Fprintf(&payload, "  %s[\"%s\"]\n",
-			truncation.ID, escapeLabel("% "+render.DiagramTruncationLabel(truncation, showFQCN)))
+			truncation.ID, escapeLabel("% "+render.DiagramTruncationLabel(truncation, showFQCN, showFQCNParams)))
 	}
 	return writeAll(out, payload.String())
 }

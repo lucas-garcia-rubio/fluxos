@@ -34,17 +34,21 @@ func assertTraceGoldenPair(t *testing.T, root, target, golden, format string) {
 func assertTraceArgsGoldenPair(t *testing.T, root string, baseArgs []string, golden string) {
 	t.Helper()
 	for _, mode := range []struct {
-		name     string
-		showFQCN bool
-		golden   string
+		name           string
+		showFQCN       bool
+		showFQCNParams bool
+		golden         string
 	}{
 		{name: "default compact", golden: shortGoldenPath(golden)},
-		{name: "show-fqcn", showFQCN: true, golden: golden},
+		{name: "show-fqcn full", showFQCN: true, showFQCNParams: true, golden: golden},
 	} {
 		t.Run(mode.name, func(t *testing.T) {
 			args := append([]string{}, baseArgs...)
 			if mode.showFQCN {
 				args = append([]string{"--show-fqcn=true"}, args...)
+			}
+			if mode.showFQCNParams {
+				args = append([]string{"--show-fqcn-params=true"}, args...)
 			}
 			var out bytes.Buffer
 			if err := runTrace(args, &out); err != nil {
@@ -100,6 +104,36 @@ func TestRuntimeContextGoldens(t *testing.T) {
 	}
 }
 
+func TestRuntimeContextShowFQCNParamsGoldens(t *testing.T) {
+	root := m4FixtureRoot("runtime-context")
+	for _, tt := range []struct {
+		name   string
+		format string
+		golden string
+	}{
+		{name: "Mermaid", format: "mermaid", golden: "expected-start.params.mmd"},
+		{name: "DOT", format: "dot", golden: "expected-start.params.dot"},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			args := []string{"--show-fqcn-params=true", "app.Workflow.start", root}
+			if tt.format == "dot" {
+				args = append([]string{"--format=dot"}, args...)
+			}
+			var out bytes.Buffer
+			if err := runTrace(args, &out); err != nil {
+				t.Fatalf("runTrace(%v): %v", args, err)
+			}
+			want, err := os.ReadFile(filepath.Join(root, tt.golden))
+			if err != nil {
+				t.Fatalf("read golden: %v", err)
+			}
+			if !bytes.Equal(out.Bytes(), want) {
+				t.Fatalf("trace output mismatch (%s):\n%s", tt.golden, firstDiffContext(string(want), out.String()))
+			}
+		})
+	}
+}
+
 func TestRunTraceM3Goldens(t *testing.T) {
 	tests := []struct {
 		name    string
@@ -146,7 +180,7 @@ func TestRunTraceExcludesUnresolvedAcrossFormats(t *testing.T) {
 	}
 	wantDiagramNodes := map[string]string{
 		"m_e8df649834e2": "Workflow.references()",
-		"m_f9c86dc9202f": "BaseValue.<init>(java.lang.String)",
+		"m_f9c86dc9202f": "BaseValue.<init>(String)",
 		"m_84ed2044c2ed": "BaseValue.value() [runtime: BaseValue]",
 		"m_f97d577def56": "BaseValue.value() [runtime: References]",
 		"m_77b0ebe86b3f": "DefaultValue.<init>()",
@@ -156,8 +190,8 @@ func TestRunTraceExcludesUnresolvedAcrossFormats(t *testing.T) {
 		"m_bc924d7eafb8": "References.Nested.<init>()",
 		"m_10373ee5a41d": "References.Nested.run()",
 		"m_5c65cea9be33": "References.Service.run()",
-		"m_e3566a83e1a6": "Validator.normalize(java.lang.String)",
-		"m_f121243d1d9b": "Validator.require(java.lang.String)",
+		"m_e3566a83e1a6": "Validator.normalize(String)",
+		"m_f121243d1d9b": "Validator.require(String)",
 	}
 	wantEdges := [][2]string{
 		{"m_e8df649834e2", "m_bd677b62ab48"},
@@ -254,11 +288,22 @@ func TestRunTraceIncludeUnresolvedFalsePreservesDispatchTerminalsAcrossFormats(t
 
 func TestRunTraceShowFQCNDoesNotChangeJSON(t *testing.T) {
 	root := m4FixtureRoot("runtime-context")
-	outputs := make([]string, 2)
-	for i, showFQCN := range []bool{false, true} {
+	outputs := make([]string, 4)
+	for i, mode := range []struct {
+		showFQCN       bool
+		showFQCNParams bool
+	}{
+		{},
+		{showFQCN: true},
+		{showFQCNParams: true},
+		{showFQCN: true, showFQCNParams: true},
+	} {
 		args := []string{"--format=json"}
-		if showFQCN {
+		if mode.showFQCN {
 			args = append(args, "--show-fqcn=true")
+		}
+		if mode.showFQCNParams {
+			args = append(args, "--show-fqcn-params=true")
 		}
 		args = append(args, "app.Workflow.start", root)
 		var out bytes.Buffer
@@ -267,8 +312,10 @@ func TestRunTraceShowFQCNDoesNotChangeJSON(t *testing.T) {
 		}
 		outputs[i] = out.String()
 	}
-	if outputs[0] != outputs[1] {
-		t.Fatalf("--show-fqcn changed JSON output:\ndefault=%s\nshow-fqcn=%s", outputs[0], outputs[1])
+	for i := 1; i < len(outputs); i++ {
+		if outputs[0] != outputs[i] {
+			t.Fatalf("diagram label flags changed JSON output:\ndefault=%s\nmode %d=%s", outputs[0], i, outputs[i])
+		}
 	}
 }
 
@@ -450,17 +497,21 @@ func TestScopeMainTraceGolden(t *testing.T) {
 func TestScopeAllTraceGolden(t *testing.T) {
 	root := m4FixtureRoot("scope")
 	for _, mode := range []struct {
-		name     string
-		showFQCN bool
-		golden   string
+		name           string
+		showFQCN       bool
+		showFQCNParams bool
+		golden         string
 	}{
 		{name: "default compact", golden: "expected-start-all.short.mmd"},
-		{name: "show-fqcn", showFQCN: true, golden: "expected-start-all.mmd"},
+		{name: "show-fqcn full", showFQCN: true, showFQCNParams: true, golden: "expected-start-all.mmd"},
 	} {
 		t.Run(mode.name, func(t *testing.T) {
 			args := []string{"--scope=all", "app.Workflow.start", root}
 			if mode.showFQCN {
 				args = append([]string{"--show-fqcn=true"}, args...)
+			}
+			if mode.showFQCNParams {
+				args = append([]string{"--show-fqcn-params=true"}, args...)
 			}
 			var out bytes.Buffer
 			if err := runTrace(args, &out); err != nil {

@@ -183,6 +183,7 @@ func writeTraceHelp(out io.Writer) {
 	fmt.Fprintln(out, "Options:")
 	fmt.Fprintln(out, "  --format=mermaid|dot|json       output format (default: mermaid)")
 	fmt.Fprintln(out, "  --show-fqcn[=true|false]        show full FQCNs in Mermaid/DOT diagram labels")
+	fmt.Fprintln(out, "  --show-fqcn-params[=true|false] show full FQCNs in parameter types")
 	fmt.Fprintln(out, "  --direction=TD|LR|BT|RL         Mermaid direction (default: TD)")
 	fmt.Fprintln(out, "  --scope=main|all                source scope (default: main)")
 	fmt.Fprintln(out, "  --include-unresolved[=true|false] include unresolved terminals (default: true)")

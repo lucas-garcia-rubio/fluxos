@@ -38,6 +38,9 @@ func TestParseTraceOptionsDefaults(t *testing.T) {
 	if got.ShowFQCN {
 		t.Fatal("ShowFQCN defaulted to true")
 	}
+	if got.ShowFQCNParams {
+		t.Fatal("ShowFQCNParams defaulted to true")
+	}
 }
 
 func TestParseIndexOptionsDefaults(t *testing.T) {
@@ -92,13 +95,14 @@ func TestParseTraceOptionsParsesBooleanForms(t *testing.T) {
 		"--all-impls=false",
 		"--no-prompt=false",
 		"--show-fqcn=false",
+		"--show-fqcn-params=false",
 		"--include-unresolved",
 		"app.Workflow.start",
 	})
 	if err != nil {
 		t.Fatalf("parseTraceOptions: %v", err)
 	}
-	if got.AllImpls || got.NoPrompt || got.ShowFQCN || !got.IncludeUnresolved {
+	if got.AllImpls || got.NoPrompt || got.ShowFQCN || got.ShowFQCNParams || !got.IncludeUnresolved {
 		t.Fatalf("options = %+v", got)
 	}
 
@@ -116,6 +120,19 @@ func TestParseTraceOptionsParsesBooleanForms(t *testing.T) {
 	}
 	if !got.ShowFQCN {
 		t.Fatal("bare --show-fqcn did not set true")
+	}
+
+	got, err = parseTraceOptions([]string{"--show-fqcn-params", "app.Workflow.start"})
+	if err != nil {
+		t.Fatalf("parse bare --show-fqcn-params: %v", err)
+	}
+	if !got.ShowFQCNParams {
+		t.Fatal("bare --show-fqcn-params did not set true")
+	}
+
+	got, err = parseTraceOptions([]string{"--show-fqcn-params=true", "app.Workflow.start"})
+	if err != nil || !got.ShowFQCNParams {
+		t.Fatalf("parse --show-fqcn-params=true: options=%+v err=%v", got, err)
 	}
 }
 
@@ -146,6 +163,7 @@ func TestParseTraceOptionsRejectsInvalidFlagsAndValues(t *testing.T) {
 		{name: "invalid scope", args: []string{"--scope=tests", "app.Workflow.start"}, want: "invalid --scope"},
 		{name: "invalid boolean", args: []string{"--no-prompt=yes", "app.Workflow.start"}, want: "invalid --no-prompt"},
 		{name: "invalid show-fqcn", args: []string{"--show-fqcn=yes", "app.Workflow.start"}, want: "invalid --show-fqcn"},
+		{name: "invalid show-fqcn-params", args: []string{"--show-fqcn-params=yes", "app.Workflow.start"}, want: "invalid --show-fqcn-params"},
 		{name: "invalid integer", args: []string{"--max-depth=many", "app.Workflow.start"}, want: "non-negative integer"},
 		{name: "negative integer", args: []string{"--max-depth", "-1", "app.Workflow.start"}, want: "must not be negative"},
 		{name: "missing target", args: nil, want: "usage"},

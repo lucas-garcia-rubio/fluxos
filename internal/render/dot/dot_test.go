@@ -30,7 +30,8 @@ func renderString(t *testing.T, snapshot render.Snapshot, showFQCN ...bool) stri
 	t.Helper()
 	var out bytes.Buffer
 	show := len(showFQCN) > 0 && showFQCN[0]
-	if err := Render(&out, snapshot, show); err != nil {
+	showParams := len(showFQCN) > 1 && showFQCN[1]
+	if err := Render(&out, snapshot, show, showParams); err != nil {
 		t.Fatalf("Render: %v", err)
 	}
 	return out.String()
@@ -98,10 +99,10 @@ func TestQuoteEscapesDOTStrings(t *testing.T) {
 }
 
 func TestRenderPropagatesWriterErrors(t *testing.T) {
-	if err := Render(failingWriter{}, render.Snapshot{}, false); !errors.Is(err, errDOTWrite) {
+	if err := Render(failingWriter{}, render.Snapshot{}, false, false); !errors.Is(err, errDOTWrite) {
 		t.Fatalf("Render writer error = %v", err)
 	}
-	if err := Render(shortWriter{}, render.Snapshot{}, false); !errors.Is(err, io.ErrShortWrite) {
+	if err := Render(shortWriter{}, render.Snapshot{}, false, false); !errors.Is(err, io.ErrShortWrite) {
 		t.Fatalf("Render short write error = %v, want io.ErrShortWrite", err)
 	}
 }
@@ -120,20 +121,55 @@ func TestRenderGolden(t *testing.T) {
 		},
 	}
 	for _, mode := range []struct {
-		name     string
-		showFQCN bool
-		golden   string
+		name           string
+		showFQCN       bool
+		showFQCNParams bool
+		golden         string
 	}{
 		{name: "default compact", golden: "testdata/callgraph.short.golden"},
-		{name: "show-fqcn", showFQCN: true, golden: "testdata/callgraph.fqcn.golden"},
+		{name: "show-fqcn full", showFQCN: true, showFQCNParams: true, golden: "testdata/callgraph.fqcn.golden"},
 	} {
 		t.Run(mode.name, func(t *testing.T) {
 			want, err := os.ReadFile(mode.golden)
 			if err != nil {
 				t.Fatalf("read golden: %v", err)
 			}
-			if got := renderString(t, snapshot, mode.showFQCN); got != string(want) {
+			if got := renderString(t, snapshot, mode.showFQCN, mode.showFQCNParams); got != string(want) {
 				t.Fatalf("golden mismatch:\ngot:\n%s\nwant:\n%s", got, want)
+			}
+		})
+	}
+}
+
+func TestRenderFQCNControlsAreIndependent(t *testing.T) {
+	method := render.MethodView{TypeFQCN: "app.Workflow", Method: "start", Signature: "(app.First,app.Second)"}
+	execution := render.ExecutionView{Method: method, RuntimeTypeFQCN: "app.Runtime"}
+	snapshot := render.Snapshot{
+		Nodes: []render.NodeView{{
+			ID: "m_root", Label: "app.Workflow.start(app.First,app.Second) [runtime: app.Runtime]", Execution: execution,
+		}},
+		Truncations: []render.TruncationView{{ID: "t_root", Kind: "maxNodes", Caller: execution, Omitted: 1}},
+	}
+	tests := []struct {
+		name           string
+		showFQCN       bool
+		showFQCNParams bool
+		label          string
+		truncation     string
+	}{
+		{name: "default", label: "Workflow.start(First,Second) [runtime: Runtime]", truncation: "Workflow.start(First,Second)"},
+		{name: "owner only", showFQCN: true, label: "app.Workflow.start(First,Second) [runtime: app.Runtime]", truncation: "app.Workflow.start(First,Second)"},
+		{name: "parameters only", showFQCNParams: true, label: "Workflow.start(app.First,app.Second) [runtime: Runtime]", truncation: "Workflow.start(app.First,app.Second)"},
+		{name: "both", showFQCN: true, showFQCNParams: true, label: "app.Workflow.start(app.First,app.Second) [runtime: app.Runtime]", truncation: "app.Workflow.start(app.First,app.Second)"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := renderString(t, snapshot, tt.showFQCN, tt.showFQCNParams)
+			if !strings.Contains(got, `"m_root" [label="`+tt.label+`"`) {
+				t.Fatalf("node label missing from:\n%s", got)
+			}
+			if !strings.Contains(got, `"t_root" [shape=note, label="truncation: node limit; omitted 1 while tracing `+tt.truncation+`"`) {
+				t.Fatalf("truncation label missing from:\n%s", got)
 			}
 		})
 	}

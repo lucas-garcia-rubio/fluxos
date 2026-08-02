@@ -8,28 +8,40 @@ import (
 
 // DiagramNodeLabel returns the presentation label for a Mermaid or DOT node.
 // NodeView.Label remains the format-neutral, full-FQCN label used by JSON.
-func DiagramNodeLabel(node NodeView, showFQCN bool) string {
-	if showFQCN {
-		return node.Label
+func DiagramNodeLabel(node NodeView, showFQCN, showFQCNParams bool) string {
+	label := node.Label
+	method := node.Execution.Method
+	if method.TypeFQCN != "" && method.Method != "" {
+		if formatted, ok := formatMethodLabel(label, method, showFQCN, showFQCNParams); ok {
+			label = formatted
+		}
+	} else {
+		if !showFQCN {
+			label = shortenOwnerPrefix(label, method.TypeFQCN)
+			if label == node.Label {
+				label = shortenLabelPrefix(label)
+			}
+		}
+		if !showFQCNParams {
+			label = shortenLabelSignature(label)
+		}
 	}
-
-	label := shortenOwnerPrefix(node.Label, node.Execution.Method.TypeFQCN)
-	if label == node.Label {
-		label = shortenLabelPrefix(label)
+	if !showFQCN {
+		label = shortenRuntimeLabel(label, node.Execution.RuntimeTypeFQCN)
 	}
-	return shortenRuntimeLabel(label, node.Execution.RuntimeTypeFQCN)
+	return label
 }
 
 // DiagramTruncationLabel returns a renderer-neutral truncation label. Mermaid
 // adds its comment marker separately; DOT uses this value directly.
-func DiagramTruncationLabel(truncation TruncationView, showFQCN bool) string {
+func DiagramTruncationLabel(truncation TruncationView, showFQCN, showFQCNParams bool) string {
 	return fmt.Sprintf("truncation: %s; omitted %d while tracing %s",
 		truncationKindLabel(truncation.Kind), truncation.Omitted,
-		DiagramExecutionLabel(truncation.Caller, showFQCN))
+		DiagramExecutionLabel(truncation.Caller, showFQCN, showFQCNParams))
 }
 
 // DiagramExecutionLabel formats a caller for a diagram truncation marker.
-func DiagramExecutionLabel(execution ExecutionView, showFQCN bool) string {
+func DiagramExecutionLabel(execution ExecutionView, showFQCN, showFQCNParams bool) string {
 	method := execution.Method
 	typeFQCN := cleanSyntheticType(method.TypeFQCN)
 	if typeFQCN == "" {
@@ -42,7 +54,65 @@ func DiagramExecutionLabel(execution ExecutionView, showFQCN bool) string {
 	if signature == "" {
 		signature = "()"
 	}
+	if !showFQCNParams {
+		signature = shortenSignature(signature)
+	}
 	return typeFQCN + "." + method.Method + signature
+}
+
+func formatMethodLabel(label string, method MethodView, showFQCN, showFQCNParams bool) (string, bool) {
+	typeFQCN := cleanSyntheticType(method.TypeFQCN)
+	signature := method.Signature
+	if signature == "" {
+		signature = "()"
+	}
+	oldPrefix := typeFQCN + "." + method.Method + signature
+	if !strings.HasPrefix(label, oldPrefix) {
+		return label, false
+	}
+	if !showFQCN {
+		typeFQCN = DisplayTypeName(typeFQCN)
+	}
+	if !showFQCNParams {
+		signature = shortenSignature(signature)
+	}
+	return typeFQCN + "." + method.Method + signature + label[len(oldPrefix):], true
+}
+
+func shortenSignature(signature string) string {
+	if signature == "" || signature == "()" {
+		return signature
+	}
+	open := strings.IndexByte(signature, '(')
+	close := strings.LastIndexByte(signature, ')')
+	if open < 0 || close <= open || close != len(signature)-1 {
+		return signature
+	}
+	parameters := strings.Split(signature[open+1:close], ",")
+	for i, parameter := range parameters {
+		trimmed := strings.TrimSpace(parameter)
+		if trimmed == "" {
+			continue
+		}
+		leading := parameter[:len(parameter)-len(strings.TrimLeft(parameter, " \t"))]
+		trailing := parameter[len(strings.TrimRight(parameter, " \t")):]
+		parameters[i] = leading + DisplayTypeName(trimmed) + trailing
+	}
+	return signature[:open+1] + strings.Join(parameters, ",") + signature[close:]
+}
+
+func shortenLabelSignature(label string) string {
+	open := strings.IndexByte(label, '(')
+	if open < 0 {
+		return label
+	}
+	closeOffset := strings.IndexByte(label[open:], ')')
+	if closeOffset < 0 {
+		return label
+	}
+	close := open + closeOffset
+	signature := label[open : close+1]
+	return label[:open] + shortenSignature(signature) + label[close+1:]
 }
 
 // DisplayTypeName removes the package prefix while retaining the class and

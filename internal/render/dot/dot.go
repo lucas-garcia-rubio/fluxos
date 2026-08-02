@@ -9,11 +9,11 @@ import (
 	"github.com/lucas-garcia-rubio/fluxos/internal/render"
 )
 
-func Render(out io.Writer, snapshot render.Snapshot, showFQCN bool) error {
+func Render(out io.Writer, snapshot render.Snapshot, showFQCN, showFQCNParams bool) error {
 	var payload strings.Builder
 	payload.WriteString("digraph fluxos {\n")
 	for _, node := range snapshot.Nodes {
-		fmt.Fprintf(&payload, "  %s [label=%s, kind=%s];\n", quote(node.ID), quote(render.DiagramNodeLabel(node, showFQCN)), quote(string(node.Kind)))
+		fmt.Fprintf(&payload, "  %s [label=%s, kind=%s];\n", quote(node.ID), quote(render.DiagramNodeLabel(node, showFQCN, showFQCNParams)), quote(string(node.Kind)))
 	}
 	for _, edge := range snapshot.Edges {
 		fmt.Fprintf(&payload, "  %s -> %s", quote(edge.From), quote(edge.To))
@@ -24,7 +24,7 @@ func Render(out io.Writer, snapshot render.Snapshot, showFQCN bool) error {
 	}
 	for _, truncation := range snapshot.Truncations {
 		fmt.Fprintf(&payload, "  %s [shape=note, label=%s];\n",
-			quote(truncation.ID), quote(render.DiagramTruncationLabel(truncation, showFQCN)))
+			quote(truncation.ID), quote(render.DiagramTruncationLabel(truncation, showFQCN, showFQCNParams)))
 	}
 	payload.WriteString("}\n")
 	return writeAll(out, payload.String())

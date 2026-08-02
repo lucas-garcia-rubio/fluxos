@@ -21,6 +21,7 @@ type TraceOptions struct {
 	ProjectRoot       string
 	Format            OutputFormat
 	ShowFQCN          bool
+	ShowFQCNParams    bool
 	Direction         string
 	DirectionSet      bool
 	Scope             project.ScopeMode
@@ -51,6 +52,7 @@ var traceOptionKinds = map[string]optionKind{
 	"scope":              optionValue,
 	"pick-impls":         optionValue,
 	"show-fqcn":          optionBool,
+	"show-fqcn-params":   optionBool,
 	"all-impls":          optionBool,
 	"no-prompt":          optionBool,
 	"include-unresolved": optionBool,
@@ -109,6 +111,12 @@ func parseTraceOptions(args []string) (TraceOptions, error) {
 	}
 	if value, ok := flags["show-fqcn"]; ok {
 		opts.ShowFQCN, err = parseBoolOption("show-fqcn", value)
+		if err != nil {
+			return TraceOptions{}, err
+		}
+	}
+	if value, ok := flags["show-fqcn-params"]; ok {
+		opts.ShowFQCNParams, err = parseBoolOption("show-fqcn-params", value)
 		if err != nil {
 			return TraceOptions{}, err
 		}
