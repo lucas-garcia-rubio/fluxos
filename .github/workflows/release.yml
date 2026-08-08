@@ -351,11 +351,11 @@ jobs:
           cmp -- "$FIXTURE_DIR/expected-start.json" "$json_candidate" || \
             die 'JSON renderer output differs from expected-start.json'
           "$binary" trace --format=dot "$target" "$FIXTURE_DIR" > "$dot_candidate"
-          cmp -- "$FIXTURE_DIR/expected-start.dot" "$dot_candidate" || \
-            die 'DOT renderer output differs from expected-start.dot'
+          cmp -- "$FIXTURE_DIR/expected-start.short.dot" "$dot_candidate" || \
+            die 'DOT renderer output differs from expected-start.short.dot'
           "$binary" trace --format=mermaid "$target" "$FIXTURE_DIR" > "$mermaid_candidate"
-          cmp -- "$FIXTURE_DIR/expected-start.mmd" "$mermaid_candidate" || \
-            die 'Mermaid renderer output differs from expected-start.mmd'
+          cmp -- "$FIXTURE_DIR/expected-start.short.mmd" "$mermaid_candidate" || \
+            die 'Mermaid renderer output differs from expected-start.short.mmd'
 
           jq . "$json_candidate" > "$RUNNER_TEMP/fluxos-runtime-context-validated.json"
           test -s "$RUNNER_TEMP/fluxos-runtime-context-validated.json"
