@@ -189,6 +189,9 @@ run_expected_output runtime-context-dot "$git_root/testdata/m4/runtime-context/e
 petclinic_url='https://github.com/spring-projects/spring-petclinic.git'
 petclinic_sha='c36452a2c34443ae26b4ecbba4f149906af14717'
 petclinic_target='org.springframework.samples.petclinic.owner.OwnerController.processFindForm'
+# Default render drops the package prefix, so the target surfaces as
+# <Class>.<method>; this substring also appears in full-FQCN output.
+petclinic_target_ref='OwnerController.processFindForm'
 petclinic_dir="$temporary_root/spring-petclinic"
 clone_stdout="$temporary_root/petclinic-clone.stdout"
 clone_stderr="$temporary_root/petclinic-clone.stderr"
@@ -218,7 +221,7 @@ petclinic_first_line=''
 IFS= read -r petclinic_first_line < "$petclinic_stdout" || true
 [[ $petclinic_first_line == 'flowchart TD' ]] || \
   die 'Spring Petclinic smoke did not render Mermaid flowchart TD'
-grep -Fq -- "$petclinic_target" "$petclinic_stdout" || \
+grep -Fq -- "$petclinic_target_ref" "$petclinic_stdout" || \
   die 'Spring Petclinic smoke output lacks a readable target reference'
 printf 'smoke: spring-petclinic passed\n'
 
