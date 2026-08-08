@@ -673,10 +673,19 @@ jobs:
               --title "fluxos $TAG" \
               --generate-notes
             release_created=1
-            # Drafts are not returned by the tag lookup; immediately discover
-            # and pin the newly created draft before touching any assets.
-            discover_release
-            [[ "$RELEASE_EXISTS" == 1 && "$RELEASE_DRAFT" == true ]] || \
+            # Drafts are not returned by the tag lookup, and the releases list
+            # is eventually consistent: a freshly created draft may take a few
+            # polls to surface. Poll briefly before pinning it by ID.
+            rediscovered=0
+            for _ in 1 2 3 4 5; do
+              discover_release
+              if [[ "$RELEASE_EXISTS" == 1 && "$RELEASE_DRAFT" == true ]]; then
+                rediscovered=1
+                break
+              fi
+              sleep 2
+            done
+            [[ "$rediscovered" == 1 ]] || \
               die 'newly created draft could not be rediscovered by ID'
           else
             case "$RELEASE_DRAFT" in
