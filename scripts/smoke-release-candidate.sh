@@ -170,18 +170,20 @@ run_expected_output() {
 }
 
 run_expected_output version "$expected_version" --version
-run_expected_output m3-workflow-start "$git_root/testdata/trace/expected.mmd" \
+run_expected_output m3-workflow-start "$git_root/testdata/trace/expected.short.mmd" \
   trace Workflow.start "$git_root/testdata/trace"
-run_expected_output m4-no-prompt "$git_root/testdata/m4/interactive/expected-terminal.mmd" \
+run_expected_output m3-workflow-start-fqcn "$git_root/testdata/trace/expected.mmd" \
+  trace --show-fqcn=true --show-fqcn-params=true Workflow.start "$git_root/testdata/trace"
+run_expected_output m4-no-prompt "$git_root/testdata/m4/interactive/expected-terminal.short.mmd" \
   trace --no-prompt app.Workflow.start "$git_root/testdata/m4/interactive"
-run_expected_output m4-all-impls "$git_root/testdata/m4/interactive/expected-all-impls.mmd" \
+run_expected_output m4-all-impls "$git_root/testdata/m4/interactive/expected-all-impls.short.mmd" \
   trace --all-impls app.Workflow.start "$git_root/testdata/m4/interactive"
-run_expected_output m4-pick-alpha-gamma "$git_root/testdata/m4/interactive/expected-pick-alpha-gamma.mmd" \
+run_expected_output m4-pick-alpha-gamma "$git_root/testdata/m4/interactive/expected-pick-alpha-gamma.short.mmd" \
   trace '--pick-impls=contracts.A=app.AlphaA,contracts.B=app.GammaB' \
   app.Workflow.start "$git_root/testdata/m4/interactive"
 run_expected_output runtime-context-json "$git_root/testdata/m4/runtime-context/expected-start.json" \
   trace --format=json 'app.Workflow.start(app.First,app.Second)' "$git_root/testdata/m4/runtime-context"
-run_expected_output runtime-context-dot "$git_root/testdata/m4/runtime-context/expected-start.dot" \
+run_expected_output runtime-context-dot "$git_root/testdata/m4/runtime-context/expected-start.short.dot" \
   trace --format=dot 'app.Workflow.start(app.First,app.Second)' "$git_root/testdata/m4/runtime-context"
 
 petclinic_url='https://github.com/spring-projects/spring-petclinic.git'
